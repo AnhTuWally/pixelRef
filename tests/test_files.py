@@ -367,3 +367,33 @@ def test_export_originals_sanitises_names_dedupes_and_includes_group_children():
         assert not (out.parent.parent / "escape_.png").exists()
     finally:
         h.close()
+
+
+def test_copy_path_and_open_containing_folder():
+    """Copy File Path / Copy Folder Path / Open Containing Folder act on the saved scene file."""
+    from PySide6.QtGui import QDesktopServices
+    from PySide6.QtWidgets import QApplication
+
+    h = make()
+    opened: list[str] = []
+    original = QDesktopServices.openUrl
+    QDesktopServices.openUrl = staticmethod(lambda url: opened.append(url.toLocalFile()) or True)
+    try:
+        h.app.actions.refresh_states()
+        assert not h.app.actions.get("file.open_folder").isEnabled(), "an unsaved scene has no folder"
+        QApplication.clipboard().setText("untouched")
+        assert h.run("file.copy_path") is None and not h.run("file.open_folder")
+        assert QApplication.clipboard().text() == "untouched" and not opened
+        scene_path = (tmp_dir() / "board.pxref").resolve()
+        assert h.save_to(scene_path)
+        h.app.actions.refresh_states()
+        assert h.app.actions.get("file.copy_path").isEnabled()
+        assert h.run("file.copy_path") == str(scene_path)
+        assert QApplication.clipboard().text() == str(scene_path)
+        assert h.run("file.copy_folder") == str(scene_path.parent)
+        assert QApplication.clipboard().text() == str(scene_path.parent)
+        assert h.run("file.open_folder")
+        assert [Path(p) for p in opened] == [scene_path.parent]
+    finally:
+        QDesktopServices.openUrl = original
+        h.close()

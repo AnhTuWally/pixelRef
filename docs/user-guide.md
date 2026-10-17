@@ -330,6 +330,10 @@ Exports wait for every effect result, so what you save is complete.
   canvas shows a start panel with the pixelRef version, *Open…* and your recent
   files as cards with their thumbnails, names, folders and dates. Click a card
   to open it.
+- **Finding the file.** *File → Copy File Path* and *Copy Folder Path* put the
+  open scene's full path, or its folder's, on the clipboard; *Open Containing
+  Folder* shows that folder in your system file browser. They are greyed out
+  until the scene has been saved.
 - **Autosave and recovery.** Unsaved work (images included) is written to a
   recovery copy every minute. After a crash, the next start offers to restore
   it.

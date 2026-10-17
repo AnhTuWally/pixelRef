@@ -263,8 +263,11 @@ the rest also work headless (batch mode, scripts).
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
 | `file.clear_recent()` |  |  | Forget the recent files list. |
+| `file.copy_folder()` |  |  | Copy the path of the folder holding the open scene file to the clipboard. |
+| `file.copy_path()` |  |  | Copy the open scene file's full path to the clipboard. |
 | `file.new()` |  |  | New, empty scene (asks about unsaved changes). |
 | `file.open()` |  |  | Choose a scene file to open (asks about unsaved changes first). |
+| `file.open_folder()` |  |  | Open the folder holding the open scene file in the system file browser. |
 | `file.open_path(path: str, confirm: bool = True)` |  |  | Open a scene file (asks about unsaved changes unless confirm=False). |
 | `file.save()` |  |  | Save the scene to its file (asks for a name the first time). |
 | `file.save_as()` |  |  | Save the scene under a new file name (dialog). |

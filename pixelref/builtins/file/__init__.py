@@ -9,8 +9,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QStandardPaths, QTimer
-from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtCore import QStandardPaths, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from pixelref.plugin_api import SCENE_EXT, SCENE_EXTS
 from pixelref.plugin_api.contracts import IngestHandler
@@ -253,8 +254,43 @@ def activate_ui(ui: Any) -> None:
             return save_as()
         return save_to(str(session.scene_path))
 
+    def saved_path() -> Path | None:
+        if session.scene_path is None:
+            ui.status("The scene hasn't been saved to a file yet")
+            return None
+        return Path(session.scene_path).resolve()
+
+    def copy_path() -> str | None:
+        """Copy the open scene file's full path to the clipboard."""
+        path = saved_path()
+        if path is None:
+            return None
+        QApplication.clipboard().setText(str(path))
+        ui.status(f"Copied: {path}")
+        return str(path)
+
+    def copy_folder() -> str | None:
+        """Copy the path of the folder holding the open scene file to the clipboard."""
+        path = saved_path()
+        if path is None:
+            return None
+        QApplication.clipboard().setText(str(path.parent))
+        ui.status(f"Copied: {path.parent}")
+        return str(path.parent)
+
+    def open_folder() -> bool:
+        """Open the folder holding the open scene file in the system file browser."""
+        path = saved_path()
+        if path is None:
+            return False
+        if not path.parent.is_dir():
+            QMessageBox.warning(app.main_window(), "Folder not found", str(path.parent))
+            return False
+        return QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
+
     for name, fn in (("new", new), ("open", open_dialog), ("open_path", open_path), ("save", save),
-                     ("save_as", save_as), ("save_to", save_to), ("clear_recent", clear_recent)):
+                     ("save_as", save_as), ("save_to", save_to), ("clear_recent", clear_recent),
+                     ("copy_path", copy_path), ("copy_folder", copy_folder), ("open_folder", open_folder)):
         ui.command(name, fn, undoable=False)
     ui.provide_service("files", type("Files", (), {
         "open_path": staticmethod(open_path), "save_to": staticmethod(save_to),
@@ -266,6 +302,16 @@ def activate_ui(ui: Any) -> None:
     a("file.open", "file.open", "Open…", keywords="load file board scene", category="File", icon="folder")
     a("file.save", "file.save", "Save", keywords="store write file", category="File", icon="save")
     a("file.save_as", "file.save_as", "Save As…", keywords="copy file rename", category="File")
+    def has_file() -> bool:
+        return session.scene_path is not None
+
+    a("file.copy_path", "file.copy_path", "Copy File Path", keywords="clipboard scene location full path",
+      category="File", enabled=has_file)
+    a("file.copy_folder", "file.copy_folder", "Copy Folder Path", keywords="clipboard containing directory location",
+      category="File", enabled=has_file)
+    a("file.open_folder", "file.open_folder", "Open Containing Folder",
+      keywords="reveal show explorer finder file browser directory location", category="File", icon="folder",
+      enabled=has_file)
     for key, action in (("Ctrl+N", "file.new"), ("Ctrl+O", "file.open"), ("Ctrl+S", "file.save"),
                         ("Ctrl+Shift+S", "file.save_as")):
         ui.bind(key, action)
@@ -284,6 +330,9 @@ def activate_ui(ui: Any) -> None:
     ui.menu("canvas", builder=recent_menu, text="Open Recent", path="File", group="file", order=2)
     ui.menu("canvas", "file.save", path="File", group="file", order=3)
     ui.menu("canvas", "file.save_as", path="File", group="file", order=4)
+    ui.menu("canvas", "file.copy_path", path="File", group="file.location", order=0)
+    ui.menu("canvas", "file.copy_folder", path="File", group="file.location", order=1)
+    ui.menu("canvas", "file.open_folder", path="File", group="file.location", order=2)
 
     # ---- Dropped scene files -------------------------------------------------------------------
 

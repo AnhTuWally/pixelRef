@@ -687,7 +687,7 @@ GROUP_ORDER = {
     "arrange": 40, "group": 42, "select": 45, "reveal": 47, "focus": 50, "history": 55, "tools": 58,
     "menus": 65, "view": 70, "file": 75, "window": 80, "app": 90,
     "view.frame": 71, "view.zoom": 72, "view.flip": 73, "view.display": 74, "view.background": 75,
-    "file.import": 76, "file.export": 77, "file.storage": 78,
+    "file.location": 75.5, "file.import": 76, "file.export": 77, "file.storage": 78,
     "window.panels": 81, "w_modes": 82, "window.extras": 83,
 }
 
