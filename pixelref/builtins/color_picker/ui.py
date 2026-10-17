@@ -8,11 +8,77 @@ from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, QTimer, Qt
 from PySide6.QtGui import QColor, QImage, QPainter, QPen
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QVBoxLayout, QWidget
 
+from pixelref.plugin_api import CommandError
 from pixelref.plugin_api.ui import HANDLED, PointerEvent, Tool, cursor_pos_in, paint, theme
 from pixelref.plugin_api.ui import widgets as w
 
 LOUPE_PIXELS = 11  # sampled pixels per side (odd, so one is centred)
 LOUPE_CELL = 9  # on-screen size of each magnified pixel
+
+
+def rgb_text(color: QColor) -> str:
+    return f"rgb({color.red()}, {color.green()}, {color.blue()})"
+
+
+def hsv_text(color: QColor) -> str:
+    """HSV in the usual units: hue in degrees, saturation and value in percent."""
+    hue = max(0, color.hsvHue())  # -1 for greys
+    return f"hsv({hue}, {round(color.hsvSaturationF() * 100)}%, {round(color.valueF() * 100)}%)"
+
+
+COLOR_FORMATS = {"hex": lambda c: c.name().upper(), "rgb": rgb_text, "hsv": hsv_text}
+
+
+def paint_loupe(painter: QPainter, image: QImage, pos: QPoint, width: int, height: int, color: QColor) -> None:
+    """Magnifier next to ``pos``: enlarged pixels of ``image`` (a picture of the area
+    ``width`` × ``height``, at its device pixel ratio), the centre one outlined, plus a
+    swatch and hex/RGB/HSV readout of ``color``."""
+    ratio = image.devicePixelRatio() or 1.0
+    n, cell = LOUPE_PIXELS, LOUPE_CELL
+    size = n * cell
+    cx, cy = int(pos.x() * ratio), int(pos.y() * ratio)
+    patch = image.copy(QRect(cx - n // 2, cy - n // 2, n, n))
+    patch.setDevicePixelRatio(1.0)
+    label = f"{color.name().upper()}   {rgb_text(color)}   {hsv_text(color)}"
+    metrics = painter.fontMetrics()
+    label_h = metrics.height() + 12
+    panel_w = max(size, metrics.horizontalAdvance(label) + 40)
+    # Keep the loupe on screen: flip to the other side of the cursor near edges.
+    x, y = pos.x() + 22, pos.y() + 22
+    if x + panel_w > width - 4:
+        x = pos.x() - 22 - panel_w
+    if y + size + label_h + 4 > height - 4:
+        y = pos.y() - 22 - size - label_h - 4
+    painter.save()
+    painter.setRenderHint(QPainter.SmoothPixmapTransform, False)
+    painter.setRenderHint(QPainter.Antialiasing, False)
+    frame = QRectF(x, y, size, size)
+    painter.fillRect(frame, QColor("#0d0e11"))
+    painter.drawImage(frame, patch)
+    painter.setPen(QPen(QColor(0, 0, 0, 45), 1))
+    for i in range(1, n):
+        painter.drawLine(QPointF(x + i * cell, y), QPointF(x + i * cell, y + size))
+        painter.drawLine(QPointF(x, y + i * cell), QPointF(x + size, y + i * cell))
+    centre = QRectF(x + (n // 2) * cell, y + (n // 2) * cell, cell, cell)
+    painter.setBrush(Qt.NoBrush)
+    painter.setPen(QPen(QColor("#000000"), 3))
+    painter.drawRect(centre)
+    painter.setPen(QPen(QColor("#ffffff"), 1))
+    painter.drawRect(centre)
+    painter.setRenderHint(QPainter.Antialiasing, True)
+    painter.setPen(QPen(theme.ACCENT, 1.5))
+    painter.drawRect(frame)
+    pill = QRectF(x, y + size + 4, panel_w, label_h)
+    painter.setPen(QPen(theme.ACCENT, 1.0))
+    painter.setBrush(QColor(20, 24, 32, 235))
+    painter.drawRoundedRect(pill, 5, 5)
+    swatch = QRectF(pill.left() + 7, pill.top() + 5, label_h - 10, label_h - 10)
+    painter.setPen(QPen(QColor("#ffffff"), 1))
+    painter.setBrush(color)
+    painter.drawRoundedRect(swatch, 3, 3)
+    painter.setPen(theme.TEXT_LIGHT)
+    painter.drawText(pill.adjusted(swatch.width() + 14, 0, -6, 0), Qt.AlignVCenter | Qt.AlignLeft, label)
+    painter.restore()
 
 
 class PickTool(Tool):
@@ -116,7 +182,8 @@ class PickTool(Tool):
         QApplication.clipboard().setText(hex_value)
         brush.set_color(color)
         brush.add_recent(color)
-        previous = self.app.tools.get(self.return_to) if self.return_to else None
+        active = self.app.tools.active is self
+        previous = self.app.tools.get(self.return_to) if active and self.return_to else None
         if previous is not None and getattr(previous, "uses_brush_color", False):
             # Straight back to drawing, now with the picked colour.
             self.app.tools.activate(previous.id)
@@ -127,7 +194,7 @@ class PickTool(Tool):
             owner = f"{target.title}'s color" if target is not None else "the brush color"
             message = f"Picked {hex_value} · copied · now {owner}"
         self.ui.toast(message, color)
-        self.ui.status(f"{message}  ·  rgb({color.red()}, {color.green()}, {color.blue()})")
+        self.ui.status(f"{message}  ·  {rgb_text(color)}  ·  {hsv_text(color)}")
 
     # ---- Painting ------------------------------------------------------------------------
 
@@ -135,8 +202,7 @@ class PickTool(Tool):
         return "◉  Pick a color · click to pick what's in the loupe — it becomes the brush color   —   Esc to cancel"
 
     def paint_overlay(self, view: Any, painter: QPainter) -> None:
-        """Magnifier next to the cursor: enlarged pixels, the picked one outlined,
-        plus a swatch and hex/RGB readout of that colour."""
+        """Magnifier next to the cursor (see :func:`paint_loupe`)."""
         if not view.display.show_overlays:
             text = self.banner(view)
             if text:
@@ -144,53 +210,8 @@ class PickTool(Tool):
         pos, image = self.pos, self.snapshots.get(id(view))
         if pos is None or self.pos_view is not view or image is None or image.isNull():
             return
-        ratio = image.devicePixelRatio() or 1.0
-        n, cell = LOUPE_PIXELS, LOUPE_CELL
-        size = n * cell
-        cx, cy = int(pos.x() * ratio), int(pos.y() * ratio)
-        patch = image.copy(QRect(cx - n // 2, cy - n // 2, n, n))
-        patch.setDevicePixelRatio(1.0)
-        color = self.color_at(view, pos)
-        label = f"{color.name().upper()}   rgb({color.red()}, {color.green()}, {color.blue()})"
-        metrics = painter.fontMetrics()
-        label_h = metrics.height() + 12
-        panel_w = max(size, metrics.horizontalAdvance(label) + 40)
-        # Keep the loupe on screen: flip to the other side of the cursor near edges.
-        x, y = pos.x() + 22, pos.y() + 22
-        if x + panel_w > view.viewport().width() - 4:
-            x = pos.x() - 22 - panel_w
-        if y + size + label_h + 4 > view.viewport().height() - 4:
-            y = pos.y() - 22 - size - label_h - 4
-        painter.save()
-        painter.setRenderHint(QPainter.SmoothPixmapTransform, False)
-        painter.setRenderHint(QPainter.Antialiasing, False)
-        frame = QRectF(x, y, size, size)
-        painter.fillRect(frame, QColor("#0d0e11"))
-        painter.drawImage(frame, patch)
-        painter.setPen(QPen(QColor(0, 0, 0, 45), 1))
-        for i in range(1, n):
-            painter.drawLine(QPointF(x + i * cell, y), QPointF(x + i * cell, y + size))
-            painter.drawLine(QPointF(x, y + i * cell), QPointF(x + size, y + i * cell))
-        centre = QRectF(x + (n // 2) * cell, y + (n // 2) * cell, cell, cell)
-        painter.setBrush(Qt.NoBrush)
-        painter.setPen(QPen(QColor("#000000"), 3))
-        painter.drawRect(centre)
-        painter.setPen(QPen(QColor("#ffffff"), 1))
-        painter.drawRect(centre)
-        painter.setRenderHint(QPainter.Antialiasing, True)
-        painter.setPen(QPen(theme.ACCENT, 1.5))
-        painter.drawRect(frame)
-        pill = QRectF(x, y + size + 4, panel_w, label_h)
-        painter.setPen(QPen(theme.ACCENT, 1.0))
-        painter.setBrush(QColor(20, 24, 32, 235))
-        painter.drawRoundedRect(pill, 5, 5)
-        swatch = QRectF(pill.left() + 7, pill.top() + 5, label_h - 10, label_h - 10)
-        painter.setPen(QPen(QColor("#ffffff"), 1))
-        painter.setBrush(color)
-        painter.drawRoundedRect(swatch, 3, 3)
-        painter.setPen(theme.TEXT_LIGHT)
-        painter.drawText(pill.adjusted(swatch.width() + 14, 0, -6, 0), Qt.AlignVCenter | Qt.AlignLeft, label)
-        painter.restore()
+        viewport = view.viewport()
+        paint_loupe(painter, image, pos, viewport.width(), viewport.height(), self.color_at(view, pos))
 
     # ---- Options panel ----------------------------------------------------------------------
 
@@ -204,19 +225,31 @@ class PickTool(Tool):
         panel.live_label = QLabel("Hover over the canvas…", panel)
         panel.live_label.setObjectName("hexLabel")
         layout.addWidget(w.hrow(panel, QLabel("Under cursor", panel), panel.live_swatch, panel.live_label))
+        panel.live_detail = QLabel("", panel)
+        panel.live_detail.setObjectName("pathLabel")
+        layout.addWidget(panel.live_detail)
         panel.current_swatch = w.make_tool_button("", "Picked color (the brush color)", parent=panel)
         panel.current_label = QLabel("", panel)
         panel.current_label.setObjectName("hexLabel")
-        panel.copy_btn = w.make_tool_button("Copy", "Copy the hex code to the clipboard", width=44, parent=panel)
-
-        def copy_hex() -> None:
-            hex_value = brush.color.name().upper()
-            QApplication.clipboard().setText(hex_value)
-            self.ui.toast(f"Copied {hex_value}", brush.color)
-
-        panel.copy_btn.clicked.connect(copy_hex)
-        layout.addWidget(w.hrow(panel, QLabel("Picked", panel), panel.current_swatch, panel.current_label, None,
-                                panel.copy_btn))
+        layout.addWidget(w.hrow(panel, QLabel("Picked", panel), panel.current_swatch, panel.current_label))
+        panel.current_detail = QLabel("", panel)
+        panel.current_detail.setObjectName("pathLabel")
+        panel.current_detail.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        layout.addWidget(panel.current_detail)
+        panel.copy_buttons = {}
+        for key, tip in (("hex", "Copy the hex code (#RRGGBB)"), ("rgb", "Copy as rgb(r, g, b)"),
+                         ("hsv", "Copy as hsv(hue°, saturation %, value %)")):
+            button = w.make_tool_button(key.upper(), tip, width=44, parent=panel)
+            button.clicked.connect(lambda _checked=False, k=key: self.copy_color(k))
+            panel.copy_buttons[key] = button
+        panel.copy_btn = panel.copy_buttons["hex"]
+        layout.addWidget(w.hrow(panel, QLabel("Copy", panel), *panel.copy_buttons.values(), None))
+        panel.screen_btn = QPushButton("Pick from screen…", panel)
+        panel.screen_btn.setObjectName("toolBtn")
+        panel.screen_btn.setFocusPolicy(Qt.NoFocus)
+        panel.screen_btn.setToolTip("Pick a color anywhere on your screens, outside pixelRef too (Ctrl+Alt+I)")
+        panel.screen_btn.clicked.connect(lambda: self.app.run_command("color_picker.pick_screen"))
+        layout.addWidget(panel.screen_btn)
         usage = QLabel("Click the canvas to pick. The color is copied and becomes the color of the drawing "
                        "tool you came from (each tool keeps its own).", panel)
         usage.setObjectName("pathLabel")
@@ -246,8 +279,8 @@ class PickTool(Tool):
         for panel in list(self.panels):
             try:
                 w.swatch(panel.current_swatch, color)
-                panel.current_label.setText(
-                    f"{color.name().upper()}  ({color.red()}, {color.green()}, {color.blue()})")
+                panel.current_label.setText(color.name().upper())
+                panel.current_detail.setText(f"{rgb_text(color)}   {hsv_text(color)}")
                 panel.apply_btn.setVisible(bool(targets))
                 panel.apply_btn.setText(f"Apply {color.name().upper()} to selection ({len(targets)})")
             except RuntimeError:
@@ -259,11 +292,21 @@ class PickTool(Tool):
                 if color is None or not color.isValid():
                     w.swatch(panel.live_swatch, QColor(0, 0, 0, 0))
                     panel.live_label.setText("Hover over the canvas…")
+                    panel.live_detail.setText("")
                 else:
                     w.swatch(panel.live_swatch, color)
                     panel.live_label.setText(color.name().upper())
+                    panel.live_detail.setText(f"{rgb_text(color)}   {hsv_text(color)}")
             except RuntimeError:
                 self.panels.remove(panel)
+
+    def copy_color(self, fmt: str = "hex") -> str:
+        """Copy the picked colour as hex, rgb(…) or hsv(…)."""
+        color = self.ui.service("brush").color
+        text = COLOR_FORMATS[fmt](color)
+        QApplication.clipboard().setText(text)
+        self.ui.toast(f"Copied {text}", color)
+        return text
 
     def apply_to_selection(self) -> None:
         brush = self.ui.service("brush")
@@ -275,8 +318,43 @@ class PickTool(Tool):
 
 
 def activate_picker_ui(ui: Any) -> None:
+    from .screen import ScreenPicker
+
     tool = PickTool(ui)
     ui.register_tool(tool)
+
+    def screen_failed(message: str) -> None:
+        ui.status(message)
+        ui.toast(message)
+
+    def screen_picked(color: QColor | None) -> None:
+        if color is None:
+            ui.status("Screen pick cancelled")
+            tool.update_live(None)
+        else:
+            tool.picked(color)
+
+    picker = ScreenPicker(screen_picked, tool.update_live, screen_failed)
+    ui.track(picker.close)
+
+    def pick_screen() -> bool:
+        """Pick a colour anywhere on the screen, outside pixelRef too (Ctrl+Alt+I); Esc cancels."""
+        if not picker.start():
+            return False
+        ui.status("Pick a color from the screen · click to pick · Esc to cancel")
+        return True
+
+    def copy_color(fmt: str = "hex") -> str:
+        """Copy the picked colour as "hex" (#RRGGBB), "rgb" (rgb(r, g, b)) or "hsv" (hsv(h, s%, v%))."""
+        if fmt not in COLOR_FORMATS:
+            raise CommandError(f"Unknown colour format '{fmt}' ({', '.join(COLOR_FORMATS)})")
+        return tool.copy_color(fmt)
+
+    ui.command("pick_screen", pick_screen, alias="pick_screen_color", undoable=False)
+    ui.command("copy_color", copy_color, undoable=False)
+    ui.action("color_picker.pick_screen", "color_picker.pick_screen", "Pick Color from Screen", icon="pick",
+              keywords="eyedropper sample colour color screen desktop outside other app", category="Tools")
+    ui.bind("Ctrl+Alt+I", "color_picker.pick_screen")
     ui.on_ui("camera.changed", tool.schedule_refresh)
     ui.on_ui("canvas.refreshed", tool.schedule_refresh)
     ui.on_ui("ui.selection_changed", tool.refresh_panels)

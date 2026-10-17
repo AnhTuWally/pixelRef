@@ -1,4 +1,5 @@
-"""Rectangles: ``annotation_rect`` nodes and the Rect tool."""
+"""Rectangles and ellipses: ``annotation_rect`` nodes (``shape`` picks the outline),
+the Rect tool and the Ellipse tool."""
 
 from __future__ import annotations
 
@@ -7,6 +8,7 @@ from typing import Any
 from pixelref.plugin_api import CAP_COLORABLE, CAP_CONTENT, CAP_ERASABLE, Attr, NodeType
 
 LINE_STYLES = ("solid", "dash", "dot", "dashdot", "none")
+SHAPES = ("rect", "ellipse")
 FILL_STYLES = ("solid", "dense", "sparse", "diagonal", "cross", "horizontal", "vertical", "grid", "none")
 
 RECT_TYPE = NodeType(
@@ -18,6 +20,7 @@ RECT_TYPE = NodeType(
     compute={"local_bounds": lambda _s, node: [0.0, 0.0, *[float(v) for v in node.attrs.get("size", [120.0, 80.0])]]},
     attrs=(
         Attr("size", "float2", [120.0, 80.0], group="Shape"),
+        Attr("shape", "enum", "rect", choices=SHAPES, group="Shape", doc="rect, or the ellipse inside the box"),
         Attr("stroke_color", "color", [255, 0, 0], group="Stroke"),
         Attr("fill_color", "color", [0, 0, 0], group="Fill"),
         Attr("fill_opacity", "float", 0.0, minimum=0.0, maximum=1.0, group="Fill", label="Fill alpha",
@@ -46,7 +49,12 @@ def activate(ctx: Any) -> None:
         session.selection.set([final])
         return final
 
+    def create_ellipse(x: float, y: float, width: float, height: float, name: str = "Ellipse", **attrs: Any) -> str:
+        """Create an ellipse in the box at (x, y); extra keyword arguments are attributes."""
+        return create_rect(x, y, width, height, name, **{**attrs, "shape": "ellipse"})
+
     ctx.command("create", create_rect, alias="create_rect", label="Draw Rect")
+    ctx.command("create_ellipse", create_ellipse, alias="create_ellipse", label="Draw Ellipse")
 
 
 def activate_ui(ui: Any) -> None:

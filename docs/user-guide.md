@@ -105,6 +105,7 @@ adjusted by its handles without leaving the tool.
 | --- | --- | --- |
 | Text note | `T` | see [Text notes](#text-notes) |
 | Rectangle | `R` | reshape points, a corner-radius handle, dashed/dotted lines, hatch fills |
+| Ellipse | `O` | `Shift` draws a circle; the same points, lines and fills as rectangles |
 | Arrow / line | `A` | a handle on each end (`Shift` snaps to 45°), arrowheads on either or both ends |
 | Blur | `B` | blurs whatever is under it, see [Blur and pixelate](#blur-and-pixelate) |
 | Pixelate | `X` | shows whatever is under it as blocks |
@@ -150,12 +151,38 @@ The box has fill, border, corner radius, padding, presets (Title, Label,
 Sticky note, Callout, Highlighter) and side handles to set its width
 (double-click one to fit the text again).
 
+- **Links:** web addresses and file paths in a note (`https://…`, `www.…`,
+  `/path/to/file.png`, `~/refs/board.pur`) become links. To link any words, or
+  the whole note, use **Link…** (`Ctrl+K` while typing) or **Link to File…**.
+  `Ctrl+click` a link to open it. Web pages open in the browser, `.pxref`
+  scenes and PureRef boards open in pixelRef (it asks about unsaved changes
+  first), and other files open in their usual app. A relative path is
+  relative to the scene's folder.
+- **Checklists:** **Checklist** puts a ☐ box in front of each line of the
+  selected notes. Use it again to take the boxes away. With the Select tool,
+  a click on a box ticks it (☑) without selecting or moving the note.
+- **Copy and paste text style:** `Ctrl+Shift+C` copies a note's look (font,
+  colours, box). While typing, it copies the formatting at the cursor
+  instead. `Ctrl+Shift+V` pastes it onto the selected notes, or onto the
+  selected words while typing.
+
+These are in the **More** row of the Text section, and in **Text** when you
+right-click a note.
+
 ### Colour picker
 
-A magnifier loupe shows the exact pixel and its hex/RGB, with a live readout
-in the tool options. A picked colour is copied, becomes the brush colour for
-Pen/Rect/Arrow, joins a remembered *Recent* row and can be applied to the
-selection. Picking from a drawing tool returns to it.
+A magnifier loupe shows the exact pixel and its hex, RGB and HSV values,
+with a live readout in the tool options. A picked colour is copied as hex,
+becomes the brush colour for Pen/Rect/Arrow, joins a remembered *Recent* row
+and can be applied to the selection. The **HEX**, **RGB** and **HSV**
+buttons copy it in the other formats. Picking from a drawing tool returns to
+it.
+
+**Pick from screen** (`Ctrl+Alt+I`, or the button in the tool options) picks
+from anywhere on your screens, including other applications. The screens
+freeze with the loupe on top: click to pick, or press `Esc` to cancel. On
+Wayland the screen is captured through the desktop's screenshot portal
+(xdg-desktop-portal); some desktops ask for permission the first time.
 
 ## Links
 
@@ -347,6 +374,18 @@ Exports wait for every effect result, so what you save is complete.
 | `Ctrl+T` | keep the window on top of other applications |
 | `F11` | frameless: drag an edge to resize, the bar or a view header to move |
 | `G` | ghost mode: a translucent window to trace over other applications |
+| `Ctrl+Shift+T` | click-through: mouse clicks pass through the window to the application below |
+
+Turning click-through on also keeps the window on top. It turns off by
+itself when you switch back to pixelRef (`Alt+Tab`, the taskbar), and the
+tray icon turns it off too. Window → **Click-Through Turns Off When
+Activated** changes that. Click-through is never saved with a scene.
+
+**Image Info** (`Alt+I`, in View) shows, next to the cursor over an image,
+the pixel under it, counted in the image's own pixels from its top-left
+corner, wherever the image is cropped, flipped or rotated. It also shows the
+image's size (and the size before cropping), how large it is shown, and its
+file. When you zoom in far enough, the pixel under the cursor is outlined.
 
 ## Scripting
 

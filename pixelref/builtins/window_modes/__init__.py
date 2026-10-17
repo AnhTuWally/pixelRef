@@ -91,3 +91,129 @@ def activate_ui(ui: Any) -> None:
             return None
 
     ui.input_handler(WindowDrag(), 450)
+
+    # ---- Click-through ----------------------------------------------------------------------
+    # Not stored in the layout: a board must never reopen as a window that ignores the mouse.
+
+    from PySide6.QtCore import QEvent, QObject, QTimer
+    from PySide6.QtWidgets import QMenu, QSystemTrayIcon
+
+    from pixelref.plugin_api import CommandError
+    from pixelref.plugin_api.ui import app_icon
+
+    # output -> {"armed": left the window once, "pinned": we turned always-on-top on}
+    through: dict[str, dict[str, bool]] = {}
+    tray: dict[str, Any] = {}
+
+    def auto_off() -> bool:
+        return bool(ui.settings.value("click_through_auto_off", True, type=bool))
+
+    class ActivationWatcher(QObject):
+        """Turns click-through off when its window is activated again (Alt+Tab, taskbar)
+        after it was left once: the window is still active right after turning it on."""
+
+        def eventFilter(self, watched: Any, event: Any) -> bool:  # noqa: N802
+            kind = event.type()
+            if kind in (QEvent.WindowDeactivate, QEvent.WindowActivate):
+                for target, state in through.items():
+                    if wm.windows.get(target) is not watched:
+                        continue
+                    if kind == QEvent.WindowDeactivate:
+                        state["armed"] = True
+                    elif state["armed"] and auto_off():
+                        # Not while Qt is delivering this event: changing flags recreates the window.
+                        QTimer.singleShot(0, lambda t=target: t in through and set_click_through(False, t))
+            return False
+
+    watcher = ActivationWatcher()
+
+    def update_tray() -> None:
+        icon = tray.get("icon")
+        if not through:
+            if icon is not None:
+                icon.hide()
+            return
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            return
+        if icon is None:
+            icon = QSystemTrayIcon(app_icon())
+            menu = QMenu()
+            menu.addAction("Turn Off Click-Through", turn_off_all)
+            icon.setContextMenu(menu)
+            icon.activated.connect(lambda reason: reason == QSystemTrayIcon.Trigger and turn_off_all())
+            tray["icon"], tray["menu"] = icon, menu
+        icon.setToolTip("pixelRef · click-through is on · click to turn it off")
+        icon.show()
+
+    def turn_off_all() -> None:
+        for target in list(through):
+            set_click_through(False, target)
+
+    def set_click_through(enabled: bool, output: str | None = None) -> bool:
+        """Let mouse clicks pass through the window to the application below, to trace over it.
+        Turning it on also keeps the window on top; it turns off when the window is activated again."""
+        target = output or wm.focused_output()
+        window = wm.windows.get(target) if target else None
+        if window is None:
+            raise CommandError("No window")
+        enabled = bool(enabled)
+        if enabled == (target in through):
+            return enabled
+        if enabled:
+            state = {"armed": False, "pinned": not bool(wm.doc.attr(target, "on_top"))}
+            if state["pinned"]:  # without it the first click raises the app below over the board
+                app.run_command("wm.output_style", on_top=True, output=target)
+            through[target] = state
+            window.installEventFilter(watcher)
+        else:
+            state = through.pop(target)
+            window.removeEventFilter(watcher)
+        window.setWindowFlag(Qt.WindowTransparentForInput, enabled)
+        window.show()
+        if not enabled and state["pinned"] and wm.doc.has(target):
+            app.run_command("wm.output_style", on_top=False, output=target)
+        update_tray()
+        if enabled:
+            ways = "switch back to pixelRef (Alt+Tab)" if auto_off() else "press Ctrl+Shift+T while it has focus"
+            if tray.get("icon") is not None and tray["icon"].isVisible():
+                ways += " or click the tray icon"
+            ui.toast("Click-through on · clicks reach the app below")
+            ui.status(f"Click-through on · clicks reach the app below · to turn it off, {ways}")
+        else:
+            ui.status("Click-through off")
+        return enabled
+
+    def toggle_click_through() -> bool:
+        """Toggle click-through (Ctrl+Shift+T): mouse clicks pass through the window to the app below."""
+        return set_click_through(wm.focused_output() not in through)
+
+    def toggle_auto_off() -> bool:
+        """Turn click-through off automatically when the window is activated again."""
+        state = not auto_off()
+        ui.settings.setValue("click_through_auto_off", state)
+        ui.status(f"Click-through turns off when the window is activated: {'yes' if state else 'no'}")
+        return state
+
+    def dispose_click_through() -> None:
+        turn_off_all()
+        icon = tray.pop("icon", None)
+        if icon is not None:
+            icon.hide()
+            icon.deleteLater()
+        menu = tray.pop("menu", None)
+        if menu is not None:
+            menu.deleteLater()
+
+    ui.track(dispose_click_through)
+    ui.command("set_click_through", set_click_through, alias="set_click_through", undoable=False)
+    ui.command("toggle_click_through", toggle_click_through, alias="toggle_click_through", undoable=False)
+    ui.command("toggle_click_through_auto_off", toggle_auto_off, undoable=False)
+    a("window_modes.click_through", "window_modes.toggle_click_through", "Click-Through (Transparent to Mouse)",
+      keywords="mouse transparent pass through trace overlay ignore input", category="Window",
+      checked=lambda: wm.focused_output() in through)
+    a("window_modes.click_through_auto_off", "window_modes.toggle_click_through_auto_off",
+      "Click-Through Turns Off When Activated", keywords="mouse transparent pass through automatic",
+      category="Window", checked=auto_off)
+    ui.bind("Ctrl+Shift+T", "window_modes.click_through")
+    ui.menu("canvas", "window_modes.click_through", path="Window", group="w_modes", order=3)
+    ui.menu("canvas", "window_modes.click_through_auto_off", path="Window", group="w_modes", order=4)

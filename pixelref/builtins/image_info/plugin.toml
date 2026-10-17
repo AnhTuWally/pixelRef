@@ -1,0 +1,6 @@
+id = "image_info"
+name = "Image info"
+version = "1.0.0"
+api = 1
+requires = ["image"]
+description = "Image Info (Alt+I): the pixel coordinates under the cursor in the image's own pixels, its name, size, crop, on-screen scale and source."

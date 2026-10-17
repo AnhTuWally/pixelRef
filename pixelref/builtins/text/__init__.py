@@ -12,6 +12,10 @@ from typing import Any
 from pixelref.plugin_api import CAP_COLORABLE, CAP_CONTENT, Attr, CommandError, NodeType, SceneError, differs, fast_copy
 
 TEXT_STYLE_KEYS = ("bold", "italic", "underline", "strike", "font_size", "color", "highlight_color")
+# A run's link (web address or file path); kept in runs, never promoted to the note.
+LINK_KEY = "link"
+UNCHECKED, CHECKED = "☐", "☑"
+CHECK_BOXES = (UNCHECKED, CHECKED)
 NO_HIGHLIGHT = [255, 235, 59, 0]
 ALIGNMENTS = ("left", "center", "right", "justify")
 # What "Use this style for new notes" keeps (the note's look, not its text).
@@ -133,6 +137,28 @@ def normalize_runs(runs: list[dict[str, Any]] | None) -> tuple[dict[str, Any], l
     return promoted, strip_runs(runs, tuple(promoted))
 
 
+def styled_chars(text: str, runs: list[dict[str, Any]] | None) -> list[tuple[str, dict[str, Any]]]:
+    """Each character of a note with its run's overrides (for edits that keep formatting)."""
+    if runs and "".join(str(run.get("text", "")) for run in runs) == text:
+        return [(char, {k: v for k, v in run.items() if k != "text"}) for run in runs for char in str(run["text"])]
+    return [(char, {}) for char in text]
+
+
+def from_styled_chars(chars: list[tuple[str, dict[str, Any]]]) -> tuple[str, list[dict[str, Any]] | None]:
+    runs: list[dict[str, Any]] = []
+    for char, style in chars:
+        if runs and {k: v for k, v in runs[-1].items() if k != "text"} == style:
+            runs[-1]["text"] += char
+        else:
+            runs.append({"text": char, **style})
+    text = "".join(char for char, _style in chars)
+    return text, (runs if any(len(run) > 1 for run in runs) else None)
+
+
+def line_starts(chars: list[tuple[str, dict[str, Any]]]) -> list[int]:
+    return [0] + [i + 1 for i, (char, _style) in enumerate(chars) if char == "\n"]
+
+
 def activate(ctx: Any) -> None:
     ctx.register_node_type(TEXT_TYPE)
     session = ctx.session
@@ -208,6 +234,64 @@ def activate(ctx: Any) -> None:
         if updates:
             scene.set_attrs(name, updates)
 
+    def store_chars(name: str, chars: list[tuple[str, dict[str, Any]]]) -> None:
+        text, runs = from_styled_chars(chars)
+        commit_text(name, text, runs)
+
+    def note_chars(name: str) -> list[tuple[str, dict[str, Any]]]:
+        attrs = scene.get_node(name).attrs
+        return styled_chars(str(attrs.get("text", "")), attrs.get("runs"))
+
+    def toggle_check(name: str, line: int) -> bool:
+        """Tick or untick the checklist box that starts line ``line`` of a note; returns the new state."""
+        name = scene.resolve(name)
+        if scene.get_node(name).node_type != "annotation_text":
+            raise CommandError(f"'{name}' isn't a text note")
+        chars = note_chars(name)
+        starts = line_starts(chars)
+        if not 0 <= line < len(starts) or starts[line] >= len(chars) or chars[starts[line]][0] not in CHECK_BOXES:
+            raise CommandError(f"Line {line} of '{name}' has no checklist box")
+        index = starts[line]
+        checked = chars[index][0] == UNCHECKED
+        chars[index] = (CHECKED if checked else UNCHECKED, chars[index][1])
+        store_chars(name, chars)
+        return checked
+
+    def toggle_checklist(nodes: Any = None) -> list[str]:
+        """Turn the lines of the selected notes into a checklist (☐ boxes), or back to plain lines."""
+        names = text_names(nodes)
+        if not names:
+            raise CommandError("Select a text note")
+        notes_chars = {name: note_chars(name) for name in names}
+
+        def lines_of(chars: list[tuple[str, dict[str, Any]]]) -> list[int]:
+            return [i for i in line_starts(chars) if i < len(chars) and chars[i][0] != "\n"]
+
+        # One direction for all: remove only when every written line already has a box.
+        remove = all(chars[i][0] in CHECK_BOXES for chars in notes_chars.values() for i in lines_of(chars))
+        for name, chars in notes_chars.items():
+            for index in reversed(lines_of(chars)):
+                if remove:
+                    end = index + (2 if index + 1 < len(chars) and chars[index + 1][0] == " " else 1)
+                    del chars[index:end]
+                elif chars[index][0] not in CHECK_BOXES:
+                    style = {k: v for k, v in chars[index][1].items() if k != LINK_KEY}
+                    chars[index:index] = [(UNCHECKED, style), (" ", style)]
+            store_chars(name, chars)
+        return names
+
+    def set_link(href: str, nodes: Any = None) -> list[str]:
+        """Link the whole text of the selected notes to a web address or file ("" removes links)."""
+        names = text_names(nodes)
+        if not names:
+            raise CommandError("Select a text note")
+        href = str(href or "").strip()
+        for name in names:
+            chars = [(char, {**{k: v for k, v in style.items() if k != LINK_KEY}, **({LINK_KEY: href} if href else {})})
+                     for char, style in note_chars(name)]
+            store_chars(name, chars)
+        return names
+
     def apply_preset(preset: str, nodes: Any = None) -> list[str]:
         """Apply a style preset (Plain, Title, Label, Sticky note, Callout, Highlighter)."""
         if preset not in TEXT_PRESETS:
@@ -247,6 +331,10 @@ def activate(ctx: Any) -> None:
     ctx.command("commit", commit_text, label="Edit text")
     ctx.command("apply_preset", apply_preset, label=lambda preset, nodes=None: f"Style preset: {preset}")
     ctx.command("clear_formatting", clear_formatting, label="Clear formatting")
+    ctx.command("toggle_check", toggle_check, label="Tick checklist item")
+    ctx.command("toggle_checklist", toggle_checklist, alias="toggle_checklist", label="Checklist")
+    ctx.command("set_link", set_link, alias="set_note_link",
+                label=lambda href, nodes=None: "Link note" if href else "Remove link")
 
 
 def activate_ui(ui: Any) -> None:

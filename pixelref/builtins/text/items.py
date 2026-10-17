@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import weakref
 from typing import Any, Callable
 
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import (
     QBrush, QColor, QFont, QKeySequence, QPainter, QPen, QTextCharFormat, QTextCursor, QTextFormat, QTextOption,
 )
@@ -16,13 +17,35 @@ from pixelref.plugin_api.ui import widgets as _widgets
 
 color_from = _widgets.color_from
 
-from . import TEXT_STYLE_KEYS
+from . import CHECK_BOXES, LINK_KEY, TEXT_STYLE_KEYS
 
 _ALIGNMENTS = {"left": Qt.AlignLeft, "center": Qt.AlignHCenter, "right": Qt.AlignRight, "justify": Qt.AlignJustify}
 
 # Notes being edited (normally none or one), so finding the one being edited doesn't scan
 # every canvas item before every command.
 EDITING: "weakref.WeakSet[TextItem]" = weakref.WeakSet()
+
+LINK_COLOR = QColor("#5aa9ff")
+# Character format markers: the underline / colour is only the link look (not the
+# note's formatting, so it isn't stored), and the link was found in the text (not set).
+LOOK_UNDERLINE = QTextFormat.UserProperty + 1
+LOOK_COLOR = QTextFormat.UserProperty + 2
+AUTO_LINK = QTextFormat.UserProperty + 3
+
+# Web addresses and absolute file paths with a folder or an extension ("/or" is a word);
+# a path with spaces needs a link set by hand.
+AUTO_LINK_PATTERN = re.compile(r"(?<!\S)(?:https?://|file://|www\.|~/|/(?=[^\s/]+[/.])|[A-Za-z]:[\\/])\S+")
+TRAILING_PUNCTUATION = ".,;:!?)]}'\""
+
+
+def find_auto_links(text: str) -> list[tuple[int, int, str]]:
+    """(start, end, href) of every web address or absolute path in ``text``."""
+    found = []
+    for match in AUTO_LINK_PATTERN.finditer(text):
+        href = match.group(0).rstrip(TRAILING_PUNCTUATION)
+        if len(href) > 2:
+            found.append((match.start(), match.start() + len(href), href))
+    return found
 
 
 def _rgb_list(color: QColor) -> list[int]:
@@ -64,6 +87,7 @@ class TextItem(NodeItemMixin, QGraphicsTextItem):
         self._init_node(node_name, "annotation_text", None)
         self.on_text_committed: Callable[[str, str, Any], None] | None = None
         self.on_format_changed: Callable[["TextItem"], None] | None = None
+        self.on_link_requested: Callable[["TextItem"], None] | None = None
         self._style: dict[str, Any] = {
             "bold": False, "italic": False, "underline": False, "strike": False, "font_size": 14.0,
             "color": [220, 220, 220], "highlight_color": [255, 235, 59, 0],
@@ -167,7 +191,107 @@ class TextItem(NodeItemMixin, QGraphicsTextItem):
             fmt.setFontPointSize(max(1.0, float(overrides["font_size"])))
         if "color" in overrides:
             fmt.setForeground(color_from(overrides["color"]))
+        if overrides.get(LINK_KEY):
+            fmt.merge(self._link_format(str(overrides[LINK_KEY]), fmt))
         return fmt
+
+    @staticmethod
+    def _link_format(href: str, current: QTextCharFormat, auto: bool = False) -> QTextCharFormat:
+        """Make text a link; ``current`` is its format (its own underline / colour win)."""
+        fmt = QTextCharFormat()
+        fmt.setAnchor(True)
+        fmt.setAnchorHref(href)
+        fmt.setProperty(AUTO_LINK, auto)
+        if not (current.hasProperty(QTextFormat.FontUnderline) or current.hasProperty(QTextFormat.TextUnderlineStyle)):
+            fmt.setFontUnderline(True)
+            fmt.setProperty(LOOK_UNDERLINE, True)
+        if not current.hasProperty(QTextFormat.ForegroundBrush) or current.boolProperty(LOOK_COLOR):
+            fmt.setForeground(LINK_COLOR)
+            fmt.setProperty(LOOK_COLOR, True)
+        return fmt
+
+    @staticmethod
+    def _unlink_format(current: QTextCharFormat) -> QTextCharFormat:
+        fmt = QTextCharFormat(current)
+        fmt.setAnchor(False)
+        fmt.clearProperty(QTextFormat.AnchorHref)
+        fmt.clearProperty(AUTO_LINK)
+        if current.boolProperty(LOOK_UNDERLINE):
+            fmt.clearProperty(QTextFormat.FontUnderline)
+            fmt.clearProperty(QTextFormat.TextUnderlineStyle)
+            fmt.clearProperty(LOOK_UNDERLINE)
+        if current.boolProperty(LOOK_COLOR):
+            fmt.clearProperty(QTextFormat.ForegroundBrush)
+            fmt.clearProperty(LOOK_COLOR)
+        return fmt
+
+    def _each_fragment(self, start: int, end: int) -> list[tuple[int, int, QTextCharFormat]]:
+        """(start, end, format) of the formatted pieces of the text between two positions."""
+        pieces = []
+        block = self.document().findBlock(start)
+        while block.isValid() and block.position() < end:
+            iterator = block.begin()
+            while not iterator.atEnd():
+                fragment = iterator.fragment()
+                if fragment.isValid():
+                    a = max(start, fragment.position())
+                    b = min(end, fragment.position() + fragment.length())
+                    if a < b:
+                        pieces.append((a, b, fragment.charFormat()))
+                iterator += 1
+            block = block.next()
+        return pieces
+
+    def apply_link(self, start: int, end: int, href: str, auto: bool = False) -> None:
+        """Link the text between two positions to ``href`` ("" removes links there)."""
+        for a, b, current in self._each_fragment(start, end):
+            if auto and current.isAnchor():
+                continue  # a link set by hand wins
+            cursor = QTextCursor(self.document())
+            cursor.setPosition(a)
+            cursor.setPosition(b, QTextCursor.KeepAnchor)
+            if href:
+                cursor.mergeCharFormat(self._link_format(href, current, auto))
+            else:
+                cursor.setCharFormat(self._unlink_format(current))
+
+    def _link_auto(self) -> None:
+        for start, end, href in find_auto_links(self.document().toPlainText()):
+            self.apply_link(start, end, href, auto=True)
+
+    def set_link(self, href: str) -> None:
+        """While editing: link the selection (or insert the address as linked text)."""
+        cursor = self.textCursor()
+        if not cursor.hasSelection():
+            if not href:
+                return
+            start = cursor.position()
+            cursor.insertText(href, self._char_format({}))
+            cursor.setPosition(start, QTextCursor.KeepAnchor)
+            self.setTextCursor(cursor)
+        self.apply_link(cursor.selectionStart(), cursor.selectionEnd(), href)
+        self._format_changed()
+
+    def link_at_cursor(self) -> str:
+        fmt = self.textCursor().charFormat()
+        return fmt.anchorHref() if fmt.isAnchor() else ""
+
+    # ---- Hit tests (local item coordinates) -------------------------------------------------
+
+    def link_at(self, local: QPointF) -> str:
+        """The link under a point, or ""."""
+        return self.document().documentLayout().anchorAt(local) or ""
+
+    def checkbox_at(self, local: QPointF) -> int | None:
+        """Line number of the checklist box under a point, or None."""
+        position = self.document().documentLayout().hitTest(local, Qt.ExactHit)
+        if position < 0:
+            return None
+        block = self.document().findBlock(position)
+        text = block.text()
+        if text[:1] in CHECK_BOXES and position - block.position() <= 1:
+            return block.blockNumber()
+        return None
 
     def set_content(self, text: str, runs: Any = None) -> None:
         document = self.document()
@@ -177,33 +301,41 @@ class TextItem(NodeItemMixin, QGraphicsTextItem):
         cursor = QTextCursor(document)
         if runs:
             for run in runs:
-                overrides = {k: v for k, v in run.items() if k in TEXT_STYLE_KEYS}
+                overrides = {k: v for k, v in run.items() if k in TEXT_STYLE_KEYS or k == LINK_KEY}
                 cursor.insertText(str(run.get("text", "")), self._char_format(overrides))
         else:
             cursor.insertText(text, self._char_format({}))
+        self._link_auto()
         document.setUndoRedoEnabled(True)
 
     def _overrides_from(self, fmt: QTextCharFormat) -> dict[str, Any]:
         """Style properties of ``fmt`` that differ from the note defaults."""
         found: dict[str, Any] = {}
+        look_underline = fmt.boolProperty(LOOK_UNDERLINE)
+        look_color = fmt.boolProperty(LOOK_COLOR)
         if fmt.hasProperty(QTextFormat.FontWeight):
             found["bold"] = fmt.fontWeight() >= QFont.DemiBold
         if fmt.hasProperty(QTextFormat.FontItalic):
             found["italic"] = fmt.fontItalic()
-        if fmt.hasProperty(QTextFormat.TextUnderlineStyle) or fmt.hasProperty(QTextFormat.FontUnderline):
+        if (fmt.hasProperty(QTextFormat.TextUnderlineStyle) or fmt.hasProperty(QTextFormat.FontUnderline)) \
+                and not look_underline:
             found["underline"] = fmt.fontUnderline()
         if fmt.hasProperty(QTextFormat.FontStrikeOut):
             found["strike"] = fmt.fontStrikeOut()
         if fmt.hasProperty(QTextFormat.FontPointSize) and fmt.fontPointSize() > 0:
             found["font_size"] = round(fmt.fontPointSize(), 2)
-        if fmt.hasProperty(QTextFormat.ForegroundBrush) and fmt.foreground().style() != Qt.NoBrush:
+        if fmt.hasProperty(QTextFormat.ForegroundBrush) and fmt.foreground().style() != Qt.NoBrush \
+                and not look_color:
             found["color"] = _rgb_list(fmt.foreground().color())
         brush = fmt.background()
         if fmt.hasProperty(QTextFormat.BackgroundBrush) and brush.style() != Qt.NoBrush:
             found["highlight_color"] = _rgba_list(brush.color())
         else:
             found["highlight_color"] = [0, 0, 0, 0]
-        return {k: v for k, v in found.items() if not same_style_value(k, v, self._style[k])}
+        found = {k: v for k, v in found.items() if not same_style_value(k, v, self._style[k])}
+        if fmt.isAnchor() and fmt.anchorHref() and not fmt.boolProperty(AUTO_LINK):
+            found[LINK_KEY] = fmt.anchorHref()
+        return found
 
     def extract_content(self) -> tuple[str, list[dict[str, Any]] | None]:
         """Plain text plus formatting runs (None when the text is uniform)."""
@@ -255,12 +387,14 @@ class TextItem(NodeItemMixin, QGraphicsTextItem):
             fmt.setFontItalic(bool(value))
         elif key == "underline":
             fmt.setFontUnderline(bool(value))
+            fmt.setProperty(LOOK_UNDERLINE, False)  # now chosen, even on a link
         elif key == "strike":
             fmt.setFontStrikeOut(bool(value))
         elif key == "font_size":
             fmt.setFontPointSize(max(1.0, float(value)))
         elif key == "color":
             fmt.setForeground(color_from(value))
+            fmt.setProperty(LOOK_COLOR, False)
         elif key == "highlight_color":
             color = color_from(value, (0, 0, 0, 0))
             fmt.setBackground(color if color.alpha() > 0 else QBrush(Qt.NoBrush))
@@ -325,6 +459,8 @@ class TextItem(NodeItemMixin, QGraphicsTextItem):
         modifiers = event.modifiers()
         if not modifiers & Qt.ControlModifier:
             return None
+        if event.key() == Qt.Key_K and not modifiers & Qt.ShiftModifier:
+            return "link"
         return self.FORMAT_SHORTCUTS.get((event.key(), bool(modifiers & Qt.ShiftModifier)))
 
     def sceneEvent(self, event) -> bool:  # noqa: ANN001
@@ -341,6 +477,11 @@ class TextItem(NodeItemMixin, QGraphicsTextItem):
             command = self._format_shortcut(event)
             if command in ("grow", "shrink"):
                 self.step_font_size(1 if command == "grow" else -1)
+                event.accept()
+                return
+            if command == "link":
+                if self.on_link_requested is not None:
+                    self.on_link_requested(self)
                 event.accept()
                 return
             if command is not None:

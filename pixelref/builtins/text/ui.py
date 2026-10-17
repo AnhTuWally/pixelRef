@@ -2,23 +2,31 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QPointF, QTimer
-from PySide6.QtGui import QColor, QFont, QTransform
-from PySide6.QtWidgets import QColorDialog, QComboBox, QFontComboBox, QLabel
+from PySide6.QtCore import QPointF, QTimer, QUrl, Qt
+from PySide6.QtGui import QColor, QDesktopServices, QFont, QTransform
+from PySide6.QtWidgets import QColorDialog, QComboBox, QFileDialog, QFontComboBox, QInputDialog, QLabel
 
+from pixelref.plugin_api import CommandError, fast_copy
 from pixelref.plugin_api.contracts import IngestHandler, InspectorSection, PaletteButton, SelectionInfo
+from pixelref.plugin_api.ui import HANDLED, InputHandler, PointerEvent
 from pixelref.plugin_api.ui import widgets as w
 
-from . import NO_HIGHLIGHT, TEXT_PRESETS
+from . import DEFAULT_STYLE_KEYS, NO_HIGHLIGHT, TEXT_PRESETS, TEXT_STYLE_KEYS
 from .items import EDITING, TextItem
+
+# What Copy Text Style takes from a whole note: its look, not its size or text.
+COPIED_NOTE_KEYS = tuple(key for key in DEFAULT_STYLE_KEYS if key != "text_width")
 
 
 class TextService:
     def __init__(self, ui: Any) -> None:
         self.ui = ui
         self.sections: list[Any] = []
+        self.copied_style: dict[str, Any] | None = None
 
     def editing_item(self) -> TextItem | None:
         """The note being edited on the canvas, if any (tracked, not the scene's focus
@@ -108,8 +116,20 @@ class TextSection(w.InspectorSection):
                                     *self.align_btns.values()))
         form.addRow("Color", w.hrow(body, self.text_color_btn, self.highlight_btn, self.clear_highlight_btn, None,
                                     self.clear_format_btn))
+        self.link_btn = tb("🔗", "Link the selected text, or the whole note, to a web page or file (Ctrl+K while "
+                           "typing) · Ctrl+click a link to open it", width=32)
+        self.checklist_btn = tb("☑", "Checklist: a box in front of each line · click a box to tick it", width=32)
+        self.copy_style_btn = tb("Copy", "Copy text style (Ctrl+Shift+C)", width=44)
+        self.paste_style_btn = tb("Paste", "Paste text style onto the selected text or notes (Ctrl+Shift+V)", width=48)
+        form.addRow("More", w.hrow(body, self.link_btn, self.checklist_btn, None, QLabel("Style", body),
+                                   self.copy_style_btn, self.paste_style_btn))
         form.addRow(self.text_scope_label)
         form.addRow(w.hrow(body, self.default_style_btn))
+        run = ui.app.run_command
+        self.link_btn.clicked.connect(lambda: run("text.link_dialog"))
+        self.checklist_btn.clicked.connect(lambda: run("text.toggle_checklist"))
+        self.copy_style_btn.clicked.connect(lambda: run("text.copy_style"))
+        self.paste_style_btn.clicked.connect(lambda: run("text.paste_style"))
 
         self.text_edit.editingFinished.connect(self._on_text_field_edited)
         self.text_preset_combo.activated.connect(self._apply_preset)
@@ -477,6 +497,7 @@ def activate_text_ui(ui: Any) -> None:
         item.apply_attrs(node.get("attrs", {}))
         item.on_text_committed = committed
         item.on_format_changed = service.format_changed
+        item.on_link_requested = lambda _item: ui.app.run_command("text.link_dialog")
         return item
 
     ui.node_ui("annotation_text", factory=factory, label="Text note", icon="text", badge=("#9ab87a", "T"),
@@ -551,3 +572,221 @@ def activate_text_ui(ui: Any) -> None:
     ui.bind("T", "text.add")
     ui.menu("canvas", "text.add", group="create", order=20, when="selection.count == 0")
     ui.contribute("palette.buttons", PaletteButton("text.add", "Text", "text", order=20))
+
+    activate_note_extras(ui, service)
+
+
+def selected_notes(ui: Any) -> list[str]:
+    nodes = ui.canvas.nodes
+    return [n for n in ui.session.selection.names if nodes.get(n, {}).get("type") == "annotation_text"]
+
+
+def activate_note_extras(ui: Any, service: TextService) -> None:
+    """Links (open, set), checklist boxes and copy / paste text style."""
+    app = ui.app
+    session = ui.session
+
+    # ---- Links ----------------------------------------------------------------------------
+
+    def resolve_link(href: str) -> QUrl | Path:
+        """A web address, or the file a link points to (relative to the scene's folder)."""
+        text = href.strip()
+        if text.lower().startswith("www."):
+            text = "https://" + text
+        url = QUrl(text)
+        scheme = url.scheme().lower()
+        if len(scheme) > 1 and scheme != "file":  # "c" of "C:\\…" is a drive, not a scheme
+            return url
+        path = Path(url.toLocalFile()) if scheme == "file" else Path(os.path.expanduser(text))
+        return path if path.is_absolute() else Path(session.resolve_path(str(path)))
+
+    def open_board(path: Path) -> bool:
+        files = session.services.get("files")
+        if path.suffix.lower() == ".pxref":
+            if files is None:
+                raise CommandError("Opening scenes needs the Files plugin")
+            return bool(files.open_path(str(path)))
+        if session.commands.get("pureref.open") is None:
+            raise CommandError("Opening PureRef boards needs the PureRef plugin")
+        if files is not None and not files.may_discard():
+            return False
+        if app.run_command("pureref.open", str(path)) is None:
+            return False
+        QTimer.singleShot(0, lambda: app.run_command("navigation.frame_all"))
+        return True
+
+    def open_link(href: str) -> bool:
+        """Open a link: web pages in the browser, scenes and PureRef boards here, other files in their app."""
+        target = resolve_link(str(href))
+        if isinstance(target, QUrl):
+            opened = QDesktopServices.openUrl(target)
+            ui.status(f"Opened {target.toString()}" if opened else f"Couldn't open {target.toString()}")
+            return opened
+        if not target.exists():
+            raise CommandError(f"Not found: {target}")
+        if target.suffix.lower() in (".pxref", ".pur"):
+            return open_board(target)
+        opened = QDesktopServices.openUrl(QUrl.fromLocalFile(str(target)))
+        ui.status(f"Opened {target}" if opened else f"Couldn't open {target}")
+        return opened
+
+    def current_link() -> str:
+        editor = service.editing_item()
+        if editor is not None:
+            return editor.link_at_cursor()
+        for name in selected_notes(ui):
+            for run in ui.canvas.nodes[name]["attrs"].get("runs") or ():
+                if run.get("link"):
+                    return str(run["link"])
+        return ""
+
+    def apply_link(href: str) -> bool:
+        editor = service.editing_item()
+        if editor is not None:
+            editor.set_link(href)
+            ui.status(f"Linked to {href}" if href else "Link removed")
+            return True
+        names = selected_notes(ui)
+        if not names:
+            raise CommandError("Select a text note, or select text while typing in one")
+        return app.run_command("text.set_link", href, names) is not None
+
+    def link_dialog() -> bool:
+        """Link the selected text (while typing, Ctrl+K) or the selected notes to a web address or file."""
+        if service.editing_item() is None and not selected_notes(ui):
+            raise CommandError("Select a text note, or select text while typing in one")
+        href, ok = QInputDialog.getText(app.main_window(), "Link",
+                                        "Web address or file path (empty removes the link):", text=current_link())
+        return apply_link(href.strip()) if ok else False
+
+    def link_file_dialog() -> bool:
+        """Link the selected text or notes to a file: a scene or PureRef board opens here, others in their app."""
+        if service.editing_item() is None and not selected_notes(ui):
+            raise CommandError("Select a text note, or select text while typing in one")
+        path, _ = QFileDialog.getOpenFileName(app.main_window(), "Link to File", str(session.base_dir()),
+                                              "Boards (*.pxref *.pur);;All files (*)")
+        return apply_link(path) if path else False
+
+    for name, fn in (("open_link", open_link), ("link_dialog", link_dialog), ("link_file_dialog", link_file_dialog)):
+        ui.command(name, fn, undoable=False, echo=False)
+
+    # ---- Copy / paste text style --------------------------------------------------------------
+
+    def copy_style() -> dict[str, Any]:
+        """Copy the text style: at the cursor while typing, else the selected note's look (Ctrl+Shift+C)."""
+        editor = service.editing_item()
+        if editor is not None:
+            style = {key: fast_copy(editor.format_state(key)) for key in TEXT_STYLE_KEYS}
+            family = ui.canvas.nodes.get(editor.node_name, {}).get("attrs", {}).get("font_family")
+            if family:
+                style["font_family"] = family
+        else:
+            names = selected_notes(ui)
+            if not names:
+                raise CommandError("Select a text note to copy its style")
+            attrs = ui.canvas.nodes[names[0]]["attrs"]
+            style = {key: fast_copy(attrs[key]) for key in COPIED_NOTE_KEYS if key in attrs}
+        service.copied_style = style
+        ui.status("Text style copied · Ctrl+Shift+V pastes it onto selected text or notes")
+        return style
+
+    def paste_style() -> bool:
+        """Paste the copied text style onto the selected text (while typing) or the selected notes (Ctrl+Shift+V)."""
+        style = service.copied_style
+        if not style:
+            raise CommandError("Copy a text style first (Ctrl+Shift+C)")
+        editor = service.editing_item()
+        if editor is not None and editor.has_selection():
+            for key in TEXT_STYLE_KEYS:
+                if key in style:
+                    editor.merge_format(key, style[key])
+            ui.status("Text style pasted onto the selection")
+            return True
+        if editor is not None:
+            service.commit_editing()
+            names = [editor.node_name] if session.scene.has(editor.node_name) else []
+        else:
+            names = selected_notes(ui)
+        if not names:
+            raise CommandError("Select text notes to paste the style onto")
+        strip = tuple(key for key in TEXT_STYLE_KEYS if key in style)
+        return app.run_command("text.set_attrs", fast_copy(style), names, strip, "Paste text style") is not None
+
+    ui.command("copy_style", copy_style, alias="copy_text_style", undoable=False, echo=False)
+    ui.command("paste_style", paste_style, alias="paste_text_style", undoable=False, echo=False)
+
+    a = ui.action
+    a("text.link", "text.link_dialog", "Link…", keywords="hyperlink url web address file open note", category="Text")
+    a("text.link_file", "text.link_file_dialog", "Link to File…", keywords="hyperlink file board scene pur note",
+      category="Text")
+    a("text.checklist", "text.toggle_checklist", "Checklist", keywords="todo check box tick list note",
+      category="Text")
+    a("text.copy_style", "text.copy_style", "Copy Text Style", keywords="format formatting font", category="Text")
+    a("text.paste_style", "text.paste_style", "Paste Text Style", keywords="format formatting font", category="Text")
+    ui.bind("Ctrl+Shift+C", "text.copy_style")
+    ui.bind("Ctrl+Shift+V", "text.paste_style")
+    ui.context_key("text.selected", lambda: bool(selected_notes(ui)))
+    for order, key in enumerate(("text.link", "text.link_file", "text.checklist", "text.copy_style",
+                                 "text.paste_style")):
+        ui.menu("canvas", key, path="Text", group="text.extras", order=order, when="text.selected")
+    ui.place_submenu("canvas", "Text", "transform", 2, icon="text", when="text.selected")
+
+    # ---- Clicking boxes and links on the canvas --------------------------------------------------
+
+    class NoteClicks(InputHandler):
+        """With the Select tool: a click on a checklist box ticks it, Ctrl+click opens a link."""
+
+        def __init__(self) -> None:
+            self.pressed = False
+            self.hint = ""
+
+        def note_at(self, e: PointerEvent) -> TextItem | None:
+            if app.tools.active_id != "select":
+                return None
+            item = e.item
+            return item if isinstance(item, TextItem) and not item.editing else None
+
+        def hover(self, e: PointerEvent) -> None:
+            item = self.note_at(e)
+            hint = ""
+            if item is not None:
+                local = item.mapFromScene(e.scene_pos)
+                if item.checkbox_at(local) is not None and not item.locked:
+                    e.set_cursor(Qt.PointingHandCursor)
+                else:
+                    href = item.link_at(local)
+                    if href:
+                        hint = f"Ctrl+click to open {href}"
+                        if e.ctrl:
+                            e.set_cursor(Qt.PointingHandCursor)
+            if hint != self.hint:
+                self.hint = hint
+                if hint:
+                    ui.status(hint)
+
+        def pointer(self, e: PointerEvent) -> str | None:
+            if self.pressed:  # swallow the rest of a click we took
+                if e.kind == "release":
+                    self.pressed = False
+                return HANDLED
+            # A quick second click on a box arrives as "double": tick again, don't start typing.
+            if e.kind not in ("press", "double") or e.button != Qt.LeftButton:
+                return None
+            item = self.note_at(e)
+            if item is None:
+                return None
+            local = item.mapFromScene(e.scene_pos)
+            line = item.checkbox_at(local)
+            if line is not None and not item.locked and not (e.ctrl or e.shift):
+                app.run_command("text.toggle_check", item.node_name, line)
+                self.pressed = True
+                return HANDLED
+            href = item.link_at(local) if e.ctrl and e.kind == "press" else ""
+            if href:
+                # After this click: opening a board replaces the scene.
+                QTimer.singleShot(0, lambda: app.run_command("text.open_link", href))
+                self.pressed = True
+                return HANDLED
+            return None
+
+    ui.input_handler(NoteClicks(), 520)

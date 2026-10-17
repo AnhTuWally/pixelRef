@@ -3,4 +3,4 @@ name = "Text notes"
 version = "1.0.0"
 api = 1
 requires = ["clipboard", "gizmo"]
-description = "Text notes with rich formatting (bold, italic, underline, strike, size, colour, highlight), styled boxes, presets, width handles."
+description = "Text notes with rich formatting (bold, italic, underline, strike, size, colour, highlight), links to web pages and files, checklists, copy/paste text style, styled boxes, presets, width handles."

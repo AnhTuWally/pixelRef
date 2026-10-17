@@ -94,6 +94,7 @@ until `Esc` or `V`.
 | `A` | arrow / line | `X` | pixelate region |
 | `P` | pen (free drawing) | `W` | link |
 | `E` | eraser | `I` | colour picker |
+| `O` | ellipse / circle | | |
 
 ![Step markers, a pen drawing and a link on the sample board](docs/images/annotations.webp)
 
@@ -231,6 +232,8 @@ python -m pixelref --batch script.py [scene.pxref] [--save out.pxref]
   `Ctrl+Shift+E` copies the original image files into a folder.
 - `Ctrl+T` keeps the window on top, `F11` makes it frameless, and `G` turns
   on ghost mode: a translucent window you can trace over other applications.
+  `Ctrl+Shift+T` adds click-through, so the mouse reaches the application
+  below.
 
 ## Documentation
 

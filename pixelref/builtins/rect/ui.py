@@ -1,4 +1,4 @@
-"""Qt side of the rectangle plugin: item, Rect tool, reshape handles."""
+"""Qt side of the rectangle plugin: item, Rect and Ellipse tools, reshape handles."""
 
 from __future__ import annotations
 
@@ -43,6 +43,7 @@ class RectItem(NodeItemMixin, QGraphicsItem):
         self._stroke_style = "solid"
         self._fill_style = "solid"
         self._corner_radius = 0.0
+        self._ellipse = False
         self.setFlag(QGraphicsItem.ItemIsSelectable, True)
         self.setFlag(QGraphicsItem.ItemIsMovable, True)
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges, True)
@@ -53,6 +54,7 @@ class RectItem(NodeItemMixin, QGraphicsItem):
         self._stroke_style = str(attrs.get("stroke_style", "solid"))
         self._fill_style = str(attrs.get("fill_style", "solid"))
         self._corner_radius = max(0.0, float(attrs.get("corner_radius", 0.0)))
+        self._ellipse = attrs.get("shape", "rect") == "ellipse"
         size = attrs.get("size", [120.0, 80.0])
         self._size = QPointF(max(1.0, float(size[0])), max(1.0, float(size[1])))
         self._stroke = color_from(attrs.get("stroke_color", [255, 0, 0]))
@@ -62,6 +64,21 @@ class RectItem(NodeItemMixin, QGraphicsItem):
         self.update()
 
     is_rect = True
+
+    @property
+    def is_ellipse(self) -> bool:
+        return self._ellipse
+
+    def outline(self) -> QPainterPath:
+        """The rectangle (corners rounded by the radius) or the ellipse inside it."""
+        rect = self.content_rect()
+        path = QPainterPath()
+        if self._ellipse:
+            path.addEllipse(rect)
+        else:
+            radius = min(self._corner_radius, rect.width() / 2.0, rect.height() / 2.0)
+            path.addRoundedRect(rect, radius, radius)
+        return path
 
     def set_rect_size(self, width: float, height: float) -> None:
         """Resize the rectangle itself (the border keeps its thickness)."""
@@ -93,7 +110,10 @@ class RectItem(NodeItemMixin, QGraphicsItem):
 
     def shape(self) -> QPainterPath:
         path = QPainterPath()
-        path.addRect(self.content_rect())
+        if self._ellipse:
+            path.addEllipse(self.content_rect())
+        else:
+            path.addRect(self.content_rect())
         if self._fill.alpha() > 0:
             return path
         stroker = QPainterPathStroker()
@@ -114,9 +134,7 @@ class RectItem(NodeItemMixin, QGraphicsItem):
         brush_style = paint.BRUSH_STYLES.get(self._fill_style, Qt.SolidPattern)
         has_fill = self._fill.alpha() > 0 and brush_style != Qt.NoBrush
         painter.setBrush(QBrush(self._fill, brush_style) if has_fill else Qt.NoBrush)
-        rect = self.content_rect()
-        radius = min(self._corner_radius, rect.width() / 2.0, rect.height() / 2.0)
-        painter.drawRoundedRect(rect, radius, radius)
+        painter.drawPath(self.outline())
 
 
 class RectHandles:
@@ -136,7 +154,7 @@ class RectHandles:
         # rounding's centre (or a few pixels in when the corner is square).
         pixels_per_unit = max(1e-6, math.hypot(st.m11(), st.m12()) * view.zoom_level())
         inset = max(item.corner_radius(), gizmo.RADIUS_HANDLE_INSET / pixels_per_unit)
-        if inset < min(rect.width(), rect.height()) / 2.0:
+        if not item.is_ellipse and inset < min(rect.width(), rect.height()) / 2.0:
             g["handles_vp"]["radius"] = view.to_viewport(st.map(QPointF(rect.left() + inset, rect.top() + inset)))
         return None
 
@@ -191,7 +209,10 @@ class RectHandles:
         item.set_rect_size(rect.width(), rect.height())
         # Local (0, 0) is the rectangle's top-left: move the origin to the new corner.
         item.set_local_transform(QTransform.fromTranslate(rect.left(), rect.top()) * l0)
-        gizmo.ui.status(f"Rectangle {rect.width():.0f} × {rect.height():.0f}px (Shift: square, Alt: from centre)")
+        if item.is_ellipse:
+            gizmo.ui.status(f"Ellipse {rect.width():.0f} × {rect.height():.0f}px (Shift: circle, Alt: from centre)")
+        else:
+            gizmo.ui.status(f"Rectangle {rect.width():.0f} × {rect.height():.0f}px (Shift: square, Alt: from centre)")
 
     def paint(self, gizmo: Any, view: Any, painter: QPainter, g: dict[str, Any]) -> bool:
         # Round points = reshape the rectangle (like a line's end points).
@@ -242,6 +263,8 @@ class RectTool(Tool):
              unit="px", label="Radius"),
     )
     options_title = "Rectangle options"
+    create_command = "rect.create"
+    ellipse = False
     hint = ("Drag to draw rectangles (Shift: square, Alt: from centre) · "
             "drag the selected one's corners to adjust · Esc / V to finish")
 
@@ -287,7 +310,7 @@ class RectTool(Tool):
             a, b = view.to_viewport(start), view.to_viewport(end)
             if math.hypot(a.x() - b.x(), a.y() - b.y()) > 4.0:
                 rect = QRectF(start, end).normalized()
-                self.app.run_command("rect.create", rect.x(), rect.y(), rect.width(), rect.height(),
+                self.app.run_command(self.create_command, rect.x(), rect.y(), rect.width(), rect.height(),
                                      **self.options.as_dict())
             return HANDLED
         return None
@@ -304,11 +327,38 @@ class RectTool(Tool):
         fill = _widgets.color_from(options.get("fill_color"))
         fill.setAlphaF(float(options.get("fill_opacity")))
         painter.setBrush(fill if fill.alpha() else Qt.NoBrush)
+        box = QRectF(start, end).normalized()
+        if self.ellipse:
+            painter.drawEllipse(box)
+            return
         radius = float(options.get("corner_radius")) * view.zoom_level()
-        painter.drawRoundedRect(QRectF(start, end).normalized(), radius, radius)
+        painter.drawRoundedRect(box, radius, radius)
 
     def options_panel(self, parent: QWidget) -> QWidget:
         return self.ui.service("brush").make_tool_panel(self, parent)
+
+
+class EllipseTool(RectTool):
+    """Ellipses and circles: ``annotation_rect`` nodes with ``shape`` "ellipse", so they
+    share the rectangle's handles, line and fill styles."""
+
+    id = "oval"  # "ellipse" is the example plugin's tool (examples/plugins/ellipse)
+    title = "Ellipse"
+    action_text = "Ellipse Tool"
+    icon = "ellipse"
+    tooltip = "Draw ellipse (O) · Shift for a circle"
+    keywords = "ellipse circle oval round shape draw"
+    shortcuts = ("O",)
+    order = 21.5  # after Rect and Arrow, the other shapes
+    option_specs = tuple(spec for spec in RectTool.option_specs if spec.name != "corner_radius")
+    options_title = "Ellipse options"
+    create_command = "rect.create_ellipse"
+    ellipse = True
+    hint = ("Drag to draw ellipses (Shift: circle, Alt: from centre) · "
+            "drag the selected one's points to adjust · Esc / V to finish")
+
+    def banner(self, view: Any) -> str | None:
+        return "◯  Ellipse · drag to draw (Shift circle, Alt from centre)   —   Esc / V to finish"
 
 
 def activate_rect_ui(ui: Any) -> None:
@@ -319,5 +369,6 @@ def activate_rect_ui(ui: Any) -> None:
 
     ui.node_ui("annotation_rect", factory=factory, label="Rectangle", icon="rect", badge=("#d27b7b", "R"))
     ui.register_tool(RectTool(ui))
+    ui.register_tool(EllipseTool(ui))
     ui.contribute("gizmo.handles", RectHandles())
     ui.contribute("stroke.styles", StrokeStyle("annotation_rect", color_attr="stroke_color", fill=True, radius=True))

@@ -201,6 +201,8 @@ the rest also work headless (batch mode, scripts).
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
 | `color_picker.apply_color(color: Any, nodes: Any = None)` | `apply_color` | yes | Recolor text, shapes, strokes and drawings ([r, g, b] or "#rrggbb"). |
+| `color_picker.copy_color(fmt: str = hex)` |  |  | Copy the picked colour as "hex" (#RRGGBB), "rgb" (rgb(r, g, b)) or "hsv" (hsv(h, s%, v%)). |
+| `color_picker.pick_screen()` | `pick_screen_color` |  | Pick a colour anywhere on the screen, outside pixelRef too (Ctrl+Alt+I); Esc cancels. |
 
 ## console
 
@@ -301,6 +303,13 @@ the rest also work headless (batch mode, scripts).
 | `image.import_images(paths: list[str], translate: Any = None)` | `import_images` | yes | Add several image files side by side, centred on ``translate``. |
 | `image.insert_dialog()` |  |  | Choose image files and add them in a row at the view centre. |
 | `image.toggle_grayscale(nodes: Any = None)` | `toggle_grayscale` | yes | Grayscale on/off for the selected images (on unless they're all grey already). |
+
+## image_info
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `image_info.describe(name: str \| None = None)` | `image_info` |  | Size, crop and source of an image (the selected one by default). |
+| `image_info.toggle()` | `toggle_image_info` |  | Show or hide the image info readout (Alt+I): pixel coordinates, size, scale and source. |
 
 ## image_storage
 
@@ -443,6 +452,7 @@ the rest also work headless (batch mode, scripts).
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
 | `rect.create(x: float, y: float, width: float, height: float, name: str = Rect, **attrs: Any)` | `create_rect` | yes | Create a rectangle; extra keyword arguments are attributes (stroke_color, thickness…). |
+| `rect.create_ellipse(x: float, y: float, width: float, height: float, name: str = Ellipse, **attrs: Any)` | `create_ellipse` | yes | Create an ellipse in the box at (x, y); extra keyword arguments are attributes. |
 
 ## redact
 
@@ -475,10 +485,18 @@ the rest also work headless (batch mode, scripts).
 | `text.clear_default_style()` |  |  | New notes go back to the plain style. |
 | `text.clear_formatting(nodes: Any = None)` |  | yes | Remove character formatting from text notes (keeps the text). |
 | `text.commit(name: str, text: str, runs: list[dict[str, Any]] \| None = None)` |  | yes | Store text (and per-character formatting runs) edited on the canvas. |
+| `text.copy_style()` | `copy_text_style` |  | Copy the text style: at the cursor while typing, else the selected note's look (Ctrl+Shift+C). |
 | `text.create(text: str = Text, translate: Any = None, parent: str \| None = None)` | `create_note` | yes | Create a text note at ``translate`` (world units if no parent). |
 | `text.default_style()` |  |  | Your style for new notes (saved values that no longer fit are skipped). |
+| `text.link_dialog()` |  |  | Link the selected text (while typing, Ctrl+K) or the selected notes to a web address or file. |
+| `text.link_file_dialog()` |  |  | Link the selected text or notes to a file: a scene or PureRef board opens here, others in their app. |
+| `text.open_link(href: str)` |  |  | Open a link: web pages in the browser, scenes and PureRef boards here, other files in their app. |
+| `text.paste_style()` | `paste_text_style` |  | Paste the copied text style onto the selected text (while typing) or the selected notes (Ctrl+Shift+V). |
 | `text.save_default_style(node: str \| None = None)` |  |  | Use a note's style (font, colours, box…) for every new note; kept across restarts. |
 | `text.set_attrs(updates: dict[str, Any], nodes: Any = None, strip: tuple[str, ...] \| list[str] = (), label: str = Edit text)` |  | yes | Set note attributes on the selected notes; ``strip`` removes those styles |
+| `text.set_link(href: str, nodes: Any = None)` | `set_note_link` | yes | Link the whole text of the selected notes to a web address or file ("" removes links). |
+| `text.toggle_check(name: str, line: int)` |  | yes | Tick or untick the checklist box that starts line ``line`` of a note; returns the new state. |
+| `text.toggle_checklist(nodes: Any = None)` | `toggle_checklist` | yes | Turn the lines of the selected notes into a checklist (☐ boxes), or back to plain lines. |
 
 ## tool_palette
 
@@ -536,6 +554,9 @@ the rest also work headless (batch mode, scripts).
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
 | `window_modes.ghost()` | `toggle_ghost_mode` |  | Toggle a translucent window to trace over other applications (G). |
+| `window_modes.set_click_through(enabled: bool, output: str \| None = None)` | `set_click_through` |  | Let mouse clicks pass through the window to the application below, to trace over it. |
 | `window_modes.set_opacity(value: float)` | `set_window_opacity` |  | Set the window opacity (0.1 to 1.0). |
+| `window_modes.toggle_click_through()` | `toggle_click_through` |  | Toggle click-through (Ctrl+Shift+T): mouse clicks pass through the window to the app below. |
+| `window_modes.toggle_click_through_auto_off()` |  |  | Turn click-through off automatically when the window is activated again. |
 | `window_modes.toggle_frameless()` | `toggle_frameless` |  | Hide or show the window frame (F11); a frameless window resizes from its edges and moves by its bar or view headers (or Alt+drag). |
 | `window_modes.toggle_on_top()` | `toggle_always_on_top` |  | Keep the window above other applications (Ctrl+T). |

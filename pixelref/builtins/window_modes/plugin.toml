@@ -2,4 +2,4 @@ id = "window_modes"
 name = "Window modes"
 version = "1.0.0"
 api = 1
-description = "Always on top (Ctrl+T), frameless (F11), ghost mode (G), window opacity, Alt+drag to move the window."
+description = "Always on top (Ctrl+T), frameless (F11), ghost mode (G), click-through (Ctrl+Shift+T), window opacity, Alt+drag to move the window."

@@ -3,4 +3,4 @@ name = "Color picker"
 version = "1.0.0"
 api = 1
 requires = ["brush"]
-description = "The Pick tool (I): magnifier loupe, live readout, picked colour becomes the brush colour, recent colours, apply to selection."
+description = "The Pick tool (I): magnifier loupe, hex/RGB/HSV readout, pick from anywhere on the screen (Ctrl+Alt+I), picked colour becomes the brush colour, recent colours, apply to selection."

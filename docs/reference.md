@@ -141,20 +141,26 @@ adjusted by its handles without leaving the tool.
 
 | Tool | Key | Node type | Notes |
 | --- | --- | --- | --- |
-| Text note | `T` | `annotation_text` | rich text per word (`Ctrl+B/I/U`), box fill, border, padding, presets (Title, Label, Sticky note, Callout, Highlighter), width handles |
+| Text note | `T` | `annotation_text` | rich text per word (`Ctrl+B/I/U`), links (`Ctrl+K` while typing, `Ctrl+click` opens; addresses and paths are found automatically), ☐/☑ checklists (click a box to tick it), copy/paste text style (`Ctrl+Shift+C` / `V`), box fill, border, padding, presets (Title, Label, Sticky note, Callout, Highlighter), width handles |
 | Rectangle | `R` | `annotation_rect` | corner radius handle, dashed/dotted strokes, hatch fills |
+| Ellipse | `O` | `annotation_rect` with `shape` "ellipse" | `Shift` for a circle; the rectangle's points, strokes and fills |
 | Arrow / line | `A` | `annotation_line` | a handle on each end (`Shift` snaps to 45°), arrowheads at either or both ends |
 | Pen | `P` | `annotation_drawing` holding `annotation_path` strokes | one drawing per tool session. Double-click a drawing or press `Shift+P` to edit it, `Ctrl+Shift+G` separates it into strokes, `Ctrl+J` combines strokes |
 | Step | `N` | `annotation_step` | counts up (1 2 3, A B C, a b c, I II III). Drag while placing to add a pointer. *Renumber Steps* closes gaps |
 | Blur | `B` | `annotation_blur` | blurs whatever is under it, live |
 | Pixelate | `X` | `annotation_pixelate` | shows whatever is under it as blocks, live |
 | Eraser | `E` | — | deletes erasable nodes (strokes, rects, arrows, steps, blur/pixelate). Never deletes images or text |
-| Colour picker | `I` | — | loupe with hex/RGB. The picked colour becomes the brush colour of the drawing tool and is added to *Recent* |
+| Colour picker | `I` | — | loupe with hex/RGB/HSV. The picked colour becomes the brush colour of the drawing tool and is added to *Recent*. `Ctrl+Alt+I` picks from anywhere on the screen (frozen screens with the loupe; the screenshot portal on Wayland) |
 
 - Each drawing tool keeps its own colour, width and options. **★ Save as
   default** in the Tools panel keeps them across sessions. In the Attribute
   Editor, *Use as default* copies a node's look into its tool.
-- Commands: `text.create`, `rect.create`, `arrow.create`, `pen.add_stroke`,
+- Text runs may carry `"link": "<url or path>"`. Links found in the text
+  (web addresses, absolute paths) are not stored. Checklist boxes are the
+  characters ☐ and ☑ at the start of a line.
+- Commands: `text.create`, `text.set_link`, `text.toggle_checklist`,
+  `text.toggle_check(note, line)`, `rect.create`, `rect.create_ellipse`,
+  `color_picker.pick_screen`, `color_picker.copy_color(fmt)`, `arrow.create`, `pen.add_stroke`,
   `pen.combine`, `steps.create`, `steps.renumber`, `redact.blur`,
   `redact.pixelate`, `tools.set_option(tool, name, value)`.
 
@@ -273,7 +279,18 @@ adjusted by its handles without leaving the tool.
 
 `Ctrl+T` keeps the window on top, `F11` makes it frameless, `G` turns on ghost
 mode (a translucent window for tracing over other applications), and
-`Alt`+drag moves the window.
+`Alt`+drag moves the window. `Ctrl+Shift+T` (`window_modes.set_click_through`)
+lets mouse clicks pass through the window to the application below. It also
+keeps the window on top, turns off when the window is activated again (or from
+the tray icon), and is never saved.
+
+### Image info (`image_info`)
+
+`Alt+I` shows a readout next to the cursor over an image: the pixel
+coordinates in the image's own pixels (origin top-left, unaffected by crop,
+flip, rotation and scale), its size and size before cropping, on-screen scale
+and source file. `image_info.describe(name)` returns the size, crop and
+source.
 
 ### Automation (`console`, `macros`, `help`, `tool_palette`)
 
@@ -312,15 +329,15 @@ shows the actual bindings.
 | Files | `Ctrl+N` new · `Ctrl+O` open · `Ctrl+S` save · `Ctrl+E` export image · `Ctrl+Shift+E` export originals · `Ctrl+I` insert images |
 | Edit | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` · `Ctrl+D` duplicate · `Del` delete · `Ctrl+A` select all |
 | Navigate | wheel zoom · middle/right-drag or `Space`+drag pan · `F` frame selection · `Shift+F` / `Home` frame all · `Ctrl+0` 100% · tap `Space` maximise view · `Ctrl+1`–`9` view markers |
-| Tools | `V` select · `T` text · `R` rect · `A` arrow · `P` pen · `Shift+P` edit drawing · `E` eraser · `I` colour picker · `W` link · `N` step · `B` blur · `X` pixelate · `C` crop |
+| Tools | `V` select · `T` text · `R` rect · `O` ellipse · `A` arrow · `P` pen · `Shift+P` edit drawing · `E` eraser · `I` colour picker · `Ctrl+Alt+I` pick from screen · `W` link · `N` step · `B` blur · `X` pixelate · `C` crop |
 | Transform | arrows nudge (`Shift` ×10) · `Ctrl+Wheel` scale · `Shift+H` / `Shift+V` flip · `Ctrl+R` / `Ctrl+Shift+R` rotate 90° · `Ctrl+Shift+0` reset · `Shift+C` reset crop |
 | Arrange | `Ctrl+P` pack · `Ctrl+Alt+H` / `V` / `G` row / column / grid · `]` `}` `{` `[` stacking |
 | Organise | `Ctrl+G` group · `Ctrl+Shift+G` ungroup or separate a drawing · `Ctrl+Shift+N` new group · `Ctrl+J` combine strokes · `F2` rename · `Alt+H` show all |
 | Links | `Ctrl+L` link the selection · `Ctrl+Shift+L` select linked |
-| Look | `Shift+G` grayscale effect · `Alt+V` value check · `Shift+I` isolate in view · `Ctrl+'` background pattern |
+| Look | `Shift+G` grayscale effect · `Alt+V` value check · `Alt+I` image info · `Shift+I` isolate in view · `Ctrl+'` background pattern |
 | Animation | `K` play/pause · `,` / `.` step · `Ctrl+,` / `Ctrl+.` first / last frame |
 | Panels | `Alt+T` Tools · `Alt+O` Outliner · `Alt+A` or `Alt+Enter` Attribute Editor · `Tab` hide panels |
-| Window | ``Ctrl+` `` Script Editor · `Ctrl+Alt+R` record macro · `Ctrl+T` on top · `F11` frameless · `G` ghost mode · `Ctrl+Alt+arrows` move focus |
+| Window | ``Ctrl+` `` Script Editor · `Ctrl+Alt+R` record macro · `Ctrl+T` on top · `F11` frameless · `G` ghost mode · `Ctrl+Shift+T` click-through · `Ctrl+Alt+arrows` move focus |
 | Window mode (`Ctrl+W`, then) | `H` `J` `K` `L` / arrows focus · `Shift`+those move · `S` / `V` next split beside / below · `N` new view · `T` tabbed · `Shift+S` stacked · `E` toggle orientation · `F` fullscreen · `Space` float · `R` resize mode · `=` equalize · `Q` close · `-` scratchpad · `O` tear off · `M` / `'` mark / jump · `Shift+R` rename · `1`–`9` workspace · `Shift+1`–`9` move view to workspace |
 
 ## 5. Data model
@@ -844,12 +861,12 @@ Which built-in plugin provides each feature:
 | `gizmo`, `select`, `transform`, `order`, `navigation` | selection, the gizmo, transforms, stacking, the camera |
 | `grouping`, `outliner`, `inspector`, `quick_edit`, `tool_palette` | groups and the panels |
 | `help` | `F1` keyboard shortcuts and About |
-| `image`, `playback` | image nodes, GIF/WebP playback |
+| `image`, `playback`, `image_info` | image nodes, GIF/WebP playback, the image info readout |
 | `links` | links |
 | `macros` | the scripts folder, Record Macro and `keymap.toml` macros |
 | `pureref` | opening and importing PureRef `.pur` boards |
 | `views` | view markers, display presets, linked views, framing guides, the built-in workspaces |
-| `window_modes` | always on top, frameless, ghost mode |
+| `window_modes` | always on top, frameless, ghost mode, click-through |
 
 ## 10. Frequently asked questions
 
@@ -879,7 +896,9 @@ in order. *Renumber Steps* closes the gaps after deletions.
 workspace buttons, or `Ctrl+W` then `3`), or press `Tab` to hide the panels.
 
 **How do I trace over another application?** Press `G` for ghost mode
-(translucent), and `Ctrl+T` to keep the window on top.
+(translucent), then `Ctrl+Shift+T` for click-through: the window stays on top
+and your clicks reach the application below. Switch back to pixelRef
+(`Alt+Tab`) to turn click-through off.
 
 **How do I see the command behind a button?** Open the Script Editor
 (``Ctrl+` ``) with *Echo all commands* on, then click the button.
