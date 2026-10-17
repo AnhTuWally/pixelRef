@@ -1,0 +1,6 @@
+id = "ellipse"
+name = "Ellipses (example plugin)"
+version = "1.0.0"
+api = 1
+requires = ["brush"]
+description = "Example plugin: an ellipse node type, an Ellipse tool (O) and an Attribute Editor generated from its schema."

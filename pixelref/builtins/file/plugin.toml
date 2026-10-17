@@ -1,0 +1,6 @@
+id = "file"
+name = "Files"
+version = "1.0.0"
+api = 1
+foundation = true
+description = "New / Open / Save / Save As, recent files, scene thumbnails, the start panel (recent files with their thumbnails) on an empty board, unsaved-changes prompts, opening dropped scene files, autosave and crash recovery."

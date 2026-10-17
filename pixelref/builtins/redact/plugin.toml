@@ -1,0 +1,6 @@
+id = "redact"
+name = "Blur and pixelate"
+version = "1.0.0"
+api = 1
+requires = ["gizmo"]
+description = "Regions that blur (B) or pixelate (X) whatever is under them, to hide names, faces and screen details."

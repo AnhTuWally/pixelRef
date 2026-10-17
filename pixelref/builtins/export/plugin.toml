@@ -1,0 +1,5 @@
+id = "export"
+name = "Export"
+version = "1.0.0"
+api = 1
+description = "Export the board or the selection as PNG/JPEG, and export the original image files."

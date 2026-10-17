@@ -1,0 +1,6 @@
+id = "outliner"
+name = "Outliner"
+version = "1.0.0"
+api = 1
+foundation = true
+description = "The scene hierarchy view: drag to reparent/reorder, eye/lock columns, filter, rename; lock/hide commands."

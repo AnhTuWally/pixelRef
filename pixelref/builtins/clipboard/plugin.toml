@@ -1,0 +1,6 @@
+id = "clipboard"
+name = "Clipboard and ingest"
+version = "1.0.0"
+api = 1
+foundation = true
+description = "Copy, cut, paste, duplicate and delete; the ingest service that turns drops and pastes into nodes (ingest.handlers)."

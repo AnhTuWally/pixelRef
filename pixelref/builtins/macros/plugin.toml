@@ -1,0 +1,6 @@
+id = "macros"
+name = "Scripts & Macros"
+version = "1.0.0"
+api = 1
+requires = ["console"]
+description = "Every .py in the user scripts folder becomes an action (Scripts menu, Ctrl+K, bindable keys); Record Macro saves what you do as a script; keymap.toml keys can run command lists, Python or scripts."

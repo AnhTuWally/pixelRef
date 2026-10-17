@@ -1,0 +1,6 @@
+id = "links"
+name = "Links"
+version = "1.0.0"
+api = 1
+requires = ["brush", "gizmo"]
+description = "Connect elements with links that follow them: the Link tool (W), waypoints that pin the path, straight / curved / elbow routing, caps, labels and styles."

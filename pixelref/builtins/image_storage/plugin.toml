@@ -1,0 +1,6 @@
+id = "image_storage"
+name = "Image storage"
+version = "1.0.0"
+api = 1
+requires = ["image"]
+description = "Embed images in the scene file or link them by path: Embed, Link to File, Save as File, Embed All, and the Embed New Images setting."

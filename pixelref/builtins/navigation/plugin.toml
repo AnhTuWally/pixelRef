@@ -1,0 +1,6 @@
+id = "navigation"
+name = "Navigation"
+version = "1.0.0"
+api = 1
+foundation = true
+description = "Pan (middle/right drag, Space+drag), wheel zoom, framing, the zoom controls in the bar, tap Space to maximise a view."

@@ -1,0 +1,3 @@
+# Only for building the standalone executable (packaging/build_exe.py).
+-r ../requirements.txt
+pyinstaller>=6.10

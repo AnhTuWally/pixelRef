@@ -1,0 +1,6 @@
+id = "effects"
+name = "Effects"
+version = "1.0.0"
+api = 1
+optional = ["inspector", "image"]
+description = "Effect stacks on any element (grayscale, invert, brightness/contrast, threshold, posterize, blur, edge detect), cached in memory, on disk and in the scene."

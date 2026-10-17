@@ -1,0 +1,6 @@
+id = "text"
+name = "Text notes"
+version = "1.0.0"
+api = 1
+requires = ["clipboard", "gizmo"]
+description = "Text notes with rich formatting (bold, italic, underline, strike, size, colour, highlight), styled boxes, presets, width handles."

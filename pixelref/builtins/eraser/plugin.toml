@@ -1,0 +1,5 @@
+id = "eraser"
+name = "Eraser"
+version = "1.0.0"
+api = 1
+description = "The Eraser tool (E): deletes erasable annotations (pen strokes, rectangles, arrows) it is dragged across."

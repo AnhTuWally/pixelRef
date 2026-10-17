@@ -1,0 +1,6 @@
+id = "tool_palette"
+name = "Tool palette"
+version = "1.0.0"
+api = 1
+foundation = true
+description = "The Tools view: a button per registered tool, the Add buttons (palette.buttons) and the active tool's options."

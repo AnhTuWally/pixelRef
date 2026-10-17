@@ -1,0 +1,6 @@
+id = "steps"
+name = "Steps"
+version = "1.0.0"
+api = 1
+requires = ["brush"]
+description = "Numbered step markers (N) that count up as you place them, with an optional pointer tail."

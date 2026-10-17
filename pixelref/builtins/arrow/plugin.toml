@@ -1,0 +1,6 @@
+id = "arrow"
+name = "Arrows and lines"
+version = "1.0.0"
+api = 1
+requires = ["brush", "gizmo"]
+description = "Line/arrow annotations: the Arrow tool (A), draggable end points, arrowheads at either or both ends."

@@ -1,0 +1,5 @@
+id = "help"
+name = "Help"
+version = "1.0.0"
+api = 1
+description = "Keyboard Shortcuts (F1), generated from every plugin's actions and keybindings, and About pixelRef (version info)."

@@ -1,0 +1,6 @@
+id = "console"
+name = "Python console (Script Editor)"
+version = "1.0.0"
+api = 1
+foundation = true
+description = "Run Python against the whole app (pxcmd, pxnode): echo of every UI command, one undo step per run, history, autocomplete, userSetup.py."

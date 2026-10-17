@@ -1,0 +1,6 @@
+id = "inspector"
+name = "Attribute Editor"
+version = "1.0.0"
+api = 1
+foundation = true
+description = "The Attribute Editor view: header card, transform and appearance, sections contributed by node-type plugins (inspector.sections), and sections generated from attribute schemas."

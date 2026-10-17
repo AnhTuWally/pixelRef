@@ -1,0 +1,6 @@
+id = "arrange"
+name = "Arrange and align"
+version = "1.0.0"
+api = 1
+requires = ["transform"]
+description = "Optimal packing, rows, columns, grids, normalize sizes, align edges and centres."

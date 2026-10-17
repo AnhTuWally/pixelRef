@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+
+# Standalone build output (packaging/build_exe.py)
+/build/
+/dist/
+
+# Scratch scenes saved at the repo root (examples/scenes/ stays tracked)
+/*.pxref
+
+# Editors / OS
+.vscode/
+.idea/
+.claude/settings.local.json
+Thumbs.db
+desktop.ini
+.DS_Store

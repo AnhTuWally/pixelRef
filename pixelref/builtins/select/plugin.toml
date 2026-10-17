@@ -1,0 +1,6 @@
+id = "select"
+name = "Select tool"
+version = "1.0.0"
+api = 1
+foundation = true
+description = "The Select tool (click, Shift-click, rubber band, drag to move), selection outlines, Select All / Invert."

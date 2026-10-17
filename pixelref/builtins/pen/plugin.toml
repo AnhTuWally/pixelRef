@@ -1,0 +1,6 @@
+id = "pen"
+name = "Pen and drawings"
+version = "1.0.0"
+api = 1
+requires = ["brush", "grouping"]
+description = "Free drawing: the Pen tool (P) collects strokes into Drawing nodes that move as one; smoothing, arrowheads, edit/separate/combine."

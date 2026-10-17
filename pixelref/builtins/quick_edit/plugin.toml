@@ -1,0 +1,5 @@
+id = "quick_edit"
+name = "Quick Attribute Editor"
+version = "1.0.0"
+api = 1
+description = "A small bar next to the selection on the canvas for editing its most-used attributes. Node types choose the default fields (NodeType.quick_attrs); you can change them per type from the bar's ⋯ menu."

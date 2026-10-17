@@ -1,0 +1,7 @@
+id = "contact_sheet"
+name = "Contact sheet"
+version = "1.0.0"
+api = 1
+requires = ["image"]
+optional = ["navigation"]
+description = "A view listing every image as a thumbnail grid: click selects, double-click frames it in the canvas."

@@ -1,0 +1,6 @@
+id = "minimap"
+name = "Minimap"
+version = "1.0.0"
+api = 1
+optional = ["image"]
+description = "An overview of the whole board floating in a corner of each canvas view: click or drag to move the view, drag its title bar to another corner, hide or show it from its title bar or the map button in the canvas header."

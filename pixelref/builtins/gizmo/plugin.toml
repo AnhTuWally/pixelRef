@@ -1,0 +1,6 @@
+id = "gizmo"
+name = "Transform gizmo"
+version = "1.0.0"
+api = 1
+foundation = true
+description = "Scale and rotate handles for the selection; node types add their own handles (gizmo.handles)."

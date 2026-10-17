@@ -1,0 +1,5 @@
+id = "transform"
+name = "Transform commands"
+version = "1.0.0"
+api = 1
+description = "Flip, rotate 90°, reset transform, move/scale commands, arrow-key nudging and Ctrl+wheel scaling."

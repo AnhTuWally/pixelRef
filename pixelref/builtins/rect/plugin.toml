@@ -1,0 +1,6 @@
+id = "rect"
+name = "Rectangles"
+version = "1.0.0"
+api = 1
+requires = ["brush", "gizmo"]
+description = "Rectangle annotations: the Rect tool (R), reshape points, corner radius, dashed/dotted borders and hatch fills."

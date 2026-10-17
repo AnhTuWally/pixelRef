@@ -1,0 +1,6 @@
+id = "brush"
+name = "Brush"
+version = "1.0.0"
+api = 1
+foundation = true
+description = "The shared brush colour and width, recent colours, and the Stroke section of the Attribute Editor."

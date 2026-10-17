@@ -1,0 +1,5 @@
+id = "canvas_background"
+name = "Canvas background"
+version = "1.0.0"
+api = 1
+description = "Background colour and pattern (grid lines, dots, crosses, checkerboard), saved with the scene; new scenes start with your last choice."

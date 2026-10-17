@@ -1,0 +1,6 @@
+id = "views"
+name = "Views, cameras and workspaces"
+version = "1.0.0"
+api = 1
+foundation = true
+description = "Camera bookmarks, display presets (value check, filters, isolate), linked views, framing guides, the canvas header controls and the built-in workspaces (Board, Review, Present)."

@@ -1,0 +1,6 @@
+id = "image"
+name = "Images"
+version = "1.0.0"
+api = 1
+requires = ["clipboard"]
+description = "Image nodes (embedded or linked, animated GIFs), ingest from files, folders, the clipboard and browsers, Insert Images, Grayscale (an effect)."
