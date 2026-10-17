@@ -57,6 +57,45 @@ searches every command.
   *File → Embed All Linked Images* packs a scene into one self-contained file.
 - **Copy, cut, paste and duplicate** work between scenes.
 
+### PureRef boards
+
+The **PureRef import** plugin reads PureRef `.pur` boards: the 1.x format
+(PureRef 1.10 and 1.11) and the 2.x format (PureRef 2.0 and 2.1). Damaged files,
+or files in a format version it doesn't know, are refused with a message, and
+the open board stays as it was.
+
+- **It's one way.** pixelRef reads PureRef boards but can't save them back as
+  PureRef files: your work is saved as a pixelRef scene (`.pxref`), and the
+  `.pur` file is left exactly as it was, so changes made in pixelRef don't
+  show up in PureRef. Opening a board says so: in a notice the first time
+  (tick *Don't show this again* to hide it), and in the status bar every time.
+- *File → Open PureRef Board (Import Only)…* opens one as a new, unsaved
+  scene. *Save* then asks for a `.pxref` name.
+- *File → Import → PureRef Board…* adds one to the current board, centred in
+  the view and put in a group named after the file. Dropping `.pur` files on
+  the canvas does the same at the drop point. Either way it's one undo step.
+- Images keep their place, size, rotation, mirroring, crop, opacity and lock.
+  An image used several times is stored once. Images the board only linked to
+  are linked again; when the stored path no longer exists, pixelRef looks for a
+  file of that name next to the `.pur` file.
+- Text becomes text notes with their colours and background. PureRef 2 notes
+  keep their formatting too: font, size, bold, italic, underline, strike,
+  colour and highlight, also for parts of the text. Text attached to an image
+  becomes a child of that image, so it still moves with it.
+- PureRef 2 groups become groups, and pen strokes become a drawing (it needs
+  the *Pen* plugin).
+- Not carried over: arrowheads on PureRef 2 pen strokes, group background
+  colours, and animation playback settings. Free-form (non-rectangular) crops
+  become their bounding rectangle. PureRef 1.x text has no font information,
+  so it uses pixelRef's default size, scaled like the PureRef item.
+- From scripts: `pxcmd.open_pureref(path)`, `pxcmd.import_pureref(path,
+  translate=None, group=None)` and `pxcmd.pureref.inspect(path)`, which
+  reports what a board holds without importing it.
+
+The 1.x reader is a port of [FyorDev's PureRef-format](https://github.com/FyorDev/PureRef-format)
+(MIT License), which worked out that file layout. The 2.x reader was written
+for pixelRef from boards saved by PureRef 2.0.3 and 2.1.3.
+
 ## Annotations
 
 Drawing tools stay active until `Esc` or `V`. The shape you just drew can be

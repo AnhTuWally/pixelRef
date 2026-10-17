@@ -62,6 +62,11 @@ WebPs, or images straight from a web browser. Images are **embedded** in the
 scene file by default, so a single `.pxref` is easy to share. To keep a large
 file on disk instead, choose *Link…* in the Attribute Editor.
 
+Coming from PureRef? *File → Open PureRef Board (Import Only)…* opens a `.pur`
+board, and dropping one on the canvas adds it to the current board. It's one
+way: pixelRef saves your work as a `.pxref` scene and never writes `.pur`
+files (see [PureRef boards](docs/user-guide.md#pureref-boards)).
+
 ### 3. Select, transform and quick-edit
 
 Click to select, drag a rubber band, and `Shift`/`Ctrl`-click to add. The
@@ -317,3 +322,8 @@ a package install into the managed folder and offscreen UI rendering. See
 ## License
 
 pixelRef is released under the [MIT License](LICENSE).
+
+The PureRef 1.x `.pur` reader (`pixelref/builtins/pureref/purformat.py`) is a
+port of [PureRef-format](https://github.com/FyorDev/PureRef-format) by Fyor,
+also under the MIT License; its copyright and licence notice are kept in that
+file.

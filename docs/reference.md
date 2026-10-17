@@ -126,6 +126,10 @@ the plugin that provides it.
   scene.
 - The **Contact Sheet** view shows every image as a thumbnail grid
   (`pxcmd.wm.open_view("contact_sheet")`).
+- **PureRef boards** (`pureref`): *File → Open PureRef Board (Import Only)…*, *File → Import →
+  PureRef Board…* and dropping `.pur` files; `open_pureref(path)`,
+  `import_pureref(path, translate=…, group=…)`, `pureref.inspect(path)`. See
+  [user-guide.md](user-guide.md#pureref-boards).
 - Commands: `import_image(path, translate=…, embed=…)`, `import_images`,
   `image.toggle_grayscale`, `image_storage.*`, `clipboard.*`,
   `playback.play/pause/toggle/go_to_frame/next_frame`.
@@ -843,6 +847,7 @@ Which built-in plugin provides each feature:
 | `image`, `playback` | image nodes, GIF/WebP playback |
 | `links` | links |
 | `macros` | the scripts folder, Record Macro and `keymap.toml` macros |
+| `pureref` | opening and importing PureRef `.pur` boards |
 | `views` | view markers, display presets, linked views, framing guides, the built-in workspaces |
 | `window_modes` | always on top, frameless, ghost mode |
 

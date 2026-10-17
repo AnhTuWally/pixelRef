@@ -339,10 +339,13 @@ the rest also work headless (batch mode, scripts).
 
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
+| `macros.discard()` | `discard_macro` |  | Stop recording and throw the recorded steps away. |
 | `macros.list()` | `list_scripts` |  | Every script action and its file. |
 | `macros.open_folder()` |  |  | Open the user scripts folder (created if missing) in the file browser. |
+| `macros.pause()` | `pause_macro` |  | Pause or resume the macro being recorded; returns True when now paused. |
 | `macros.record(name: str \| None = None)` | `record_macro` |  | Start recording a macro, or stop and save it as a script (asks for a name). |
 | `macros.reload()` | `reload_scripts` |  | Find the scripts in the scripts folders again; returns their action keys. |
+| `macros.remove_last()` |  |  | Take the last step out of the macro being recorded; returns it. |
 | `macros.run(commands: list[str] \| None = None, python: str \| None = None, script: str \| None = None, label: str = Macro)` | `run_macro` | yes | Run a macro as one undo step: action/command names in order, Python code or a script file. |
 | `macros.run_script(path: str)` | `run_user_script` | yes | Run a script file from the scripts folder (or a full path) as one undo step. |
 
@@ -410,6 +413,16 @@ the rest also work headless (batch mode, scripts).
 | `playback.play(nodes: Any = None)` | `play` |  | Play animated images (default: the selected ones). |
 | `playback.prev_frame(nodes: Any = None, count: int = 1)` | `prev_frame` |  | Pause and step back (,), wrapping from the first frame to the last. |
 | `playback.toggle(nodes: Any = None)` | `toggle_playback` |  | Play / pause (K). Returns True when they are now playing. |
+
+## pureref
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `pureref.import_dialog()` |  |  | Choose a PureRef board to add to this one, at the view centre. |
+| `pureref.import_file(path: str, translate: Any = None, group: bool \| None = None)` | `import_pureref` | yes | Add a PureRef board (.pur) to this one; returns the new top-level nodes. |
+| `pureref.inspect(path: str)` |  |  | What a PureRef board holds (version, images, notes) without importing it. |
+| `pureref.open(path: str)` | `open_pureref` |  | Open a PureRef board (.pur) as a new, unsaved scene. |
+| `pureref.open_dialog()` |  |  | Choose a PureRef board to open as a new scene (asks about unsaved changes first). |
 
 ## quick_edit
 

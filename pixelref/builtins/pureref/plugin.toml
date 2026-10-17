@@ -1,0 +1,7 @@
+id = "pureref"
+name = "PureRef import"
+version = "1.0.0"
+api = 1
+requires = ["image"]
+optional = ["text", "grouping", "pen", "navigation"]
+description = "Open or import PureRef .pur boards (PureRef 1.10–1.11 and 2.x): images with their placement, crops and mirroring, text notes, groups and pen drawings. The 1.x reader is based on FyorDev's PureRef-format (MIT)."
