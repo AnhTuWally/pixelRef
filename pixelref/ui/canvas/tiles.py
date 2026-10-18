@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Iterable
 from PySide6.QtCore import QPointF, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QImage, QPainter, QRegion, QTransform
 
+from ...core import perf
 from .items import rendering_for
 
 if TYPE_CHECKING:
@@ -256,6 +257,10 @@ class TileCache:
         self._enforce_budget(level)
 
     def _render_run(self, level: Level, i0: int, j: int, count: int) -> None:
+        with perf.span("tiles.render_run"):
+            self._render_run_now(level, i0, j, count)
+
+    def _render_run_now(self, level: Level, i0: int, j: int, count: int) -> None:
         view = self.view
         dpr = level.dpr
         image = QImage(count * TILE, TILE, QImage.Format_ARGB32_Premultiplied)

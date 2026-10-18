@@ -11,6 +11,8 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Any, Callable, Iterator
 
+from . import perf
+
 
 class UndoStack:
     """Undo/redo stacks of (label, serialized state).
@@ -79,8 +81,8 @@ class UndoManager:
 
     def __init__(self, dump: Callable[[], str], load: Callable[[str], None],
                  revision: Callable[[], Any] | None = None) -> None:
-        self._dump_fn = dump
-        self._load = load
+        self._dump_fn = perf.timed("undo.snapshot", dump)
+        self._load = perf.timed("undo.restore", load)
         self._revision = revision
         self._cache: tuple[Any, str] | None = None  # (revision, dump at that revision)
         self._before_revision: Any = None

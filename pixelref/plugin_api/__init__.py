@@ -26,7 +26,7 @@ A plugin package::
 """
 
 from .. import __version__ as APP_VERSION
-from ..core import xform
+from ..core import perf, xform
 from ..core.attributes import Attr
 from ..core.errors import CommandError, PluginError, SceneError
 from ..core.extensions import Disposable
@@ -64,5 +64,6 @@ __all__ = [
     "read_thumbnail",
     "SCENE_EXT",
     "SCENE_EXTS",
+    "perf",
     "xform",
 ]

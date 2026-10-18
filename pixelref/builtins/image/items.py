@@ -4,25 +4,35 @@ from __future__ import annotations
 
 import math
 import os
+import time
 from collections import OrderedDict
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QEvent, QObject, QRectF, QRunnable, Qt, QThreadPool, Signal
-from PySide6.QtGui import QImage, QMovie, QPainter, QPixmap
+from PySide6.QtCore import QCoreApplication, QEvent, QObject, QRectF, QRunnable, QSize, Qt, QThreadPool, Signal
+from PySide6.QtGui import QColor, QImage, QMovie, QPainter, QPixmap
 from PySide6.QtWidgets import QGraphicsItem
 
-from pixelref.plugin_api.ui import NodeItemMixin
+from pixelref.plugin_api import perf
+from pixelref.plugin_api.ui import NodeItemMixin, view_for
+
+from .source import STORE, ImageHandle, LazySource, level_for
 
 # ---- Zoomed-out copies (mipmaps), shared by every item showing the same pixmap ----
 #
-# Drawing a big photo small means resampling all of it on every frame, so a
-# zoomed-out image is drawn from a copy halved enough times. The copies of an
-# image (its whole chain, 1/3 of its size) are made in background threads as
-# soon as an item shows it — a frame never waits for one: until the chain is
-# ready the full image is drawn, and the items are repainted when it arrives.
-# Chains are dropped least recently drawn first beyond MIP_CACHE_LIMIT.
+# Images from files and embedded assets are decoded at the level they're drawn
+# at (see .source). Pictures that come whole — animation frames, effect
+# results, placeholders — are drawn small from a copy halved enough times
+# instead of resampling all of them on every frame. The copies of a picture
+# (its whole chain, 1/3 of its size) are made in background threads — a frame
+# never waits for one: until the chain is ready the full picture is drawn, and
+# the items are repainted when it arrives. Chains are dropped least recently
+# drawn first beyond MIP_CACHE_LIMIT, except those drawn in the last
+# MIP_RECENT_S seconds (on screen: dropping them would only rebuild them for
+# the next frame) unless that goes past twice the limit.
 
 MIP_CACHE_LIMIT = 1024 * 1024 * 1024
+MIP_RECENT_S = 2.0
+PLACEHOLDER_COLOR = QColor(128, 128, 128, 48)  # an image whose pixels are still being decoded
 MIN_MIP_SIDE = 8
 MIP_MIN_SOURCE = 64  # smaller images are drawn as they are
 PREVIEW_LEVEL = 2  # from this zoom out, a rough copy stands in while the copies are made
@@ -30,9 +40,16 @@ PREVIEW_LEVEL = 2  # from this zoom out, a rough copy stands in while the copies
 
 def mip_level_for(screen_scale: float) -> int:
     """Halving steps that still leave at least one source pixel per screen pixel."""
-    if screen_scale <= 0 or screen_scale >= 0.5:
-        return 0
-    return max(0, min(10, int(math.floor(math.log2(1.0 / screen_scale)))))
+    return level_for(screen_scale, 10)
+
+
+def device_scale(painter: QPainter) -> float:
+    """Device pixels per local unit of what ``painter`` draws (zoom and screen pixel ratio)."""
+    transform = painter.worldTransform()
+    scale = max(math.hypot(transform.m11(), transform.m12()), math.hypot(transform.m21(), transform.m22()))
+    device = painter.device()
+    ratio = device.devicePixelRatioF() if device is not None else 1.0
+    return scale * (ratio or 1.0)
 
 
 def build_chain(image: QImage) -> list[QImage]:
@@ -60,7 +77,8 @@ class _ChainJob(QRunnable):
 
     def run(self) -> None:
         try:
-            chain = build_chain(self.image)
+            with perf.span("image.mip_chain (worker)"):
+                chain = build_chain(self.image)
         except Exception:  # noqa: BLE001  (a broken image keeps drawing at full size)
             chain = []
         self.signals.done.emit(self.key, chain)
@@ -69,6 +87,7 @@ class _ChainJob(QRunnable):
 class MipStore:
     def __init__(self) -> None:
         self.chains: OrderedDict[int, list[QImage]] = OrderedDict()  # least recently drawn first
+        self.drawn: dict[int, float] = {}  # key -> when its chain was last drawn
         self.bytes = 0
         self.waiting: dict[int, list[Any]] = {}  # key -> items to repaint when its chain is ready
         self.previews: dict[int, QImage] = {}  # key -> rough copy until its chain is ready
@@ -117,6 +136,7 @@ class MipStore:
                     Qt.IgnoreAspectRatio, Qt.FastTransformation)
             return preview
         self.chains.move_to_end(key)
+        self.drawn[key] = time.monotonic()
         if not chain:
             return pixmap
         return chain[min(level, len(chain)) - 1]
@@ -125,9 +145,15 @@ class MipStore:
         items = self.waiting.pop(key, [])
         self.previews.pop(key, None)
         self.chains[key] = chain
+        self.drawn[key] = time.monotonic()
         self.bytes += sum(image.sizeInBytes() for image in chain)
+        now = time.monotonic()
         while self.bytes > MIP_CACHE_LIMIT and len(self.chains) > 1:
-            _old, dropped = self.chains.popitem(last=False)
+            old = next(iter(self.chains))
+            if now - self.drawn.get(old, 0.0) < MIP_RECENT_S and self.bytes <= 2 * MIP_CACHE_LIMIT:
+                break  # the rest is on screen: go over the budget rather than thrash
+            dropped = self.chains.pop(old)
+            self.drawn.pop(old, None)
             self.bytes -= sum(image.sizeInBytes() for image in dropped)
         for item in items:
             try:
@@ -144,6 +170,7 @@ class MipStore:
     def clear(self) -> None:
         self.wait()
         self.chains.clear()
+        self.drawn.clear()
         self.previews.clear()
         self.bytes = 0
 
@@ -175,10 +202,16 @@ def prune_frame_cache(used: set[Any]) -> None:
 
 
 class PixmapItem(NodeItemMixin, QGraphicsItem):
-    def __init__(self, node_name: str, pixmap: QPixmap) -> None:
+    """An image: pixels from an ``ImageHandle`` (decoded at the level drawn, see .source),
+    or a whole pixmap (animations, placeholders)."""
+
+    def __init__(self, node_name: str, pixmap: QPixmap | None = None, handle: ImageHandle | None = None) -> None:
         super().__init__()
         self._init_node(node_name, "image", None)
-        self._pixmap = pixmap
+        self._handle = handle
+        self._pixmap = pixmap if pixmap is not None else QPixmap()
+        # Draws an export (or another final render) at full quality: decodes what it needs at once.
+        self.final_render: Any = lambda: False
         self._crop: QRectF | None = None
         self._crop_preview = False
         self._movie: QMovie | None = None
@@ -193,16 +226,29 @@ class PixmapItem(NodeItemMixin, QGraphicsItem):
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges, True)
         # Annotations parented to an image keep their own opacity.
         self.setFlag(QGraphicsItem.ItemDoesntPropagateOpacityToChildren, True)
-        MIPS.prepare(pixmap, self)  # ready before the first zoom out
+        if handle is None:
+            MIPS.prepare(self._pixmap, self)  # ready before the first zoom out
 
     # ---- Pixmap -------------------------------------------------------------------
 
+    @property
+    def handle(self) -> ImageHandle | None:
+        return self._handle
+
+    def image_size(self) -> QSize:
+        """The image's size in pixels (its local coordinates), decoded or not."""
+        return self._handle.size if self._handle is not None else self._pixmap.size()
+
     def pixmap(self) -> QPixmap:
+        """The image at full size (decoded now if it isn't in memory)."""
+        if self._handle is not None:
+            return self._handle.full()
         return self._pixmap
 
     def setPixmap(self, pixmap: QPixmap) -> None:  # noqa: N802
-        if pixmap.size() != self._pixmap.size():
+        if pixmap.size() != self.image_size():
             self.prepareGeometryChange()
+        self._handle = None  # shows this pixmap from now on (animation frames)
         self._pixmap = pixmap
         self.update()
 
@@ -360,7 +406,8 @@ class PixmapItem(NodeItemMixin, QGraphicsItem):
     # ---- Crop -----------------------------------------------------------------------
 
     def full_rect(self) -> QRectF:
-        return QRectF(0.0, 0.0, float(self._pixmap.width()), float(self._pixmap.height()))
+        size = self.image_size()
+        return QRectF(0.0, 0.0, float(size.width()), float(size.height()))
 
     def crop_rect(self) -> QRectF:
         full = self.full_rect()
@@ -417,32 +464,58 @@ class PixmapItem(NodeItemMixin, QGraphicsItem):
         if self.cache_key is None:
             return None  # a placeholder ("missing"), not the image
         frame = self.current_frame() if self._movie is not None else 1
+        if self._handle is not None:
+            return LazySource(self._handle), (self.cache_key, frame)
         return self._pixmap, (self.cache_key, frame)
 
     def paint_source(self, painter: QPainter, pixmap: QPixmap) -> None:
         self._draw_pixmap(painter, pixmap)
 
     def paint_content(self, painter: QPainter, option, widget=None) -> None:  # noqa: ANN001
-        self._draw_pixmap(painter, self._pixmap)
+        if self._handle is not None:
+            self._draw_handle(painter, self._handle, on_screen=view_for(widget) is not None)
+        else:
+            self._draw_pixmap(painter, self._pixmap)
+
+    def _draw_handle(self, painter: QPainter, handle: ImageHandle, on_screen: bool = True) -> None:
+        """Draw the level the zoom needs; on screen, the nearest decoded one until it's ready.
+        Previews (minimap, thumbnails) draw what's decoded and never ask for more."""
+        level = level_for(device_scale(painter), handle.max_level)
+        if self.final_render():
+            picture = handle.picture_now(level)
+        else:
+            found = handle.best(level)
+            if on_screen and (found is None or found[0] != level):
+                handle.request(level, self)
+            if found is None:
+                painter.fillRect(self.boundingRect(), PLACEHOLDER_COLOR)
+                return
+            level, picture = found
+            STORE.touch(handle, level)
+        if not picture.isNull():
+            self._draw_scaled(painter, picture)
 
     def _draw_pixmap(self, painter: QPainter, pixmap: QPixmap) -> None:
         """Draw ``pixmap`` (the image, or an effect's result: the same picture, possibly
         at a lower resolution) cropped, and pre-shrunk when zoomed out (see MIPS)."""
-        rect = self.boundingRect()
-        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
-        # Source pixels of ``pixmap`` per image pixel (1 unless it's a smaller result).
-        sx = pixmap.width() / max(1, self._pixmap.width())
-        sy = pixmap.height() / max(1, self._pixmap.height())
-        transform = painter.worldTransform()
-        screen_scale = max(math.hypot(transform.m11(), transform.m12()), math.hypot(transform.m21(), transform.m22()))
-        level = mip_level_for(screen_scale * max(sx, sy))
+        size = self.image_size()
+        # Pixels of ``pixmap`` per image pixel (1 unless it's a smaller result).
+        ratio = max(pixmap.width() / max(1, size.width()), pixmap.height() / max(1, size.height()))
+        level = mip_level_for(device_scale(painter) / max(ratio, 1e-9))
         picture: QPixmap | QImage = pixmap
         if level and self._movie is None:
             # Zoomed out: draw a pre-shrunk copy instead of resampling the full image.
             picture = MIPS.get(pixmap, level, self)
-            # The copy's real size, not 2**-level: halving floors odd sides and stops at tiny sizes.
-            sx = picture.width() / max(1, self._pixmap.width())
-            sy = picture.height() / max(1, self._pixmap.height())
+        self._draw_scaled(painter, picture)
+
+    def _draw_scaled(self, painter: QPainter, picture: QPixmap | QImage) -> None:
+        """Draw ``picture`` (the image at any resolution) over the image's area, cropped."""
+        rect = self.boundingRect()
+        size = self.image_size()
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        # The picture's real size, not 2**-level: halving floors odd sides and stops at tiny sizes.
+        sx = picture.width() / max(1, size.width())
+        sy = picture.height() / max(1, size.height())
         source = rect if sx == 1.0 and sy == 1.0 else QRectF(rect.x() * sx, rect.y() * sy,
                                                               rect.width() * sx, rect.height() * sy)
         if isinstance(picture, QImage):

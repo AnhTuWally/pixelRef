@@ -13,11 +13,13 @@ from PySide6.QtGui import QColor, QImage, QImageReader, QMovie, QPainter, QPen, 
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import QFileDialog
 
+from pixelref.plugin_api import perf
 from pixelref.plugin_api.contracts import IngestHandler, InspectorSection, PaletteButton, SelectionInfo
 from pixelref.plugin_api.ui import widgets as w
 
 from . import MIME_EXTENSIONS, SUPPORTED_IMAGE_EXTS
 from .items import PixmapItem, prune_frame_cache
+from .source import ImageHandle, level_for, open_handle
 
 
 def decode_image(data: bytes) -> QImage:
@@ -27,7 +29,8 @@ def decode_image(data: bytes) -> QImage:
     buffer.open(QIODevice.ReadOnly)
     reader = QImageReader(buffer)
     reader.setAutoTransform(True)
-    return reader.read()
+    with perf.span("image.decode"):
+        return reader.read()
 
 
 def png_bytes(image: QImage) -> bytes:
@@ -38,12 +41,86 @@ def png_bytes(image: QImage) -> bytes:
 
 
 class PixmapCache:
+    """Image pixels by source (embedded asset or linked file): an ``ImageHandle`` for
+    still images (decoded in the background at the size they're drawn, see .source),
+    whole pixmaps for animations and for files only Qt's full decode can read."""
+
     def __init__(self, session: Any) -> None:
         self.session = session
         self.pixmaps: dict[tuple[str, Any], QPixmap] = {}
+        self.handles: dict[tuple[str, Any], ImageHandle | None] = {}  # None: use load()
+
+    def source_key(self, attrs: dict[str, Any]) -> tuple[str, Any] | None:
+        asset_id = str(attrs.get("asset", "") or "")
+        if asset_id:
+            return ("asset", asset_id)
+        path_value = str(attrs.get("path", "") or "")
+        if not path_value:
+            return None
+        path = self.session.resolve_path(path_value)
+        try:
+            return (str(path.resolve()), path.stat().st_mtime_ns)
+        except OSError:
+            return None
+
+    def handle(self, attrs: dict[str, Any]) -> ImageHandle | None:
+        """The image's handle, or None for animations, missing and unreadable images (use load())."""
+        key = self.source_key(attrs)
+        if key is None:
+            return None
+        if key in self.handles:
+            return self.handles[key]
+        handle = None
+        if key[0] == "asset":
+            asset = self.session.scene.get_asset(key[1])
+            if asset is not None and asset.mime not in self.ANIMATED:
+
+                def open_reader(data: bytes = asset.data) -> QImageReader:
+                    # A copy only while it decodes: a lasting QByteArray would double the board's memory.
+                    source = QBuffer()
+                    source.setData(QByteArray(data))
+                    source.open(QIODevice.ReadOnly)
+                    reader = QImageReader(source)
+                    reader._source = source  # keep the buffer alive while reading
+                    return reader
+
+                handle = open_handle(key, open_reader)
+        elif Path(key[0]).suffix.lower() not in (".gif", ".webp"):
+            handle = open_handle(key, lambda path=key[0]: QImageReader(path))
+        self.handles[key] = handle
+        return handle
+
+    def size(self, attrs: dict[str, Any]) -> tuple[int, int] | None:
+        """The image's size from its header (decoding it only when its format can't tell)."""
+        handle = self.handle(attrs)
+        if handle is not None:
+            return handle.size.width(), handle.size.height()
+        pixmap, key = self.load(attrs)
+        return (pixmap.width(), pixmap.height()) if key is not None else None
+
+    def thumbnail(self, attrs: dict[str, Any], side: int) -> QPixmap:
+        """The image decoded at about ``side`` pixels (at least), at once."""
+        handle = self.handle(attrs)
+        if handle is None:
+            return self.load(attrs)[0]
+        longest = max(handle.size.width(), handle.size.height())
+        return handle.picture_now(level_for(side / max(1, longest), handle.max_level))
+
+    def clear(self) -> None:
+        """Forget every decoded image (another document was opened)."""
+        for handle in self.handles.values():
+            if handle is not None:
+                handle.forget()
+        self.handles.clear()
+        self.pixmaps.clear()
 
     def load(self, attrs: dict[str, Any]) -> tuple[QPixmap, tuple[str, Any] | None]:
-        """Pixmap for an image node: its embedded asset, or else its linked file."""
+        """Pixmap for an image node at full size, decoded now: its embedded asset, or else its linked file."""
+        handle = self.handle(attrs)
+        if handle is not None:
+            pixmap = handle.full()
+            if not pixmap.isNull():
+                return pixmap, handle.key
         asset_id = str(attrs.get("asset", "") or "")
         if not asset_id:
             return self._load_file(str(attrs.get("path", "") or ""))
@@ -55,7 +132,8 @@ class PixmapCache:
         image = decode_image(asset.data) if asset is not None else QImage()
         if image.isNull():
             return self.placeholder("embedded image"), None
-        pixmap = QPixmap.fromImage(image)
+        with perf.span("image.to_pixmap"):
+            pixmap = QPixmap.fromImage(image)
         self.pixmaps[key] = pixmap
         return pixmap, key
 
@@ -72,10 +150,12 @@ class PixmapCache:
             return cached, key
         reader = QImageReader(str(path))
         reader.setAutoTransform(True)  # honour EXIF orientation of photos
-        image = reader.read()
+        with perf.span("image.decode"):
+            image = reader.read()
         if image.isNull():
             return self.placeholder(path_value), None
-        pixmap = QPixmap.fromImage(image)
+        with perf.span("image.to_pixmap"):
+            pixmap = QPixmap.fromImage(image)
         self.pixmaps[key] = pixmap
         return pixmap, key
 
@@ -140,6 +220,11 @@ class PixmapCache:
         for key in list(self.pixmaps):
             if key not in used:
                 del self.pixmaps[key]
+        for key in list(self.handles):
+            if key not in used:
+                handle = self.handles.pop(key)
+                if handle is not None:
+                    handle.forget()
 
 
 class ImageSection(w.InspectorSection):
@@ -170,8 +255,7 @@ def activate_image_ui(ui: Any) -> None:
     headless_sizer = api.sizer
 
     def pixmap_size(attrs: dict[str, Any]) -> tuple[int, int] | None:
-        pixmap, key = cache.load(attrs)
-        return (pixmap.width(), pixmap.height()) if key is not None else None
+        return cache.size(attrs)
 
     api.sizer = pixmap_size
     ui.track(lambda: setattr(api, "sizer", headless_sizer))
@@ -179,8 +263,18 @@ def activate_image_ui(ui: Any) -> None:
     ui.declare_extension_point("image.movie_hooks",
                                "callable(item): called when an animated image's item starts its movie")
 
+    def final_render() -> bool:
+        return canvas.rendering_final > 0
+
     def factory(_canvas: Any, node: dict[str, Any]) -> PixmapItem:
         attrs = node.get("attrs", {})
+        handle = cache.handle(attrs)
+        if handle is not None:  # decoded when it's drawn, at the size it's drawn
+            item = PixmapItem(node["name"], handle=handle)
+            item.cache_key = handle.key
+            item.final_render = final_render
+            item.set_crop(attrs.get("crop"))
+            return item
         pixmap, key = cache.load(attrs)
         item = PixmapItem(node["name"], pixmap)
         item.cache_key = key

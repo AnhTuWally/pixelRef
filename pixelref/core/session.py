@@ -21,7 +21,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable
 
-from . import xform
+from . import perf, xform
 from .commands import CommandRegistry, ContextKeys
 from .errors import SceneError
 from .events import EventStream
@@ -224,8 +224,10 @@ class Session:
 
     def open_file(self, path: str | Path) -> None:
         path = Path(path)
-        text = self.format.read_text(path)
-        self.load_text(text, path)
+        with perf.span("file.read"):
+            text = self.format.read_text(path)
+        with perf.span("file.load"):
+            self.load_text(text, path)
         self.revision = self.saved_revision = 0
         self.events.emit("scene.opened", {"path": path.as_posix()})
 
@@ -237,7 +239,10 @@ class Session:
             target = target.with_suffix(SCENE_EXT)
         for hook in self.extensions.contributions("scene.before_save"):
             hook(self, target)
-        self.format.write_text(target, self.serialize())
+        with perf.span("file.snapshot"):
+            snapshot = self.format.snapshot(self.scene)
+        with perf.span("file.write"):
+            snapshot.write(target)
         self.scene_path = target
         self.mark_saved()
         self.events.emit("scene.saved", {"path": target.as_posix()})

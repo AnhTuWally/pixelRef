@@ -24,6 +24,7 @@ from PySide6.QtCore import QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QImage, QPainter, QTransform
 from PySide6.QtWidgets import QGraphicsItem
 
+from ...core import perf
 from ...core.extensions import Disposable
 from ...core.values import differs
 from .items import ContainerItem, NodeItemMixin, PlaceholderItem
@@ -51,6 +52,12 @@ class NodeTypeUI:
     plugin: str | None = None
 
 
+# Attributes an existing item shows by itself (its transform, opacity, visibility, lock):
+# a change of only these updates the item instead of building a new one.
+PLACEMENT_ATTRS = frozenset({"translate", "rotate", "scale", "pivot", "opacity", "visibility", "locked"})
+_MISSING = object()
+
+
 class CanvasDocument:
     COALESCE_MS = 600
 
@@ -65,6 +72,10 @@ class CanvasDocument:
         self.rendering_final = 0  # > 0 while render_items(final=True) runs (see there)
         self.item_hooks: list[Callable[[Any, dict[str, Any]], None]] = []
         self._signatures: dict[str, tuple[Any, ...]] = {}
+        # Scene revisions the items were last synced at (None: never): a refresh after
+        # attribute edits only looks at the nodes changed since (SceneGraph.node_revisions).
+        self._synced_revision: int | None = None
+        self._synced_structure = -1
         self.syncing = False
         self._syncing_selection = False
         self._dirty: set[str] = set()
@@ -196,13 +207,31 @@ class CanvasDocument:
         self._refresh_timer.start(0)
 
     def _do_refresh(self, force: bool = False) -> None:
-        snapshot = self.session.scene.to_dict()["nodes"]
-        self.nodes = {node["name"]: node for node in snapshot}
+        scene = self.session.scene
+        incremental = (not force and not self._force_full and self.items and self._synced_revision is not None
+                       and scene.structure_revision == self._synced_structure)
+        with perf.span("canvas.snapshot"):
+            if incremental:
+                since = self._synced_revision
+                touched = [name for name, revision in scene.node_revisions.items() if revision > since]
+                for name in touched:
+                    node = scene.nodes.get(name)
+                    if node is not None:
+                        self.nodes[name] = node.to_dict()
+            else:
+                snapshot = scene.to_dict()["nodes"]
+                self.nodes = {node["name"]: node for node in snapshot}
         self.syncing = True
         try:
-            self._update_canvas(snapshot)
+            with perf.span("canvas.update_items"):
+                if incremental:
+                    self._update_nodes(touched)
+                else:
+                    self._update_canvas(snapshot)
         finally:
             self.syncing = False
+        self._synced_revision = scene.revision
+        self._synced_structure = scene.structure_revision
         self._dirty.clear()
         self._apply_selection_to_items()
         self.app.on_canvas_refreshed()
@@ -212,19 +241,63 @@ class CanvasDocument:
         return node["type"], node.get("parent"), node.get("attrs"), node.get("dynamic")
 
     def _update_canvas(self, nodes: list[dict[str, Any]]) -> None:
-        """Recreate only items whose data changed; rebuild everything when most
-        things changed (opening a file, new scene) or a node type's UI changed."""
+        """Update items whose node moved (or changed opacity, visibility, lock), recreate
+        those whose data changed otherwise; rebuild everything when most things changed
+        (opening a file, new scene) or a node type's UI changed."""
         signatures = {node["name"]: self._signature(node) for node in nodes}
         changed = [n["name"] for n in nodes if self._signatures.get(n["name"]) != signatures[n["name"]]]
         removed = [name for name in self.items if name not in signatures]
-        if self._force_full or not self.items or len(changed) + len(removed) > max(8, len(nodes) * 0.6):
+        placed = [name for name in changed if self._placement_only(name, signatures[name])]
+        recreate = set(changed).difference(placed)
+        if self._force_full or not self.items or len(recreate) + len(removed) > max(8, len(nodes) * 0.6):
             self._force_full = False
-            self._rebuild(nodes)
-        elif changed or removed:
-            self._patch(nodes, set(changed), removed)
+            with perf.span("canvas.rebuild_all"):
+                self._rebuild(nodes)
+        else:
+            self._place(placed)
+            if recreate or removed:
+                with perf.span("canvas.patch"):
+                    self._patch(nodes, recreate, removed)
+            else:
+                self._finish(nodes, fresh=set())
+        self._signatures = signatures
+
+    def _update_nodes(self, names: list[str]) -> None:
+        """Like _update_canvas after attribute edits only (no node added, removed, renamed,
+        reparented or reordered): just ``names`` can have changed."""
+        signatures = {name: self._signature(self.nodes[name]) for name in names if name in self.nodes}
+        changed = [name for name, signature in signatures.items() if self._signatures.get(name) != signature]
+        placed = [name for name in changed if self._placement_only(name, signatures[name])]
+        recreate = set(changed).difference(placed)
+        self._place(placed)
+        nodes = list(self.nodes.values())  # parents first, as the scene lists them
+        if recreate:
+            with perf.span("canvas.patch"):
+                self._patch(nodes, recreate, [])
         else:
             self._finish(nodes, fresh=set())
-        self._signatures = signatures
+        self._signatures.update(signatures)
+
+    def _placement_only(self, name: str, signature: tuple[Any, ...]) -> bool:
+        """Whether the node's item can stay: only PLACEMENT_ATTRS changed."""
+        old = self._signatures.get(name)
+        if old is None or name not in self.items or old[0] != signature[0] or old[1] != signature[1] \
+                or old[3] != signature[3]:
+            return False
+        before, after = old[2] or {}, signature[2] or {}
+        return all(key in PLACEMENT_ATTRS for key in before.keys() | after.keys()
+                   if before.get(key, _MISSING) != after.get(key, _MISSING))
+
+    def _place(self, names: list[str]) -> None:
+        if not names:
+            return
+        with perf.span("canvas.place"):
+            for name in names:
+                item = self.items[name]
+                attrs = self.nodes[name].get("attrs", {})
+                self.apply_node_transform(item, attrs)
+                item.setOpacity(float(attrs.get("opacity", 1.0)))
+                # Visibility and lock are inherited from parents: _finish sets them.
 
     def _rebuild(self, nodes: list[dict[str, Any]]) -> None:
         self._stop_movies(self.items.values())

@@ -80,7 +80,7 @@ def activate_ui(ui: Any) -> None:
                     item.setData(Qt.UserRole, name)
                     item.setToolTip(name)
                     if cache is not None:
-                        pixmap, _key = cache.load(session.scene.nodes[name].attrs)
+                        pixmap = cache.thumbnail(session.scene.nodes[name].attrs, size)
                         if isinstance(pixmap, QPixmap) and not pixmap.isNull():
                             item.setIcon(QIcon(pixmap.scaled(size, size, Qt.KeepAspectRatio,
                                                              Qt.SmoothTransformation)))

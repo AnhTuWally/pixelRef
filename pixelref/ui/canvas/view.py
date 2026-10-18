@@ -18,13 +18,14 @@ from PySide6.QtCore import (QCoreApplication, QEvent, QLineF, QMimeData, QPoint,
 from PySide6.QtGui import QColor, QCursor, QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsScene, QGraphicsView, QWidget
 
+from ...core import perf
 from ..icons import logo_pixmap
 from ..theme import ACCENT, TEXT_LIGHT
 from ..widgets import color_from
 from .display import BackgroundSpec, DisplaySettings
 from .gpu import make_viewport
 from .input import DEFAULT, HANDLED, KeyEvent, PointerEvent, WheelEvent
-from .items import NodeItemMixin
+from .items import NodeItemMixin, rendering_for
 from .paint import paint_banner
 from .tiles import TileCache, tiles_mode
 
@@ -56,7 +57,8 @@ class CanvasScene(QGraphicsScene):
         for item in items:
             rect = item.boundingRect() | item.childrenBoundingRect()
             self._removed.append(item.mapRectToScene(rect))
-            self.removeItem(item)
+            if item.scene() is self:  # not when it went with its parent, removed just before
+                self.removeItem(item)
 
     def flush_changes(self) -> None:
         """Report pending item changes now. Qt processes dirty items (and emits ``changed``)
@@ -681,7 +683,8 @@ class CanvasView(QGraphicsView):
         painter.setRenderHints(self.renderHints(), True)
         self._rendering_gray = True  # render() must not re-enter the greyscale path
         try:
-            self.render(painter, QRectF(0, 0, size.width(), size.height()), self.viewport().rect())
+            with rendering_for(self):  # what this view shows (render() paints items with no widget)
+                self.render(painter, QRectF(0, 0, size.width(), size.height()), self.viewport().rect())
         finally:
             self._rendering_gray = False
 
@@ -703,6 +706,10 @@ class CanvasView(QGraphicsView):
         return image
 
     def paintEvent(self, event) -> None:  # noqa: ANN001
+        with perf.span("view.paint"):
+            self._paint_event(event)
+
+    def _paint_event(self, event) -> None:  # noqa: ANN001
         if self.display.grayscale and not self._rendering_gray:
             self._paint_grayscale()
             painter = QPainter(self.viewport())

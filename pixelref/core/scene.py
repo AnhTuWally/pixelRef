@@ -88,6 +88,11 @@ class SceneGraph:
         # Bumped by every change made through this class (undo uses it to skip
         # re-serializing an unchanged document). Code must not edit nodes in place.
         self.revision = 0
+        # The revision of each node's last change of its own (attributes, dynamic
+        # attributes), and of the last change to names, hierarchy or order. With
+        # them the canvas and undo snapshots redo only the nodes that changed.
+        self.node_revisions: dict[str, int] = {}
+        self.structure_revision = 0
         # Bumped only when node names go away (delete, rename, clear, replace), so the
         # selection checks its names only then instead of after every command.
         self.removals = 0
@@ -95,6 +100,13 @@ class SceneGraph:
     def touch(self) -> None:
         """Mark the document as changed (e.g. the node types it is saved with changed)."""
         self.revision += 1
+        self.structure_revision = self.revision
+
+    def _node_changed(self, name: str) -> None:
+        self.node_revisions[name] = self.revision
+
+    def _structure_changed(self) -> None:
+        self.structure_revision = self.revision
 
     # ---- Events --------------------------------------------------------------------
 
@@ -114,7 +126,9 @@ class SceneGraph:
         self.plugin_data.clear()
         self.sections.clear()
         self.type_versions.clear()
+        self.node_revisions.clear()
         self.emit("scene.cleared", {})
+        self._structure_changed()
 
     def replace_from(self, other: "SceneGraph", keep_assets: bool = False) -> None:
         """Swap in the content of a fully built scene (atomic loads, undo).
@@ -134,7 +148,9 @@ class SceneGraph:
         self.plugin_data = other.plugin_data
         self.type_versions = other.type_versions
         self.app_version = other.app_version
+        self.node_revisions.clear()
         self.emit("scene.loaded", {"node_count": len(self.nodes)})
+        self._structure_changed()
 
     # ---- Plugin data -----------------------------------------------------------------
 
@@ -347,6 +363,8 @@ class SceneGraph:
         self.revision += 1
         if self.event_stream.has_listeners:
             self.emit("node.created", {"node": node.to_dict()})
+        self._node_changed(name)
+        self._structure_changed()
         return node
 
     def set_attr(self, name: str, key: str, value: Any, strict: bool = True) -> None:
@@ -356,6 +374,7 @@ class SceneGraph:
         self.revision += 1
         if self.event_stream.has_listeners:
             self.emit("node.attr_changed", {"name": name, "attr": key, "value": fast_copy(value)})
+        self._node_changed(name)
 
     def set_attrs(self, name: str, attrs: dict[str, Any], strict: bool = True) -> None:
         # Validate everything first so a bad value leaves the node untouched.
@@ -366,6 +385,7 @@ class SceneGraph:
             self.revision += 1
             if self.event_stream.has_listeners:
                 self.emit("node.attr_changed", {"name": name, "attr": key, "value": fast_copy(value)})
+        self._node_changed(name)
 
     def get_attr(self, name: str, key: str) -> Any:
         node = self.get_node(name)
@@ -393,6 +413,7 @@ class SceneGraph:
         node.dynamic[attr.name] = attr
         node.attrs[attr.name] = attr.default_value() if value is None else coerce_value(attr, value)
         self.emit("node.attr_added", {"name": name, "attr": attr.name})
+        self._node_changed(name)
 
     def delete_attr(self, name: str, attr_name: str) -> None:
         node = self.get_node(name)
@@ -401,6 +422,7 @@ class SceneGraph:
         del node.dynamic[attr_name]
         node.attrs.pop(attr_name, None)
         self.emit("node.attr_deleted", {"name": name, "attr": attr_name})
+        self._node_changed(name)
 
     def rename_node(self, name: str, new_name: str) -> None:
         node = self.get_node(name)
@@ -421,7 +443,10 @@ class SceneGraph:
         siblings[siblings.index(name)] = new_name
         for child_name in node.children:
             self.nodes[child_name].parent = new_name
+        self.node_revisions.pop(name, None)
         self.emit("node.renamed", {"name": name, "new_name": new_name})
+        self._node_changed(new_name)
+        self._structure_changed()
 
     def delete_node(self, name: str) -> list[str]:
         node = self.get_node(name)
@@ -434,7 +459,10 @@ class SceneGraph:
             removed = self.nodes.pop(candidate, None)
             if removed is not None:
                 self.by_id.pop(removed.id, None)
+        for candidate in doomed:
+            self.node_revisions.pop(candidate, None)
         self.emit("node.deleted", {"name": name, "deleted": doomed})
+        self._structure_changed()
         return doomed
 
     def reparent(self, name: str, new_parent: str | None, index: int | None = None) -> None:
@@ -457,6 +485,8 @@ class SceneGraph:
         else:
             siblings.insert(max(0, index), name)
         self.emit("node.reparented", {"name": name, "old_parent": old_parent, "new_parent": new_parent})
+        self._node_changed(name)
+        self._structure_changed()
 
     def restack(self, ordered_names: list[str]) -> None:
         """Put siblings in the given order, back-most first.
@@ -479,6 +509,7 @@ class SceneGraph:
         for slot, name in zip(slots, ordered_names):
             siblings[slot] = name
         self.emit("node.reordered", {"names": list(ordered_names)})
+        self._structure_changed()
 
     def move_z(self, name: str, mode: str) -> None:
         """Bring a node to the front or send it to the back of its siblings."""
@@ -492,6 +523,7 @@ class SceneGraph:
         else:
             siblings.insert(0, name)
         self.emit("node.reordered", {"names": [name]})
+        self._structure_changed()
 
     def reorder(self, names: list[str], mode: str) -> None:
         """front / back / forward / backward for several nodes (per parent)."""

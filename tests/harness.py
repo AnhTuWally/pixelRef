@@ -221,6 +221,7 @@ class Harness:
     def refresh(self) -> None:
         self.app.canvas.refresh(force=True)
         APP.processEvents()
+        wait_for_images()
 
     def item(self, name: str) -> Any:
         return self.app.canvas.item(name)
@@ -329,7 +330,10 @@ class Harness:
 
     def grab(self, clean: bool = False) -> QImage:
         # render_frame, not viewport().grab(): an OpenGL viewport's grab isn't reliable.
-        return self.view.render_frame(overlays=not clean)
+        frame = self.view.render_frame(overlays=not clean)
+        if wait_for_images():  # images decode in the background: draw again with their pixels
+            frame = self.view.render_frame(overlays=not clean)
+        return frame
 
     # ---- Files ------------------------------------------------------------------------------
 
@@ -353,6 +357,18 @@ class Harness:
         self.session.mark_saved()
         self.app.close(force=True)
         APP.processEvents()
+
+
+def wait_for_images() -> bool:
+    """Deliver the image levels being decoded in the background; True if there were any."""
+    from pixelref.builtins.image.source import DECODER
+
+    waited = False
+    while DECODER.busy:
+        waited = True
+        DECODER.wait()
+        APP.processEvents()
+    return waited
 
 
 def make(**options: Any) -> Harness:

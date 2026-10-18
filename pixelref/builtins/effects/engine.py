@@ -606,7 +606,9 @@ class EffectFilter:
                 result = engine.produce_now(request)
             else:
                 if not engine.busy(full_key):
-                    request.source = pixmap.toImage()
+                    # An image not decoded at full size (see image.source) decodes on the worker.
+                    loader = getattr(pixmap, "loader", None)
+                    request.source = loader() if loader is not None else pixmap.toImage()
                     engine.request(request)
                 self._paint_waiting(item, painter, draw, picture=True)
                 return

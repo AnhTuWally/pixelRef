@@ -4,16 +4,18 @@ the start panel (recent files) on an empty board."""
 from __future__ import annotations
 
 import json
+import logging
 import os
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QStandardPaths, QTimer, QUrl
+from PySide6.QtCore import QObject, QStandardPaths, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from pixelref.plugin_api import SCENE_EXT, SCENE_EXTS
+from pixelref.plugin_api import SCENE_EXT, SCENE_EXTS, perf
 from pixelref.plugin_api.contracts import IngestHandler
 
 SCENE_FILTER = "pixelRef Scene (" + " ".join(f"*{ext}" for ext in SCENE_EXTS) + ")"
@@ -21,17 +23,30 @@ MAX_RECENT = 10
 AUTOSAVE_INTERVAL_MS = 60_000
 
 
+class _AutosaveSignals(QObject):
+    done = Signal(int, int, bool, dict)  # generation, revision, written, meta
+
+
 class RecoveryService:
-    """Autosave of unsaved work, and restoring it after a crash."""
+    """Autosave of unsaved work, and restoring it after a crash.
+
+    The timer's autosaves capture the scene on the UI thread (cheap: image data
+    is shared, not copied) and write it on a worker thread, so a board with
+    hundreds of megabytes of embedded photos doesn't freeze every minute.
+    """
 
     def __init__(self, ui: Any) -> None:
         self.ui = ui
         self.session = ui.session
         self.autosaved_revision = 0
         self.owns_recovery = False
+        self.generation = 0  # bumped by clear(): a write finishing after it is thrown away
+        self._writing: threading.Thread | None = None
+        self._signals = _AutosaveSignals()
+        self._signals.done.connect(self._written)
         self.timer = QTimer()
         self.timer.setInterval(AUTOSAVE_INTERVAL_MS)
-        self.timer.timeout.connect(self.autosave)
+        self.timer.timeout.connect(lambda: self.autosave(background=True))
         self.timer.start()
 
     @staticmethod
@@ -43,32 +58,76 @@ class RecoveryService:
         folder = self.recovery_dir()
         return folder / f"recovery{SCENE_EXT}", folder / "recovery.json"
 
-    def autosave(self) -> bool:
-        """Write a recovery copy of unsaved work (images included)."""
+    def autosave(self, background: bool = False) -> bool:
+        """Write a recovery copy of unsaved work (images included). With ``background``
+        the file is written on a worker thread and True means the write has started."""
         session = self.session
         if not session.unsaved or session.revision == self.autosaved_revision:
             return False
         if self.ui.canvas.interacting or session.context.get("editing.text"):
             return False  # mid-drag or typing: try again next tick
-        scene_file, meta_file = self.recovery_files()
+        if self._writing is not None:
+            return False  # the previous autosave is still being written
+        scene_file, _meta_file = self.recovery_files()
         try:
             scene_file.parent.mkdir(parents=True, exist_ok=True)
-            temp = scene_file.with_suffix(".tmp")
-            temp.write_text(session.serialize(), encoding="utf-8", newline="\n")
+        except OSError:
+            return False
+        with perf.span("file.autosave_snapshot"):
+            snapshot = session.format.snapshot(session.scene)
+        meta = {
+            "scene_file": str(session.scene_path) if session.scene_path else None,
+            "saved_at": datetime.now().isoformat(timespec="seconds"),
+            "items": len(session.scene.nodes),
+        }
+        temp = scene_file.with_suffix(".tmp")
+        generation, revision = self.generation, session.revision
+        if not background:
+            return self._written(generation, revision, self._write(snapshot, temp), meta)
+
+        def run() -> None:
+            self._signals.done.emit(generation, revision, self._write(snapshot, temp), meta)
+
+        self._writing = threading.Thread(target=run, name="pixelref-autosave", daemon=True)
+        self._writing.start()
+        return True
+
+    @staticmethod
+    def _write(snapshot: Any, temp: Path) -> bool:
+        try:
+            with perf.span("file.autosave_write"):
+                snapshot.write(temp)
+        except Exception:  # noqa: BLE001  (on the worker, anything uncaught would stop autosaving for good)
+            logging.getLogger(__name__).exception("Autosave failed")
+            return False
+        return True
+
+    def _written(self, generation: int, revision: int, written: bool, meta: dict) -> bool:
+        """Put a written recovery copy in place (on the UI thread), unless clear() came first."""
+        self._writing = None
+        scene_file, meta_file = self.recovery_files()
+        temp = scene_file.with_suffix(".tmp")
+        if not written or generation != self.generation:
+            temp.unlink(missing_ok=True)
+            return False
+        try:
             os.replace(temp, scene_file)
-            meta = {
-                "scene_file": str(session.scene_path) if session.scene_path else None,
-                "saved_at": datetime.now().isoformat(timespec="seconds"),
-                "items": len(session.scene.nodes),
-            }
             meta_file.write_text(json.dumps(meta), encoding="utf-8")
         except OSError:
             return False
-        self.autosaved_revision = session.revision
+        self.autosaved_revision = revision
         self.owns_recovery = True
         return True
 
+    def wait(self) -> None:
+        """Finish a background autosave now (tests, shutting down)."""
+        writing = self._writing
+        if writing is not None:
+            writing.join()
+            QApplication.sendPostedEvents(self._signals)
+
     def clear(self) -> None:
+        self.generation += 1
         if not self.owns_recovery:
             return  # never delete another session's recovery copy
         for path in self.recovery_files():
@@ -101,7 +160,7 @@ class RecoveryService:
         self.session.scene_path = Path(original) if original else None
         cache = self.session.services.get("image_cache")
         if cache is not None:
-            cache.pixmaps.clear()
+            cache.clear()
         self.owns_recovery = True  # removed once the restored work is saved
         self.session.mark_unsaved()
         QTimer.singleShot(0, lambda: self.ui.app.run_command("navigation.frame_all"))
@@ -207,7 +266,7 @@ def activate_ui(ui: Any) -> None:
             return False
         cache = session.services.get("image_cache")
         if cache is not None:
-            cache.pixmaps.clear()
+            cache.clear()
             ui.canvas.request_full_refresh()
         recovery.clear()
         add_recent(Path(path))

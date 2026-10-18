@@ -90,6 +90,7 @@ class NodeTypeRegistry:
         self._attr_cache: dict[str, dict[str, Attr]] = {}
         self._sparse_cache: dict[str, frozenset[str]] = {}
         self._listeners: list[Callable[[str], None]] = []
+        self.generation = 0  # bumped whenever the registered types change
 
     # ---- Registration ----------------------------------------------------------------
 
@@ -146,6 +147,7 @@ class NodeTypeRegistry:
         return [e for e in self._extensions if type_name is None or e.type_name == type_name]
 
     def _clear_caches(self) -> None:
+        self.generation += 1
         self._attr_cache.clear()
         self._sparse_cache.clear()
 
