@@ -18,6 +18,9 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 from pixelref.plugin_api import SCENE_EXT, SCENE_EXTS, perf
 from pixelref.plugin_api.contracts import IngestHandler
 
+from .watch import MODES as WATCH_MODES
+from .watch import FileWatcher
+
 SCENE_FILTER = "pixelRef Scene (" + " ".join(f"*{ext}" for ext in SCENE_EXTS) + ")"
 MAX_RECENT = 10
 AUTOSAVE_INTERVAL_MS = 60_000
@@ -391,9 +394,33 @@ def activate_ui(ui: Any) -> None:
         if path:
             open_path(path, confirm=False)
 
+    def open_for_reload(path: Path) -> bool:
+        """Re-read the open scene file in place: no unsaved-changes prompt (the caller
+        asked), and the camera stays where it is."""
+        try:
+            session.run("open_scene", str(path))
+        except Exception as exc:  # noqa: BLE001  (reading is atomic: the open scene is untouched)
+            ui.status(f"Reload failed: {exc}")
+            return False
+        cache = session.services.get("image_cache")
+        if cache is not None:
+            cache.clear()
+            ui.canvas.request_full_refresh()
+        recovery.clear()
+        return True
+
+    watcher = FileWatcher(ui, type("Reloader", (), {"open_for_reload": staticmethod(open_for_reload)})())
+    ui.track(watcher.stop)
+    ui.on("scene.opened", lambda _e: watcher.sync())
+    ui.on("scene.saved", lambda _e: watcher.sync())
+    ui.on("document.replaced", lambda e: watcher.sync() if e.payload.get("reason") == "new" else None)
+    watcher.sync()
+
     def save_to(path: str) -> bool:
         """Save the scene to ``path``."""
         ui.canvas.flush_pending()
+        if not watcher.confirm_save(path):
+            return False
         try:
             saved = session.run("save_scene", str(path))
         except Exception as exc:  # noqa: BLE001
@@ -455,6 +482,21 @@ def activate_ui(ui: Any) -> None:
             return False
         return QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
 
+    def reload() -> bool:
+        """Reload the open scene from disk (asks before discarding unsaved changes)."""
+        return watcher.reload(manual=True)
+
+    def set_watch_mode(mode: str) -> str:
+        """When the open file changes on disk: "reload" automatically, "notify" with a Reload
+        button, or "off" (manual only)."""
+        watcher.mode = mode
+        app.actions.refresh_states()
+        return watcher.mode
+
+    def check_external() -> str | None:
+        """Look at the open file on disk now; returns "changed", "missing" or None."""
+        return watcher.check()
+
     def resume_last_session() -> bool:
         """Bring back the Untitled draft kept from the last time pixelRef closed."""
         return recovery.restore()
@@ -462,11 +504,13 @@ def activate_ui(ui: Any) -> None:
     for name, fn in (("new", new), ("open", open_dialog), ("open_path", open_path), ("save", save),
                      ("save_as", save_as), ("save_to", save_to), ("clear_recent", clear_recent),
                      ("copy_path", copy_path), ("copy_folder", copy_folder), ("open_folder", open_folder),
-                     ("resume_last_session", resume_last_session)):
+                     ("resume_last_session", resume_last_session), ("reload", reload),
+                     ("set_watch_mode", set_watch_mode), ("check_external", check_external)):
         ui.command(name, fn, undoable=False)
     ui.provide_service("files", type("Files", (), {
         "open_path": staticmethod(open_path), "save_to": staticmethod(save_to),
         "recent_files": staticmethod(recent_files), "may_discard": staticmethod(may_discard),
+        "reload": staticmethod(reload),
     })())
 
     a = ui.action
@@ -484,7 +528,12 @@ def activate_ui(ui: Any) -> None:
     a("file.open_folder", "file.open_folder", "Open Containing Folder",
       keywords="reveal show explorer finder file browser directory location", category="File", icon="folder",
       enabled=has_file)
-    for key, action in (("Ctrl+N", "file.new"), ("Ctrl+O", "file.open"), ("Ctrl+S", "file.save"),
+    a("file.reload", "file.reload", "Reload from Disk", keywords="refresh revert external changed update",
+      category="File", enabled=has_file)
+    for mode_id, (mode_text, mode_keywords) in WATCH_MODES.items():
+        a(f"file.watch_{mode_id}", "file.set_watch_mode", mode_text, args=(mode_id,), keywords=mode_keywords,
+          category="File", group="file.watch", checked=lambda m=mode_id: watcher.mode == m)
+    for key, action in (("F5", "file.reload"), ("Ctrl+N", "file.new"), ("Ctrl+O", "file.open"), ("Ctrl+S", "file.save"),
                         ("Ctrl+Shift+S", "file.save_as")):
         ui.bind(key, action)
 
@@ -502,6 +551,9 @@ def activate_ui(ui: Any) -> None:
     ui.menu("canvas", builder=recent_menu, text="Open Recent", path="File", group="file", order=2)
     ui.menu("canvas", "file.save", path="File", group="file", order=3)
     ui.menu("canvas", "file.save_as", path="File", group="file", order=4)
+    ui.menu("canvas", "file.reload", path="File", group="file", order=5)
+    for order, mode_id in enumerate(WATCH_MODES):
+        ui.menu("canvas", f"file.watch_{mode_id}", path="File/When the File Changes", group="file.watch", order=order)
 
     def toggle_resume() -> None:
         """Switch Session Resume (reopen your last board automatically on launch) on or off."""

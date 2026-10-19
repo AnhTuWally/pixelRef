@@ -541,6 +541,9 @@ class CanvasView(QGraphicsView):
                 self.viewport().setCursor(tool.current_cursor() if tool is not None else Qt.ArrowCursor)
 
     def mousePressEvent(self, event) -> None:  # noqa: ANN001
+        if event.button() == Qt.LeftButton and self._press_toast(event.position()):
+            event.accept()
+            return
         if event.button() == Qt.LeftButton and event.modifiers() & Qt.AltModifier:
             pos = event.position()
             if pos.x() <= 16 or pos.x() >= self.width() - 16:
@@ -872,27 +875,50 @@ class CanvasView(QGraphicsView):
 
     # ---- Toasts --------------------------------------------------------------------------------
 
-    def show_toast(self, text: str, color: QColor | None = None, duration_ms: int = 2600) -> None:
-        self._toast = {"text": text, "color": QColor(color) if color is not None else None}
-        self._toast_timer.start(duration_ms)
+    def show_toast(self, text: str, color: QColor | None = None, duration_ms: int = 2600,
+                   actions: list[tuple[str, Any]] | None = None) -> None:
+        """A message at the bottom of the view. ``actions`` ((label, callback) pairs)
+        add buttons and a dismiss cross; ``duration_ms=0`` keeps it until one is clicked."""
+        self._toast = {"text": text, "color": QColor(color) if color is not None else None,
+                       "actions": list(actions or []), "hits": []}
+        if duration_ms > 0:
+            self._toast_timer.start(duration_ms)
+        else:
+            self._toast_timer.stop()
         self.viewport().update()
 
     def _clear_toast(self) -> None:
         self._toast = None
         self.viewport().update()
 
+    def _press_toast(self, pos: QPointF) -> bool:
+        """Click on a toast's button (or its dismiss cross): run it. True when the click was used."""
+        toast = self._toast
+        if toast is None:
+            return False
+        for rect, callback in toast["hits"]:
+            if rect.contains(pos):
+                self._clear_toast()
+                if callback is not None:
+                    callback()
+                return True
+        return False
+
     def _paint_toast(self, painter: QPainter) -> None:
         toast = self._toast
         metrics = painter.fontMetrics()
         has_swatch = toast["color"] is not None
         height = metrics.height() + 16
-        width = metrics.horizontalAdvance(toast["text"]) + 28 + (height if has_swatch else 0)
+        actions = toast["actions"]
+        button_widths = [metrics.horizontalAdvance(label) + 20 for label, _cb in actions]
+        buttons_width = sum(w + 6 for w in button_widths) + (height - 6 if actions else 0)
+        width = metrics.horizontalAdvance(toast["text"]) + 28 + (height if has_swatch else 0) + buttons_width
         rect = QRectF((self.viewport().width() - width) / 2.0, self.viewport().height() - height - 18, width, height)
         painter.save()
         painter.setPen(QPen(ACCENT, 1.0))
         painter.setBrush(QColor(20, 24, 32, 240))
         painter.drawRoundedRect(rect, 7, 7)
-        text_rect = rect.adjusted(14, 0, -14, 0)
+        text_rect = rect.adjusted(14, 0, -14 - buttons_width, 0)
         if has_swatch:
             swatch = QRectF(rect.left() + 10, rect.top() + 6, height - 12, height - 12)
             painter.setPen(QPen(QColor("#ffffff"), 1))
@@ -901,6 +927,23 @@ class CanvasView(QGraphicsView):
             text_rect.setLeft(swatch.right() + 8)
         painter.setPen(TEXT_LIGHT)
         painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, toast["text"])
+        hits: list[tuple[QRectF, Any]] = []
+        x = rect.right() - buttons_width - 8
+        for (label, callback), bw in zip(actions, button_widths):
+            button = QRectF(x, rect.top() + 5, bw, height - 10)
+            painter.setPen(QPen(ACCENT, 1.0))
+            painter.setBrush(QColor(40, 48, 64))
+            painter.drawRoundedRect(button, 4, 4)
+            painter.setPen(TEXT_LIGHT)
+            painter.drawText(button, Qt.AlignCenter, label)
+            hits.append((button, callback))
+            x += bw + 6
+        if actions:
+            cross = QRectF(x, rect.top() + 5, height - 10, height - 10)
+            painter.setPen(QColor("#8a93a3"))
+            painter.drawText(cross, Qt.AlignCenter, "✕")
+            hits.append((cross, None))
+        toast["hits"] = hits
         painter.restore()
 
 

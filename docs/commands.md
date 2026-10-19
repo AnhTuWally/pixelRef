@@ -267,6 +267,7 @@ the rest also work headless (batch mode, scripts).
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
 | `file.clear_recent()` |  |  | Forget the recent files list. |
+| `file.check_external()` |  |  | Look at the open file on disk now; returns "changed", "missing" or None. |
 | `file.copy_folder()` |  |  | Copy the path of the folder holding the open scene file to the clipboard. |
 | `file.copy_path()` |  |  | Copy the open scene file's full path to the clipboard. |
 | `file.new()` |  |  | New, empty scene (asks about unsaved changes). |
@@ -274,8 +275,10 @@ the rest also work headless (batch mode, scripts).
 | `file.open_folder()` |  |  | Open the folder holding the open scene file in the system file browser. |
 | `file.open_path(path: str, confirm: bool = True)` |  |  | Open a scene file (asks about unsaved changes unless confirm=False). |
 | `file.resume_last_session()` |  |  | Bring back the Untitled draft kept from the last time pixelRef closed. |
+| `file.reload()` |  |  | Reload the open scene from disk (asks before discarding unsaved changes). |
 | `file.save()` |  |  | Save the scene to its file (asks for a name the first time). |
 | `file.save_as()` |  |  | Save the scene under a new file name (dialog). |
+| `file.set_watch_mode(mode: str)` |  |  | When the open file changes on disk: "reload" automatically, "notify" with a Reload button, or "off" (manual only). |
 | `file.save_to(path: str)` |  |  | Save the scene to ``path``. |
 | `file.set_resume_enabled(value: bool)` |  |  | Turn Session Resume on or off (the start panel's checkbox). |
 | `file.thumbnail(path: str \| None = None, save_to: str \| None = None)` |  |  | A scene file's thumbnail (default: the open scene's file): its size and date, |

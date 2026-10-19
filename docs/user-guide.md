@@ -392,6 +392,15 @@ Exports wait for every effect result, so what you save is complete.
   open scene's full path, or its folder's, on the clipboard; *Open Containing
   Folder* shows that folder in your system file browser. They are greyed out
   until the scene has been saved.
+- **Auto-refresh.** pixelRef watches the open file for changes made outside
+  it (another copy, a sync tool, a script). *File → When the File Changes*
+  picks the behaviour: *Notify When Changed* (default) shows a toast at the
+  bottom of the board with a **Reload** button; *Reload Automatically* reloads
+  at once; *Manual Only* turns watching off. *File → Reload from Disk* (**F5**)
+  reloads on demand in any mode. Unsaved edits are never discarded silently:
+  reloading asks first, and saving over a file that changed on disk asks too.
+  If the file is deleted or moved, your open copy is kept and the toast offers
+  **Save** to write it back.
 - **Autosave and recovery.** Unsaved work (images included) is written to a
   recovery copy every minute. After a crash, the next start offers to restore
   it.

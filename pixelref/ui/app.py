@@ -898,10 +898,11 @@ class App:
     def status_text(self) -> str:
         return self._status_text
 
-    def toast(self, text: str, color: QColor | None = None, duration_ms: int = 2600) -> None:
+    def toast(self, text: str, color: QColor | None = None, duration_ms: int = 2600,
+              actions: list[tuple[str, Any]] | None = None) -> None:
         view = self.active_view()
         if view is not None:
-            view.show_toast(text, color, duration_ms)
+            view.show_toast(text, color, duration_ms, actions)
 
     def report_error(self, title: str, message: str) -> None:
         self.set_status(f"{title}: {message}")
@@ -1107,8 +1108,9 @@ class UIContext:
     def status(self, text: str) -> None:
         self.app.set_status(text)
 
-    def toast(self, text: str, color: QColor | None = None, duration_ms: int = 2600) -> None:
-        self.app.toast(text, color, duration_ms)
+    def toast(self, text: str, color: QColor | None = None, duration_ms: int = 2600,
+              actions: list[tuple[str, Any]] | None = None) -> None:
+        self.app.toast(text, color, duration_ms, actions)
 
     # ---- Registrations -------------------------------------------------------------------------
 
