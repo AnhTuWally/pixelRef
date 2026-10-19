@@ -366,6 +366,10 @@ def activate_views_ui(ui: Any) -> None:
         Update would do to the current one, New, and the current one's colour."""
         names = cameras()
         current = current_marker(view)
+        show = menu.addAction("Show markers in canvas\tCtrl+M",
+                              lambda: app.run_command("views.toggle_markers", view.view_name))
+        show.setCheckable(True)
+        show.setChecked(view.display.show_markers)
         if names:
             menu.addSection("Look through")
         for index, name in enumerate(names):

@@ -124,6 +124,8 @@ def smoke_test() -> None:
         rendered = app.canvas.render_items(app.canvas.content_items())
         assert rendered.pixelColor(10, 10) == QColor(200, 0, 0), rendered.pixelColor(10, 10)
         QNetworkAccessManager()
+        from pixelref.builtins.help import guide_path
+        assert guide_path() is not None, "Getting Started board (onboard.pxref) is not bundled"
         print("ui: canvas renders, image formats:", ", ".join(sorted(formats)))
     """), encoding="utf-8")
     print("3/4 UI kernel (offscreen):")

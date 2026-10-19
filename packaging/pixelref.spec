@@ -75,6 +75,8 @@ hiddenimports = (
 datas = (
     collect_data_files("pixelref", includes=["**/*.toml", "**/*.png", "**/*.ico", "**/*.svg"])
     + collect_data_files("pip")  # certificates (cacert.pem) and vendored data
+    # the Getting Started board (builtins/help looks for it under _internal/examples/scenes)
+    + [(str(ROOT / "examples" / "scenes" / "onboard.pxref"), "examples/scenes")]
 )
 
 a = Analysis(  # noqa: F821
