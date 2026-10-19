@@ -48,7 +48,7 @@ def test_default_palette_comes_from_the_plugins():
         sections = dict(shown(h))
         assert list(sections) == ["tools", "add"]
         assert sections["tools"][:3] == ["tool.select", "tool.rect", "tool.arrow"]
-        assert sections["add"] == ["image.insert", "text.add", "grouping.add_group"]
+        assert sections["add"] == ["image.insert", "movie.insert", "text.add", "grouping.add_group"]
         assert not h.service("tool_palette").layout.customized()
         assert tools_menu_texts(h)[:2] == ["Select Tool", "Rectangle Tool"]
         assert tools_menu_texts(h)[-1] == "Customize Tools Palette…"

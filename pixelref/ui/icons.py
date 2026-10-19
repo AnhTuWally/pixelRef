@@ -72,6 +72,11 @@ def _draw(name: str, painter: QPainter, color: QColor) -> None:
         painter.drawEllipse(QPointF(5.5, 6.5), 1.2, 1.2)
         painter.drawPolygon(QPolygonF([QPointF(3.5, 12), QPointF(7, 8.5), QPointF(9, 10.5),
                                        QPointF(11, 8), QPointF(12.5, 12)]))
+    elif name == "movie":
+        painter.drawRoundedRect(QRectF(2, 3, 12, 10), 1.5, 1.5)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(color)
+        painter.drawPolygon(QPolygonF([QPointF(6.5, 5.8), QPointF(6.5, 10.2), QPointF(10.2, 8)]))
     elif name == "text":
         painter.setPen(_pen(color, 1.8))
         painter.drawLine(QPointF(3, 3.5), QPointF(13, 3.5))

@@ -6,7 +6,7 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPen
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QSlider, QSpinBox, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QSlider, QSpinBox, QVBoxLayout, QWidget
 
 from pixelref.plugin_api import CommandError
 from pixelref.plugin_api.contracts import InspectorSection, QuickSection, SelectionInfo
@@ -74,7 +74,9 @@ class PlaybackService(QObject):
         self.session.mark_unsaved()
 
     def on_movie(self, item: Any) -> None:
-        """image.movie_hooks: a (re)built item started its movie."""
+        """image.movie_hooks / movie.started: a (re)built item started its movie —
+        registers for its live frame updates so the frame display, scrub slider and
+        filmstrip playhead follow it while it plays, not just when it's stepped."""
         name = item.node_name
         if not self.session.scene.has(name):
             return
@@ -95,6 +97,74 @@ class PlaybackService(QObject):
         if self.session.scene.has(name):
             self.last_frames[self._node_id(name)] = item.current_frame()
             self.frame_changed.emit(name)
+
+
+class FilmstripWidget(QWidget):
+    """A row of thumbnails across the selected animation or movie, with a playhead;
+    click or drag across it to scrub (works the same for GIFs/WebPs and movies — see
+    ``PixmapItem.filmstrip`` and ``MovieItem.filmstrip``)."""
+
+    HEIGHT = 40
+
+    def __init__(self, service: "PlaybackService", ui: Any, parent: QWidget | None = None,
+                height: int = HEIGHT) -> None:
+        super().__init__(parent)
+        self.service = service
+        self.ui = ui
+        self.name: str | None = None
+        self._listening: Any = None  # the item currently registered with, to avoid double listeners
+        self.setFixedHeight(height)
+        self.setMouseTracking(True)
+        self.setCursor(Qt.PointingHandCursor)
+
+    def set_target(self, name: str | None) -> None:
+        self.name = name
+        item = self.service.item(name) if name else None
+        if item is not self._listening:
+            self._listening = item
+            if item is not None and hasattr(item, "add_filmstrip_listener"):
+                item.add_filmstrip_listener(lambda _item: self.update())
+        self.setVisible(item is not None and hasattr(item, "filmstrip"))
+        self.update()
+
+    def _item(self) -> Any:
+        return self.service.item(self.name) if self.name else None
+
+    def _scrub_to(self, x: float) -> None:
+        item = self._item()
+        if item is None:
+            return
+        total = max(1, item.frame_count())
+        fraction = max(0.0, min(1.0, x / max(1.0, float(self.width()))))
+        frame = round(fraction * (total - 1)) + 1
+        self.ui.app.run_command("playback.go_to_frame", frame, [self.name])
+
+    def mousePressEvent(self, event: Any) -> None:  # noqa: N802
+        if event.button() == Qt.LeftButton:
+            self._scrub_to(event.position().x())
+
+    def mouseMoveEvent(self, event: Any) -> None:  # noqa: N802
+        if event.buttons() & Qt.LeftButton:
+            self._scrub_to(event.position().x())
+
+    def paintEvent(self, _event: Any) -> None:  # noqa: N802
+        item = self._item()
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor("#101217"))
+        frames = item.filmstrip() if item is not None and hasattr(item, "filmstrip") else []
+        if not frames:
+            painter.setPen(QColor(theme.TEXT_LIGHT))
+            painter.drawText(self.rect(), Qt.AlignCenter, "Decoding…" if item is not None else "")
+            return
+        slot = self.width() / len(frames)
+        for index, pixmap in enumerate(frames):
+            painter.drawPixmap(QRectF(index * slot, 0.0, slot, float(self.height())), pixmap,
+                               QRectF(pixmap.rect()))
+        total = max(1, item.frame_count())
+        fraction = (item.current_frame() - 1) / (total - 1) if total > 1 else 0.0
+        x = fraction * self.width()
+        painter.setPen(QPen(QColor(theme.ACCENT), 2))
+        painter.drawLine(QPointF(x, 0.0), QPointF(x, float(self.height())))
 
 
 class PlaybackSection(w.InspectorSection):
@@ -138,6 +208,8 @@ class PlaybackSection(w.InspectorSection):
         self.slider.setToolTip("Drag to scrub through the frames")
         self.slider.sliderMoved.connect(self._scrub)
         self.form.addRow("Frame", w.hrow(body, self.frame_spin, self.slider))
+        self.filmstrip = FilmstripWidget(service, ui, body)
+        self.form.addRow(self.filmstrip)
         service.frame_changed.connect(self._on_frame_changed)
 
     def refresh(self, info: SelectionInfo) -> None:
@@ -149,6 +221,7 @@ class PlaybackSection(w.InspectorSection):
             self.update_display()
 
     def update_display(self) -> None:
+        self.filmstrip.set_target(self._name)
         item = self.service.item(self._name) if self._name else None
         if item is None:
             return
@@ -183,6 +256,7 @@ def activate_playback_ui(ui: Any) -> None:
     service = PlaybackService(ui)
     ui.provide_service("playback", service)
     ui.contribute("image.movie_hooks", service.on_movie)
+    ui.contribute("movie.started", service.on_movie)
 
     def apply_to(names: list[str], fn: Any) -> list[str]:
         for name in names:
@@ -322,26 +396,37 @@ BUTTONS = (("prev", "frame_prev", "playback.prev_frame", "Previous frame (,)"),
 class PlaybackQuickControls(QWidget):
     """The transport in the quick editor bar; acts on every selected animated image."""
 
+    FILMSTRIP_WIDTH = 168
+    FILMSTRIP_HEIGHT = 24
+
     def __init__(self, ui: Any, service: PlaybackService, parent: QWidget) -> None:
         super().__init__(parent)
         self.ui = ui
         self.service = service
         self.names: list[str] = []
-        layout = QHBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(3)
+        row = QWidget(self)
+        layout = QHBoxLayout(row)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
         self.buttons: dict[str, Any] = {}
         for key, icon_name, command, tip in BUTTONS:
-            button = w.make_tool_button("", tip, checkable=key == "toggle", width=28, parent=self)
+            button = w.make_tool_button("", tip, checkable=key == "toggle", width=28, parent=row)
             button.setIcon(icon(icon_name or "play"))
             button.clicked.connect(lambda _c=False, c=command: self.names and ui.app.run_command(c, list(self.names)))
             layout.addWidget(button)
             self.buttons[key] = button
-        self.frame_label = QLabel("", self)
+        self.frame_label = QLabel("", row)
         self.frame_label.setObjectName("hexLabel")
         self.frame_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
         layout.addSpacing(4)
         layout.addWidget(self.frame_label)
+        outer.addWidget(row)
+        self.filmstrip = FilmstripWidget(service, ui, self, height=self.FILMSTRIP_HEIGHT)
+        self.filmstrip.setFixedWidth(self.FILMSTRIP_WIDTH)
+        outer.addWidget(self.filmstrip)
         service.frame_changed.connect(self._on_frame_changed)
 
     def refresh(self, names: list[str]) -> None:
@@ -353,7 +438,9 @@ class PlaybackQuickControls(QWidget):
             self.update_display()
 
     def update_display(self) -> None:
-        item = self.service.item(self.names[0]) if self.names else None
+        name = self.names[0] if self.names else None
+        self.filmstrip.set_target(name)
+        item = self.service.item(name) if name else None
         if item is None:
             return
         count, frame = item.frame_count(), item.current_frame()

@@ -33,14 +33,14 @@ STDLIB_SKIP = {
 }
 QT_EXCLUDES = [
     f"PySide6.{name}" for name in (
+        # QtMultimedia / QtMultimediaWidgets are kept: the movie plugin plays video with them.
         "Qt3DAnimation", "Qt3DCore", "Qt3DExtras", "Qt3DInput", "Qt3DLogic", "Qt3DRender", "QtBluetooth",
         "QtCharts", "QtDataVisualization", "QtDesigner", "QtGraphs", "QtHelp", "QtHttpServer", "QtLocation",
-        "QtMultimedia", "QtMultimediaWidgets", "QtNfc", "QtPdf", "QtPdfWidgets", "QtPositioning", "QtQml",
+        "QtNfc", "QtPdf", "QtPdfWidgets", "QtPositioning", "QtQml",
         "QtQuick", "QtQuick3D", "QtQuickControls2", "QtQuickWidgets", "QtRemoteObjects", "QtScxml",
         "QtSensors", "QtSerialBus", "QtSerialPort", "QtSpatialAudio", "QtSql", "QtStateMachine", "QtSvgWidgets",
         "QtTest", "QtTextToSpeech", "QtUiTools", "QtWebChannel", "QtWebEngineCore", "QtWebEngineQuick",
-        "QtWebEngineWidgets", "QtWebSockets", "QtWebView", "QtXml", "QtAxContainer", "QtOpenGL",
-        "QtOpenGLWidgets",
+        "QtWebEngineWidgets", "QtWebSockets", "QtWebView", "QtXml", "QtAxContainer",
     )
 ]
 

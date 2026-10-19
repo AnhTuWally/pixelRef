@@ -144,10 +144,13 @@ def activate_ui(ui: Any) -> None:
     for key in ("height", "width", "size"):
         a(f"arrange.normalize_{key}", "arrange.normalize", f"Normalize {key.capitalize()}", args=(key,),
           keywords="same size match" + (" area" if key == "size" else ""), category="Arrange")
+    ALIGN_SHORTCUTS = {"left": "Ctrl+Left", "right": "Ctrl+Right", "top": "Ctrl+Up", "bottom": "Ctrl+Down"}
     for key, text in (("left", "Align Left"), ("right", "Align Right"), ("top", "Align Top"),
                       ("bottom", "Align Bottom"), ("hcenter", "Align Horizontal Centers"),
                       ("vcenter", "Align Vertical Centers")):
         a(f"arrange.align_{key}", "arrange.align", text, args=(key,), category="Arrange")
+        if key in ALIGN_SHORTCUTS:
+            ui.bind(ALIGN_SHORTCUTS[key], f"arrange.align_{key}")
     # Laying out works on the selection or (with nothing selected) everything; matching sizes
     # and aligning need two or more selected items. With one item selected the sub-menu hides.
     order = 0

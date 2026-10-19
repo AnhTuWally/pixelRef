@@ -1,4 +1,4 @@
-"""Export: render to an image file, or copy the original image files out."""
+"""Export: render to an image file, copy a flattened image to the clipboard, or copy the original image files out."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ def free_file_name(path: Path) -> Path:
 
 
 def activate_ui(ui: Any) -> None:
-    from PySide6.QtWidgets import QFileDialog, QMessageBox
+    from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
     from pixelref.plugin_api import CommandError
 
@@ -48,6 +48,12 @@ def activate_ui(ui: Any) -> None:
             return canvas.outline_items() or canvas.visible_content_items()
         names = [nodes] if isinstance(nodes, str) else list(nodes)
         return [i for i in (canvas.item(session.scene.resolve(n)) for n in names) if i is not None]
+
+    def export_image_text() -> str:
+        return "Export Selected as Image…" if canvas.outline_items() else "Export as Image…"
+
+    def copy_image_text() -> str:
+        return "Copy Selected as Image" if canvas.outline_items() else "Copy as Image"
 
     def render(path: str, nodes: Any = None, opaque: bool | None = None) -> list[int]:
         """Render nodes (default: the selection, else everything) to PNG/JPEG at 1:1. Returns [w, h]."""
@@ -67,8 +73,10 @@ def activate_ui(ui: Any) -> None:
         if not (canvas.outline_items() or canvas.visible_content_items()):
             ui.status("Nothing to export")
             return
+        is_selection = bool(canvas.outline_items())
+        title = "Export Selected as Image" if is_selection else "Export as Image"
         default = session.scene_path.with_suffix(".png") if session.scene_path else Path.cwd() / "export.png"
-        path_str, selected_filter = QFileDialog.getSaveFileName(app.main_window(), "Export as Image", str(default),
+        path_str, selected_filter = QFileDialog.getSaveFileName(app.main_window(), title, str(default),
                                                   "PNG (*.png);;JPEG (*.jpg *.jpeg)")
         if not path_str:
             return
@@ -79,7 +87,34 @@ def activate_ui(ui: Any) -> None:
         except CommandError as exc:
             QMessageBox.warning(app.main_window(), "Export failed", str(exc))
             return
-        ui.status(f"Exported {size[0]}×{size[1]} → {Path(path_str).name}")
+        selected_note = "selected " if is_selection else ""
+        ui.status(f"Exported {selected_note}{size[0]}×{size[1]} → {Path(path_str).name}")
+
+    def copy_image(nodes: Any = None, opaque: bool = False) -> list[int]:
+        """Flatten nodes (default: the selection, else everything) and put the image on the clipboard."""
+        canvas.flush_pending()
+        items = items_for(nodes)
+        if not items:
+            raise CommandError("Nothing to copy")
+        image = canvas.render_items(items, opaque=opaque)
+        if image is None:
+            raise CommandError("Nothing to copy")
+        QApplication.clipboard().setImage(image)
+        return [image.width(), image.height()]
+
+    def copy_image_ui() -> None:
+        """Flatten the selection (or the whole board) and copy it to the clipboard as an image."""
+        if not (canvas.outline_items() or canvas.visible_content_items()):
+            ui.status("Nothing to copy")
+            return
+        is_selection = bool(canvas.outline_items())
+        try:
+            size = copy_image()
+        except CommandError as exc:
+            ui.status(str(exc))
+            return
+        selected_note = "selected " if is_selection else ""
+        ui.status(f"Copied {selected_note}{size[0]}×{size[1]} image to clipboard")
 
     def export_originals(folder: str, nodes: Any = None) -> int:
         """Copy the selected (or all) images' original files into a folder."""
@@ -129,12 +164,19 @@ def activate_ui(ui: Any) -> None:
     ui.command("originals", export_originals, alias="export_original_images", undoable=False)
     ui.command("dialog", export_dialog, undoable=False, echo=False)
     ui.command("originals_dialog", export_originals_dialog, undoable=False, echo=False)
-    ui.action("export.image", "export.dialog", "Export as Image…", keywords="png jpg jpeg render screenshot picture",
-              category="File", icon="export")
+    ui.command("copy_image", copy_image, alias="copy_image_to_clipboard", undoable=False)
+    ui.command("copy_image_ui", copy_image_ui, undoable=False, echo=False)
+    ui.action("export.image", "export.dialog", "Export as Image…", dynamic_text=export_image_text,
+              keywords="png jpg jpeg render screenshot picture selected", category="File", icon="export")
     ui.action("export.originals", "export.originals_dialog", "Export Original Images…",
               keywords="extract originals files folder", category="File")
+    ui.action("export.copy_image", "export.copy_image_ui", "Copy as Image", dynamic_text=copy_image_text,
+              keywords="clipboard flatten merge copy png screenshot picture selected", category="Edit", icon="copy")
     ui.bind("Ctrl+E", "export.image")
     ui.bind("Ctrl+Shift+E", "export.originals")
+    ui.bind("Ctrl+Alt+C", "export.copy_image")
     ui.menu("canvas", "export.image", path="File", group="file.export", order=0)
     ui.menu("canvas", "export.originals", path="File", group="file.export", order=1)
+    ui.menu("canvas", "export.copy_image", path="File", group="file.export", order=2)
     ui.menu("canvas", "export.image", group="focus", order=20, when="selection.count > 0")
+    ui.menu("canvas", "export.copy_image", group="focus", order=21, when="selection.count > 0")

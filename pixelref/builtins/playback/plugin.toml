@@ -3,4 +3,5 @@ name = "Playback"
 version = "1.0.0"
 api = 1
 requires = ["image"]
-description = "Play, pause and step through animated GIFs and WebPs: frame display, go to frame, K / , / . keys; paused frames are saved with the scene."
+optional = ["movie"]
+description = "Play, pause and step through animated GIFs, WebPs and movies: frame display, a filmstrip, go to frame, K / , / . keys; paused frames are saved with the scene."

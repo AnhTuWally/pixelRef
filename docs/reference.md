@@ -122,8 +122,10 @@ the plugin that provides it.
 - Copy, cut, paste and duplicate (`Ctrl+D`) work between scenes.
 - **Animated GIFs and WebPs** play on the board. `K` plays and pauses, `,` /
   `.` step one frame, and `Ctrl+,` / `Ctrl+.` jump to the first or last frame.
-  Controls appear in the quick editor bar. A paused frame is saved with the
-  scene.
+  Controls, plus a scrubbable **filmstrip** of thumbnails, appear in the quick
+  editor bar; the Attribute Editor's *Playback* section has the same
+  transport, a scrub slider and its own filmstrip. A paused frame is saved
+  with the scene.
 - The **Contact Sheet** view shows every image as a thumbnail grid
   (`pxcmd.wm.open_view("contact_sheet")`).
 - **PureRef boards** (`pureref`): *File → Open PureRef Board (Import Only)…*, *File → Import →
@@ -132,6 +134,26 @@ the plugin that provides it.
   [user-guide.md](user-guide.md#pureref-boards).
 - Commands: `import_image(path, translate=…, embed=…)`, `import_images`,
   `image.toggle_grayscale`, `image_storage.*`, `clipboard.*`,
+  `playback.play/pause/toggle/go_to_frame/next_frame`.
+
+### Movies (`movie`, `playback`)
+
+- *File → Insert Movies… (linked, not embedded)* or drag in video files
+  (`.mp4`, `.mov`, `.m4v`, `.avi`, `.mkv`, `.webm`, `.wmv`).
+- **Movies are always linked by file reference — there is no embed option,
+  unlike images.** A movie node stores only the path to its video file; if
+  the file is moved, renamed or deleted, the node shows a "Missing"
+  placeholder, the same way a missing linked image does. Moving a board to
+  another machine or packaging it to share means moving its video files
+  alongside it yourself.
+- Playback reuses the same transport as animated images: `K` plays and
+  pauses, `,` / `.` step, `Ctrl+,` / `Ctrl+.` jump to the first or last
+  position, with controls and a scrubbable filmstrip (thumbnails sampled
+  across the clip, decoded in the background) in both the quick editor bar
+  and the Attribute Editor's *Playback* section.
+- Playing a video depends on the codecs available through Qt Multimedia on
+  your system; an unplayable file shows "Can't play" instead of a frame.
+- Commands: `import_movie(path, translate=…)`, `import_movies`,
   `playback.play/pause/toggle/go_to_frame/next_frame`.
 
 ### Annotations (`text`, `rect`, `arrow`, `pen`, `eraser`, `steps`, `redact`, `color_picker`, `brush`)
@@ -187,7 +209,7 @@ adjusted by its handles without leaving the tool.
 
 ### Groups, Outliner, Attribute Editor, quick editor (`grouping`, `outliner`, `inspector`, `quick_edit`)
 
-- **Groups** (`Ctrl+G`; `Ctrl+Shift+G` ungroups) act as one item. Double-click
+- **Groups** (`G`; `Ctrl+Shift+G` ungroups) act as one item. Double-click
   a group to work inside it, and press `Esc` to leave. With `pick_members` on,
   a group is a plain folder whose members you click directly
   (`Ctrl+Shift+N` creates an empty one).
@@ -269,15 +291,26 @@ adjusted by its handles without leaving the tool.
 - `Ctrl+N`, `Ctrl+O`, `Ctrl+S` (new, open, save). An empty board shows a
   start panel with your recent files as thumbnails. Autosave writes a
   recovery copy every minute and offers it back after a crash.
+- Session Resume (`file.toggle_resume` / `file.set_resume_enabled`, off by
+  default; also a checkbox on the start panel, hidden until a previous
+  session actually left something on the board): reopens the board that was
+  open on exit. A saved file closes without a save prompt and reopens at its
+  last saved version, offering to recover any unsaved edits; an Untitled
+  board's unsaved draft reopens automatically.
+- With Session Resume off, closing an unsaved Untitled board still keeps a
+  thumbnailed copy (`file.resume_last_session`); the start panel offers it
+  back as a "Resume Last Session" card until it's picked up or replaced.
 - `Ctrl+E` renders the selection (or the whole board) to PNG or JPEG at 1:1.
-  `Ctrl+Shift+E` copies the original image files into a folder.
+  `Ctrl+Alt+C` flattens the selection (or the whole board) and copies it to
+  the clipboard as an image instead. `Ctrl+Shift+E` copies the original image
+  files into a folder.
 - Commands: `file.open_path(path, confirm=False)`, `file.save_to(path)`,
   `save_scene`, `open_scene`, `import_scene`, `export.render(path, nodes)`,
-  `export.originals(folder)`.
+  `export.copy_image(nodes)`, `export.originals(folder)`.
 
 ### Window modes (`window_modes`)
 
-`Ctrl+T` keeps the window on top, `F11` makes it frameless, `G` turns on ghost
+`Ctrl+T` keeps the window on top, `F11` makes it frameless, `Ctrl+G` turns on ghost
 mode (a translucent window for tracing over other applications), and
 `Alt`+drag moves the window. `Ctrl+Shift+T` (`window_modes.set_click_through`)
 lets mouse clicks pass through the window to the application below. It also
@@ -326,18 +359,18 @@ shows the actual bindings.
 | Area | Keys |
 | --- | --- |
 | Everywhere | `Ctrl+K` command search · `F1` shortcuts · `Ctrl+Z` / `Ctrl+Y` undo / redo · `Esc` cancel or leave |
-| Files | `Ctrl+N` new · `Ctrl+O` open · `Ctrl+S` save · `Ctrl+E` export image · `Ctrl+Shift+E` export originals · `Ctrl+I` insert images |
+| Files | `Ctrl+N` new · `Ctrl+O` open · `Ctrl+S` save · `Ctrl+E` export image · `Ctrl+Alt+C` copy as image · `Ctrl+Shift+E` export originals · `Ctrl+I` insert images |
 | Edit | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` · `Ctrl+D` duplicate · `Del` delete · `Ctrl+A` select all |
 | Navigate | wheel zoom · middle/right-drag or `Space`+drag pan · `F` frame selection · `Shift+F` / `Home` frame all · `Ctrl+0` 100% · tap `Space` maximise view · `Ctrl+1`–`9` view markers |
 | Tools | `V` select · `T` text · `R` rect · `O` ellipse · `A` arrow · `P` pen · `Shift+P` edit drawing · `E` eraser · `I` colour picker · `Ctrl+Alt+I` pick from screen · `W` link · `N` step · `B` blur · `X` pixelate · `C` crop |
 | Transform | arrows nudge (`Shift` ×10) · `Ctrl+Wheel` scale · `Shift+H` / `Shift+V` flip · `Ctrl+R` / `Ctrl+Shift+R` rotate 90° · `Ctrl+Shift+0` reset · `Shift+C` reset crop |
-| Arrange | `Ctrl+P` pack · `Ctrl+Alt+H` / `V` / `G` row / column / grid · `]` `}` `{` `[` stacking |
-| Organise | `Ctrl+G` group · `Ctrl+Shift+G` ungroup or separate a drawing · `Ctrl+Shift+N` new group · `Ctrl+J` combine strokes · `F2` rename · `Alt+H` show all |
+| Arrange | `Ctrl+P` pack · `Ctrl+Alt+H` / `V` / `G` row / column / grid · `Ctrl+Left` / `Right` / `Up` / `Down` align left / right / top / bottom · `]` `}` `{` `[` stacking |
+| Organise | `G` group · `Ctrl+Shift+G` ungroup or separate a drawing · `Ctrl+Shift+N` new group · `Ctrl+J` combine strokes · `F2` rename · `Alt+H` show all |
 | Links | `Ctrl+L` link the selection · `Ctrl+Shift+L` select linked |
 | Look | `Shift+G` grayscale effect · `Alt+V` value check · `Alt+I` image info · `Shift+I` isolate in view · `Ctrl+'` background pattern |
 | Animation | `K` play/pause · `,` / `.` step · `Ctrl+,` / `Ctrl+.` first / last frame |
 | Panels | `Alt+T` Tools · `Alt+O` Outliner · `Alt+A` or `Alt+Enter` Attribute Editor · `Tab` hide panels |
-| Window | ``Ctrl+` `` Script Editor · `Ctrl+Alt+R` record macro · `Ctrl+T` on top · `F11` frameless · `G` ghost mode · `Ctrl+Shift+T` click-through · `Ctrl+Alt+arrows` move focus |
+| Window | ``Ctrl+` `` Script Editor · `Ctrl+Alt+R` record macro · `Ctrl+T` on top · `F11` frameless · `Ctrl+G` ghost mode · `Ctrl+Shift+T` click-through · `Ctrl+Alt+arrows` move focus |
 | Window mode (`Ctrl+W`, then) | `H` `J` `K` `L` / arrows focus · `Shift`+those move · `S` / `V` next split beside / below · `N` new view · `T` tabbed · `Shift+S` stacked · `E` toggle orientation · `F` fullscreen · `Space` float · `R` resize mode · `=` equalize · `Q` close · `-` scratchpad · `O` tear off · `M` / `'` mark / jump · `Shift+R` rename · `1`–`9` workspace · `Shift+1`–`9` move view to workspace |
 
 ## 5. Data model
@@ -376,6 +409,7 @@ such as link endpoints, are left out. Enum choices are in brackets.
 | Type (plugin) | Attributes | Quick editor fields |
 | --- | --- | --- |
 | `image` (image) | `asset` (embedded file hash), `path` (linked file), `crop` | opacity |
+| `movie` (movie) | `path` (linked file, always — no `asset`, never embedded), `muted`, `loop`, `volume`, `autoplay` | opacity |
 | `group` (grouping) | `pick_members` | opacity |
 | `annotation_text` (text) | `text`, `color`, `font_family`, `font_size`, `bold`, `italic`, `underline`, `strike`, `highlight_color`, `align` (left/center/right/justify), `background_color`, `fill_style`, `border_color`, `border_width`, `border_style`, `corner_radius`, `padding`, `text_width` | color, font_size, bold, italic, align, background_color |
 | `annotation_rect` (rect) | `size`, `stroke_color`, `fill_color`, `fill_opacity`, `fill_style` (solid/dense/sparse/diagonal/cross/horizontal/vertical/grid/none), `thickness`, `stroke_style` (solid/dash/dot/dashdot/none), `corner_radius` | stroke_color, thickness, stroke_style, fill_color, fill_opacity, corner_radius |
@@ -861,9 +895,10 @@ Which built-in plugin provides each feature:
 | `gizmo`, `select`, `transform`, `order`, `navigation` | selection, the gizmo, transforms, stacking, the camera |
 | `grouping`, `outliner`, `inspector`, `quick_edit`, `tool_palette` | groups and the panels |
 | `help` | `F1` keyboard shortcuts and About |
-| `image`, `playback`, `image_info` | image nodes, GIF/WebP playback, the image info readout |
+| `image`, `playback`, `image_info` | image nodes, GIF/WebP/movie playback, filmstrip scrubbing, the image info readout |
 | `links` | links |
 | `macros` | the scripts folder, Record Macro and `keymap.toml` macros |
+| `movie` | movie nodes — video playback, always linked by file reference, never embedded |
 | `pureref` | opening and importing PureRef `.pur` boards |
 | `views` | view markers, display presets, linked views, framing guides, the built-in workspaces |
 | `window_modes` | always on top, frameless, ghost mode, click-through |
@@ -872,7 +907,10 @@ Which built-in plugin provides each feature:
 
 **How do I make a board that's one portable file?** Images are embedded by
 default. For images that are linked, use *File → Embed All Linked Images*,
-then save.
+then save. **Movies can't be embedded at all** — they are always linked by
+file reference, so a board with movies on it needs those video files to
+travel with it (relative to the scene file, or an absolute path still on the
+other machine), or it will show them as "Missing".
 
 **How do I compare values without colour?** Press `Alt+V` in a view, or
 switch to the *Review* workspace, which has a colour view and a value-check
@@ -895,7 +933,7 @@ in order. *Renumber Steps* closes the gaps after deletions.
 **How do I present without the UI?** Switch to the *Present* workspace (the
 workspace buttons, or `Ctrl+W` then `3`), or press `Tab` to hide the panels.
 
-**How do I trace over another application?** Press `G` for ghost mode
+**How do I trace over another application?** Press `Ctrl+G` for ghost mode
 (translucent), then `Ctrl+Shift+T` for click-through: the window stays on top
 and your clicks reach the application below. Switch back to pixelRef
 (`Alt+Tab`) to turn click-through off.

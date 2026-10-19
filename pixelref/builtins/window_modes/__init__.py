@@ -40,7 +40,7 @@ def activate_ui(ui: Any) -> None:
         ui.status(f"Window opacity {float(value) * 100:.0f}%")
 
     def ghost() -> None:
-        """Toggle a translucent window to trace over other applications (G)."""
+        """Toggle a translucent window to trace over other applications (Ctrl+G)."""
         target = output()
         current = float(wm.doc.attr(target, "opacity", 1.0) or 1.0) if target else 1.0
         set_opacity(0.25 if current > 0.5 else 1.0)
@@ -58,7 +58,7 @@ def activate_ui(ui: Any) -> None:
       category="Window", checked=lambda: float(wm.doc.attr(output(), "opacity", 1.0) or 1.0) < 1.0 if output() else False)
     ui.bind("Ctrl+T", "window_modes.on_top")
     ui.bind("F11", "window_modes.frameless")
-    ui.bind("G", "window_modes.ghost")
+    ui.bind("Ctrl+G", "window_modes.ghost")
     for order, key in enumerate(("window_modes.on_top", "window_modes.frameless", "window_modes.ghost")):
         ui.menu("canvas", key, path="Window", group="w_modes", order=order)
 

@@ -16,6 +16,7 @@ from typing import Any
 from PySide6.QtCore import QBuffer, QByteArray, QEvent, QIODevice, QObject, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
+    QCheckBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -146,6 +147,48 @@ class RecentCard(QFrame):
             QTimer.singleShot(0, lambda: self.clicked.emit(path))
 
 
+class ResumeCard(QFrame):
+    """The Untitled draft kept from the last close (Session Resume is off, so it
+    wasn't reopened automatically). Click to bring it back."""
+
+    clicked = Signal()
+
+    def __init__(self, image: QImage | None, subtitle: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("resumeCard")
+        self.setCursor(Qt.PointingHandCursor)
+        self.setToolTip("Resume the Untitled board you were working on last")
+        self.setFixedWidth(CARD_THUMB.width() + 16)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(3)
+        self.thumb = QLabel(self)
+        self.thumb.setObjectName("recentThumb")
+        self.thumb.setFixedSize(CARD_THUMB)
+        self.thumb.setAlignment(Qt.AlignCenter)
+        self.thumb.setPixmap(_card_pixmap(image, self.devicePixelRatioF()))
+        self.name = QLabel("Resume Last Session", self)
+        self.name.setObjectName("recentName")
+        self.folder = QLabel("Untitled board · unsaved", self)
+        self.folder.setObjectName("recentPath")
+        self.date = QLabel(subtitle, self)
+        self.date.setObjectName("recentPath")
+        for widget in (self.thumb, self.name, self.folder, self.date):
+            layout.addWidget(widget)
+
+    def update_content(self, image: QImage | None, subtitle: str) -> None:
+        self.thumb.setPixmap(_card_pixmap(image, self.devicePixelRatioF()))
+        self.date.setText(subtitle)
+
+    def mousePressEvent(self, event: Any) -> None:  # noqa: N802
+        event.accept()
+
+    def mouseReleaseEvent(self, event: Any) -> None:  # noqa: N802
+        event.accept()
+        if event.button() == Qt.LeftButton and self.rect().contains(event.position().toPoint()):
+            QTimer.singleShot(0, self.clicked.emit)
+
+
 def _card_pixmap(image: QImage | None, ratio: float) -> QPixmap:
     """The thumbnail fitted into the card's frame (or a placeholder)."""
     size = CARD_THUMB * ratio
@@ -175,9 +218,12 @@ STYLE = """
 #startSection { color: #aeb4bf; font-weight: bold; margin-top: 6px; }
 #recentCard { background: transparent; border: 1px solid transparent; border-radius: 8px; }
 #recentCard:hover { background: rgba(61, 142, 240, 30); border-color: #3d8ef0; }
+#resumeCard { background: rgba(61, 142, 240, 20); border: 1px solid #3d8ef0; border-radius: 8px; }
+#resumeCard:hover { background: rgba(61, 142, 240, 55); }
 #recentThumb { border-radius: 4px; }
 #recentName { color: #e6e9ef; font-weight: bold; }
 #recentPath { color: #6f7787; font-size: 11px; }
+#resumeCheckbox { color: #aeb4bf; }
 """
 
 
@@ -220,6 +266,12 @@ class StartPanel(QFrame):
         self.open_button.clicked.connect(lambda: ui.app.run_command("file.open"))
         header.addWidget(self.open_button, 0, Qt.AlignTop)
         layout.addLayout(header)
+        self.resume_checkbox = QCheckBox("Resume Last Session on Launch", self)
+        self.resume_checkbox.setObjectName("resumeCheckbox")
+        self.resume_checkbox.setFocusPolicy(Qt.NoFocus)
+        self.resume_checkbox.setToolTip("Reopen this exact board automatically next time pixelRef starts")
+        self.resume_checkbox.toggled.connect(lambda checked: ui.app.run_command("file.set_resume_enabled", checked))
+        layout.addWidget(self.resume_checkbox)
         self.recent_title = QLabel("Recent", self)
         self.recent_title.setObjectName("startSection")
         layout.addWidget(self.recent_title)
@@ -230,6 +282,7 @@ class StartPanel(QFrame):
         self.grid.setSpacing(6)
         layout.addWidget(self.grid_host)
         self.cards: list[RecentCard] = []
+        self.resume_card: ResumeCard | None = None
         self._filter = _ResizeWatcher(self)
         view.viewport().installEventFilter(self._filter)
         self.hide()
@@ -244,6 +297,38 @@ class StartPanel(QFrame):
     def mouseDoubleClickEvent(self, event: Any) -> None:  # noqa: N802
         event.accept()
 
+    def sync_resume_checkbox(self) -> None:
+        """Reflect the Session Resume setting, and hide the checkbox when there was
+        nothing on the board last time (nothing to resume either way)."""
+        recovery = self.ui.service("recovery")
+        if recovery is None:
+            return
+        self.resume_checkbox.setVisible(not recovery.last_session_is_empty())
+        blocked = self.resume_checkbox.blockSignals(True)
+        self.resume_checkbox.setChecked(recovery.resume_enabled)
+        self.resume_checkbox.blockSignals(blocked)
+
+    def _update_resume_card(self) -> None:
+        """A kept Untitled draft, offered back when Session Resume itself is off
+        (it reopens the draft automatically when the setting is on)."""
+        recovery = self.ui.service("recovery")
+        info = recovery.resumable_untitled() if recovery is not None else None
+        if info is None:
+            if self.resume_card is not None:
+                self.layout().removeWidget(self.resume_card)
+                self.resume_card.deleteLater()
+                self.resume_card = None
+            return
+        image = thumbnail_image(read_thumbnail(str(info["path"])))
+        when = str(info.get("saved_at", "")).replace("T", " ")
+        subtitle = f"{info.get('items', '?')} items · autosaved {when}"
+        if self.resume_card is None:
+            self.resume_card = ResumeCard(image, subtitle, self)
+            self.resume_card.clicked.connect(lambda: self.ui.app.run_command("file.resume_last_session"))
+            self.layout().insertWidget(2, self.resume_card)  # under the header and the checkbox
+        else:
+            self.resume_card.update_content(image, subtitle)
+
     def reload(self) -> None:
         """Re-read the recent files (and any changed thumbnails), as many as fit."""
         for card in self.cards:
@@ -251,6 +336,8 @@ class StartPanel(QFrame):
             card.hide()
             card.deleteLater()
         self.cards = []
+        self.sync_resume_checkbox()
+        self._update_resume_card()
         files = self.ui.service("files").recent_files()[:MAX_CARDS]
         lines = [line for line in self.ui.app.welcome_lines() if line != self.title.text()]
         self.hint.setText(" · ".join(lines) if files else "\n".join(lines))
@@ -393,6 +480,14 @@ def activate_start_ui(ui: Any) -> None:
     ui.on_ui("view.removed", lambda e: detach(e.payload["name"]))
     for event in ("canvas.refreshed", "tool.changed", "view.display_changed"):
         ui.on_ui(event, lambda _e: update())
+
+    def on_command_finished(event: Any) -> None:
+        # Keep a visible panel's checkbox in sync with the File menu's own toggle.
+        if event.payload.get("command") in ("file.toggle_resume", "file.set_resume_enabled"):
+            for panel in panels.values():
+                panel.sync_resume_checkbox()
+
+    ui.on_ui("command.finished", on_command_finished)
 
     def dispose() -> None:
         for name in list(panels):

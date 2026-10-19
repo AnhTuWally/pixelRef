@@ -21,6 +21,9 @@ from pixelref.plugin_api.contracts import IngestHandler
 SCENE_FILTER = "pixelRef Scene (" + " ".join(f"*{ext}" for ext in SCENE_EXTS) + ")"
 MAX_RECENT = 10
 AUTOSAVE_INTERVAL_MS = 60_000
+RESUME_SETTING = "session_resume"
+RESUME_STATE_SETTING = "session_resume_state"
+LAST_SESSION_HAD_CONTENT_SETTING = "last_session_had_content"
 
 
 class _AutosaveSignals(QObject):
@@ -58,7 +61,7 @@ class RecoveryService:
         folder = self.recovery_dir()
         return folder / f"recovery{SCENE_EXT}", folder / "recovery.json"
 
-    def autosave(self, background: bool = False) -> bool:
+    def autosave(self, background: bool = False, extra_meta: dict[str, Any] | None = None) -> bool:
         """Write a recovery copy of unsaved work (images included). With ``background``
         the file is written on a worker thread and True means the write has started."""
         session = self.session
@@ -79,6 +82,7 @@ class RecoveryService:
             "scene_file": str(session.scene_path) if session.scene_path else None,
             "saved_at": datetime.now().isoformat(timespec="seconds"),
             "items": len(session.scene.nodes),
+            **(extra_meta or {}),
         }
         temp = scene_file.with_suffix(".tmp")
         generation, revision = self.generation, session.revision
@@ -170,14 +174,118 @@ class RecoveryService:
     def offer(self) -> bool:
         """At startup: offer to restore work from a session that didn't close cleanly."""
         info = self.pending()
-        if info is None:
-            return False
+        if info is None or info.get("clean"):
+            return False  # a clean close's kept draft is offered by resume() or the start panel, not this
         when = str(info.get("saved_at", "")).replace("T", " ")
         name = Path(info["scene_file"]).name if info.get("scene_file") else "an unsaved board"
         reply = QMessageBox.question(
             self.ui.app.main_window(), "Restore unsaved work?",
             f"pixelRef didn't close normally last time.\n\nRestore {name} "
             f"({info.get('items', '?')} items, autosaved {when})?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes,
+        )
+        if reply == QMessageBox.Yes:
+            return self.restore()
+        self.owns_recovery = True
+        self.clear()
+        return False
+
+    # ---- Session Resume -----------------------------------------------------------------
+
+    @property
+    def resume_enabled(self) -> bool:
+        return bool(self.ui.settings.value(RESUME_SETTING, False, type=bool))
+
+    @resume_enabled.setter
+    def resume_enabled(self, value: bool) -> None:
+        self.ui.settings.setValue(RESUME_SETTING, bool(value))
+
+    def suspend(self) -> None:
+        """Session Resume (on close): remember exactly what was open, without asking
+        to save first. A saved file reopens as-is next launch; an Untitled board, or
+        one with unsaved edits, is kept (with a thumbnail) so it can come back exactly
+        as it was."""
+        session = self.session
+        self.wait()  # finish any in-flight background autosave before touching recovery state
+        worth_keeping = session.unsaved or (session.scene_path is None and bool(session.scene.nodes))
+        if not worth_keeping:
+            self.clear()
+            self.ui.settings.remove(RESUME_STATE_SETTING)
+            return
+        if session.scene_path is None:
+            self._embed_thumbnail()
+        self.autosaved_revision = -1  # force a fresh write now even if the revision hasn't moved
+        self.autosave(background=False, extra_meta={"clean": True})
+        path = str(session.scene_path) if session.scene_path else None
+        self.ui.settings.set_json(RESUME_STATE_SETTING, {"path": path})
+
+    def _embed_thumbnail(self) -> None:
+        """A picture of the board for the start panel's Untitled resume card."""
+        try:
+            from .start import render_thumbnail
+
+            section = render_thumbnail(self.ui.canvas)
+        except Exception:  # noqa: BLE001  (never let a thumbnail failure block closing)
+            section = None
+        if section is None:
+            self.session.scene.sections.pop("thumbnail", None)
+        else:
+            self.session.scene.sections["thumbnail"] = section
+
+    def resumable_untitled(self) -> dict[str, Any] | None:
+        """An Untitled draft kept from the last close, for the start panel to offer back.
+        Only relevant while Session Resume itself is off (it reopens the draft
+        automatically otherwise)."""
+        if self.resume_enabled or self.last_session_is_empty():
+            # last_session_is_empty() only ever turns True from a board that genuinely
+            # had content: a no-op close (open pixelRef, close it right away) never
+            # flips it back off, so it still points at the last *meaningful* session.
+            return None
+        info = self.pending()
+        if info is None or not info.get("clean") or info.get("scene_file"):
+            return None
+        return info
+
+    def last_session_is_empty(self) -> bool:
+        """Whether no session has ever had anything on its board: the Resume Last
+        Session checkbox has nothing to offer then. True only until some session
+        actually has content (a board edited down to no items still counts); a later
+        session that never touches anything doesn't reset this back to empty, so it
+        keeps pointing at the last session that had something worth coming back to."""
+        return not self.ui.settings.value(LAST_SESSION_HAD_CONTENT_SETTING, False, type=bool)
+
+    def resume(self) -> bool:
+        """At startup, with Session Resume turned on: reopen what was open last time."""
+        if not self.resume_enabled:
+            return False
+        state = self.ui.settings.json_value(RESUME_STATE_SETTING)
+        if not state:
+            return False
+        path = state.get("path")
+        if path is None:
+            # Was an Untitled/unsaved board: bring its exact draft back automatically.
+            return self.restore() if self.pending() is not None else False
+        if not Path(path).exists():
+            return False
+        files = self.session.services.get("files")
+        if files is None or not files.open_path(path, confirm=False):
+            return False
+        info = self.pending()
+        if info is not None and info.get("scene_file") == path:
+            self.offer_unsaved()
+        return True
+
+    def offer_unsaved(self) -> bool:
+        """After reopening the last saved file: offer a clear way to recover any edits
+        that hadn't been saved yet when the app last closed."""
+        info = self.pending()
+        if info is None:
+            return False
+        when = str(info.get("saved_at", "")).replace("T", " ")
+        reply = QMessageBox.question(
+            self.ui.app.main_window(), "Recover Unsaved Changes?",
+            f"You had unsaved changes when pixelRef last closed "
+            f"({info.get('items', '?')} items, {when}).\n\nRecover them?",
             QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes,
         )
         if reply == QMessageBox.Yes:
@@ -347,9 +455,14 @@ def activate_ui(ui: Any) -> None:
             return False
         return QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
 
+    def resume_last_session() -> bool:
+        """Bring back the Untitled draft kept from the last time pixelRef closed."""
+        return recovery.restore()
+
     for name, fn in (("new", new), ("open", open_dialog), ("open_path", open_path), ("save", save),
                      ("save_as", save_as), ("save_to", save_to), ("clear_recent", clear_recent),
-                     ("copy_path", copy_path), ("copy_folder", copy_folder), ("open_folder", open_folder)):
+                     ("copy_path", copy_path), ("copy_folder", copy_folder), ("open_folder", open_folder),
+                     ("resume_last_session", resume_last_session)):
         ui.command(name, fn, undoable=False)
     ui.provide_service("files", type("Files", (), {
         "open_path": staticmethod(open_path), "save_to": staticmethod(save_to),
@@ -389,6 +502,24 @@ def activate_ui(ui: Any) -> None:
     ui.menu("canvas", builder=recent_menu, text="Open Recent", path="File", group="file", order=2)
     ui.menu("canvas", "file.save", path="File", group="file", order=3)
     ui.menu("canvas", "file.save_as", path="File", group="file", order=4)
+
+    def toggle_resume() -> None:
+        """Switch Session Resume (reopen your last board automatically on launch) on or off."""
+        recovery.resume_enabled = not recovery.resume_enabled
+        app.actions.refresh_states()
+
+    def set_resume_enabled(value: bool) -> None:
+        """Turn Session Resume on or off (the start panel's checkbox)."""
+        recovery.resume_enabled = bool(value)
+        app.actions.refresh_states()
+
+    ui.command("toggle_resume", toggle_resume, undoable=False, echo=False)
+    ui.command("set_resume_enabled", set_resume_enabled, undoable=False, echo=False)
+    a("file.session_resume", "file.toggle_resume", "Resume Last Session on Launch",
+      keywords="restore reopen autosave crash recovery startup untitled draft", category="File",
+      checked=lambda: recovery.resume_enabled)
+    ui.menu("canvas", "file.session_resume", path="File", group="file.session", order=0)
+
     ui.menu("canvas", "file.copy_path", path="File", group="file.location", order=0)
     ui.menu("canvas", "file.copy_folder", path="File", group="file.location", order=1)
     ui.menu("canvas", "file.open_folder", path="File", group="file.location", order=2)
@@ -416,10 +547,30 @@ def activate_ui(ui: Any) -> None:
     ui.contribute("ingest.handlers", IngestHandler("file.scene", 0, lambda m: bool(scene_files(m)), describe, ingest))
 
     def on_close() -> bool:
+        # Anything edited (even deleted back down to nothing) still counts as content:
+        # there may be a draft worth resuming, so the start panel's checkbox should show.
+        # A session that never did anything at all doesn't get to erase that memory:
+        # opening the app and closing it right away leaves an earlier non-empty
+        # session's resumability untouched (there's simply nothing new to report).
+        if session.scene.nodes or session.unsaved:
+            ui.settings.setValue(LAST_SESSION_HAD_CONTENT_SETTING, True)
+        if recovery.resume_enabled:
+            # Session Resume: keep whatever was open (saved, Untitled, or edited)
+            # instead of interrupting the close with a save/discard prompt.
+            ui.canvas.flush_pending()
+            recovery.suspend()
+            recovery.timer.stop()
+            return True
         if not may_discard():
             return False
         recovery.timer.stop()
-        recovery.clear()
+        if session.scene_path is None and session.unsaved:
+            # Session Resume is off, but don't lose an Untitled draft entirely: keep it
+            # recoverable (with a thumbnail) as a "Resume Last Session" card next time.
+            ui.canvas.flush_pending()
+            recovery.suspend()
+        else:
+            recovery.clear()
         return True
 
     ui.contribute("app.close_handlers", on_close)

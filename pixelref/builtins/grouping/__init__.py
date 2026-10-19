@@ -1,4 +1,4 @@
-"""Groups: hierarchy containers, Group (Ctrl+G), Ungroup (Ctrl+Shift+G) and New Group.
+"""Groups: hierarchy containers, Group (G), Ungroup (Ctrl+Shift+G) and New Group.
 
 A group normally acts as one item on the canvas; with ``pick_members`` on it is
 a plain folder whose members are clicked directly.
@@ -148,7 +148,7 @@ def activate_ui(ui: Any) -> None:
               category="Create", dynamic_text=ungroup_text)
     ui.action("grouping.add_group", "grouping.add_group_dialog", "New Group…",
               keywords="folder container layer empty", category="Create", icon="layer")
-    ui.bind("Ctrl+G", "grouping.group")
+    ui.bind("G", "grouping.group")
     ui.bind("Ctrl+Shift+G", "grouping.ungroup")
     ui.bind("Ctrl+Shift+N", "grouping.add_group")
     ui.menu("canvas", "grouping.group", group="arrange", order=20, when="selection.count > 0")

@@ -57,6 +57,29 @@ searches every command.
   *File → Embed All Linked Images* packs a scene into one self-contained file.
 - **Copy, cut, paste and duplicate** work between scenes.
 
+## Movies
+
+- **Bring videos in:** *File → Insert Movies… (linked, not embedded)*, or
+  drag in video files (`.mp4`, `.mov`, `.m4v`, `.avi`, `.mkv`, `.webm`,
+  `.wmv`).
+- **Always linked, never embedded.** Unlike images, a movie is only ever a
+  reference to its file on disk — there is no option to embed it in the
+  scene, and no *Embed All Linked Images*-style command that packs it in
+  either. If the video file moves, is renamed, or isn't there when you open
+  the board (e.g. on another machine), the node shows a "Missing"
+  placeholder, just like a missing linked image. To move a board with
+  movies on it, copy the video files along with it.
+- Playback controls are the same as for [animated images](#animated-images):
+  `K` plays and pauses, `,` / `.` step, `Ctrl+,` / `Ctrl+.` jump to the start
+  or end, with transport buttons and a **filmstrip** in the quick editor bar.
+- Whether a particular video file plays depends on the codecs available on
+  your system through Qt Multimedia; an unsupported file shows "Can't play"
+  instead of a frame, rather than failing to add the node.
+- The Attribute Editor's *Playback* section has the same filmstrip under the
+  frame slider: a row of thumbnails sampled across the clip (decoded in the
+  background). Click or drag across either filmstrip to scrub straight to a
+  point in the video.
+
 ### PureRef boards
 
 The **PureRef import** plugin reads PureRef `.pur` boards: the 1.x format
@@ -222,7 +245,7 @@ and hollow dots for free ones.
 
 ## Groups, the Outliner and the Attribute Editor
 
-**Groups.** `Ctrl+G` groups the selection. A group acts as one item: a click
+**Groups.** `G` groups the selection. A group acts as one item: a click
 anywhere on it selects it, and it moves, scales, copies and links as a unit.
 Double-click a group to go inside and work on one member (a dashed frame shows
 the open group); `Esc` or clicking outside goes back out. Selecting a member in
@@ -232,7 +255,7 @@ an empty one). `Ctrl+Shift+G` ungroups. A group's position is relative to its
 parent, so moving a group moves everything in it.
 
 **Outliner.** Drag to reparent or reorder (front-most at the top), `F2`
-renames, eye/lock columns, a name filter, `Ctrl+G` group / `Ctrl+Shift+G`
+renames, eye/lock columns, a name filter, `G` group / `Ctrl+Shift+G`
 ungroup, `Ctrl+Shift+N` new group. Reparenting keeps items exactly where they
 are on the board. The stacking keys are under [Arrange](#arrange).
 
@@ -300,12 +323,15 @@ All of this is covered in [window-manager.md](window-manager.md).
 Animated GIFs and WebPs play on the board. Select one and press `K` to
 play/pause, `,` / `.` to step a frame back/forward, and `Ctrl+,` / `Ctrl+.`
 for the first/last frame. The quick editor bar under a selected animation
-starts with previous frame, play/pause, next frame and the frame number; with
-several animations selected they act on all of them. *Hide Playback Controls*
-in the bar's ⋯ menu removes them; with the quick editor turned off, each
-selected animation gets a small control bar of its own instead. The Attribute
-Editor's *Playback* section has the same controls plus a scrub slider and a
-go-to-frame field (also *Go to Frame…* in the right-click *Playback* menu).
+starts with previous frame, play/pause, next frame and the frame number, with
+a **filmstrip** — a row of thumbnails across the animation — underneath; with
+several animations selected they act on all of them. Click or drag across the
+filmstrip to jump straight to a frame. *Hide Playback Controls* in the bar's
+⋯ menu removes them; with the quick editor turned off, each selected
+animation gets a small control bar of its own instead (without a filmstrip).
+The Attribute Editor's *Playback* section has the same controls plus a scrub
+slider, a go-to-frame field (also *Go to Frame…* in the right-click
+*Playback* menu), and its own filmstrip.
 
 A paused image keeps its frame when the scene is saved. Playback isn't
 undoable, like camera moves.
@@ -333,16 +359,21 @@ image in the active canvas; a slider sets the thumbnail size. Open it with
 | --- | --- |
 | `Ctrl+P` | optimal pack |
 | `Ctrl+Alt+H` / `Ctrl+Alt+V` / `Ctrl+Alt+G` | row / column / grid |
+| `Ctrl+Left` / `Ctrl+Right` | align left / right edges |
+| `Ctrl+Up` / `Ctrl+Down` | align top / bottom edges |
 | `]` / `}` | bring to front / bring forward |
 | `[` / `{` | send to back / send backward |
 
 *Arrange* in the context menu also normalizes height, width or size and aligns
-edges and centres. With fewer than two items selected, arranging works on
+edges and centres (including horizontal/vertical centers, which have no
+default shortcut). With fewer than two items selected, arranging works on
 everything.
 
 ## Export
 
 - `Ctrl+E` renders the selection (or the whole board) to PNG or JPEG at 1:1.
+- `Ctrl+Alt+C` flattens the selection (or the whole board) and copies it to
+  the clipboard as an image, ready to paste elsewhere.
 - `Ctrl+Shift+E` copies the original image files of the selection (or of every
   image) into a folder.
 
@@ -364,6 +395,17 @@ Exports wait for every effect result, so what you save is complete.
 - **Autosave and recovery.** Unsaved work (images included) is written to a
   recovery copy every minute. After a crash, the next start offers to restore
   it.
+- **Session Resume.** *File → Resume Last Session on Launch*, or the checkbox
+  on the start panel (off by default; the checkbox only shows once a previous
+  session actually had something on the board), reopens your workspace
+  exactly as you left it. With a saved file open, closing pixelRef skips the
+  save prompt; next launch reopens that file's last saved version, and if you
+  had unsaved edits you're asked whether to bring them back. With an Untitled
+  board, your unsaved draft reopens automatically, no prompt needed.
+- **Resuming an Untitled draft without turning Session Resume on.** Closing an
+  Untitled board with unsaved work (even if you choose Discard) still keeps a
+  thumbnailed copy of it. Next time you see the start panel, a *Resume Last
+  Session* card with that thumbnail lets you jump straight back to it.
 - **About pixelRef…** in the canvas context menu shows the app, Python and Qt
   versions.
 
@@ -373,7 +415,7 @@ Exports wait for every effect result, so what you save is complete.
 | --- | --- |
 | `Ctrl+T` | keep the window on top of other applications |
 | `F11` | frameless: drag an edge to resize, the bar or a view header to move |
-| `G` | ghost mode: a translucent window to trace over other applications |
+| `Ctrl+G` | ghost mode: a translucent window to trace over other applications |
 | `Ctrl+Shift+T` | click-through: mouse clicks pass through the window to the application below |
 
 Turning click-through on also keeps the window on top. It turns off by

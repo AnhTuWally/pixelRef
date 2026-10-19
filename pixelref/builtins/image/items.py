@@ -220,6 +220,7 @@ class PixmapItem(NodeItemMixin, QGraphicsItem):
         self._frames: list[QPixmap] | None = None
         self._held: int | None = None  # 0-based frame shown while paused
         self._suspended = False  # playing, but the movie is paused while the item is hidden
+        self._filmstrip_cache: tuple[int, int, list[QPixmap]] | None = None  # (count, frame count, thumbnails)
         self.cache_key: Any = None
         self.setFlag(QGraphicsItem.ItemIsSelectable, True)
         self.setFlag(QGraphicsItem.ItemIsMovable, True)
@@ -402,6 +403,27 @@ class PixmapItem(NodeItemMixin, QGraphicsItem):
         """Pause and move ``count`` frames, wrapping around; returns the frame shown."""
         total = self.frame_count() or 1
         return self.go_to_frame((self.current_frame() - 1 + int(count)) % total + 1)
+
+    # ---- Filmstrip (a handful of thumbnails across the animation, for scrubbing) ----------
+
+    def filmstrip(self, count: int = 12) -> list[QPixmap]:
+        """``count`` frames evenly spread across the animation (all of them decoded at once:
+        there's no equivalent of the movie item's background extraction to wait for)."""
+        frames = self.decoded_frames()
+        if not frames:
+            return []
+        cached = self._filmstrip_cache
+        if cached is not None and cached[0] == count and cached[1] == len(frames):
+            return cached[2]
+        if len(frames) <= count or count < 2:
+            chosen = list(frames)
+        else:
+            chosen = [frames[round(i * (len(frames) - 1) / (count - 1))] for i in range(count)]
+        self._filmstrip_cache = (count, len(frames), chosen)
+        return chosen
+
+    def add_filmstrip_listener(self, callback: Any) -> None:
+        """All frames are decoded synchronously by ``filmstrip()``; nothing to wait for."""
 
     # ---- Crop -----------------------------------------------------------------------
 

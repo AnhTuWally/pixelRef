@@ -108,6 +108,29 @@ def test_playback_section_in_the_attribute_editor():
         h.close()
 
 
+def test_filmstrip_shows_thumbnails_and_scrubs():
+    h = make()
+    try:
+        name = _gif(h)
+        h.select([name])
+        section = h.section("playback")
+        strip = section.filmstrip
+        assert strip.isVisible()
+        frames = h.item(name).filmstrip()
+        assert len(frames) == 4, "all 4 GIF frames fit in a 12-thumbnail strip"
+        strip.resize(100, strip.height())
+        strip._scrub_to(0.0)
+        assert h.item(name).current_frame() == 1 and _shown(h, name) == HEX[0]
+        strip._scrub_to(99.0)
+        assert h.item(name).current_frame() == 4 and _shown(h, name) == HEX[3]
+        # Not shown for still images.
+        h.add_image("Still", 300, 0)
+        h.select(["Still"])
+        assert not section.filmstrip.isVisible()
+    finally:
+        h.close()
+
+
 def test_paused_frame_survives_edits_and_is_saved_with_the_scene():
     h = make()
     try:
@@ -275,12 +298,20 @@ def test_transport_is_part_of_the_quick_editor_bar():
         _settle()
         assert transport.frame_label.text() == "4 / 4" and bar.width() == width, "fixed width: no wobble"
         assert h.sel() == [name]
+        # The filmstrip (below the transport buttons) scrubs the same way as the inspector's.
+        strip = transport.filmstrip
+        assert strip.isVisible() and len(item.filmstrip()) == 4
+        strip._scrub_to(0.0)
+        assert item.current_frame() == 1
+        strip._scrub_to(float(strip.width()) - 1.0)
+        assert item.current_frame() == 4
         # Still images: the bar is just the fields.
         h.add_image("Still", 600, 0)
         h.select(["Still"])
         _settle()
         bar = _quick_bar(h)
         assert bar is not None and not bar.sections["playback"][1].isVisible() and not bar.divider.isVisible()
+        assert not bar.sections["playback"][1].filmstrip.isVisible()
         # Several animations: one transport for all of them, also with a still image (no shared fields).
         _gif(h, "Anim2", x=0.0, y=400.0)
         h.select([name, "Anim2", "Still"])

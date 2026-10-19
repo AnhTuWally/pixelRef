@@ -9,7 +9,8 @@ can replace or extend.
 ![The sample board in pixelRef](docs/images/overview.webp)
 
 - **Collect** images, folders, GIFs and browser images by pasting or dragging.
-  One `.pxref` file holds the board and its images.
+  One `.pxref` file holds the board and its images. **Movies play too**, but
+  only by file reference — they're always linked, never embedded.
 - **Mark up** with text notes, rectangles, arrows, the pen, numbered steps,
   and blur or pixelate regions.
 - **Connect** elements with links that follow them around.
@@ -61,6 +62,11 @@ Paste (`Ctrl+V`) or drag in image files, whole folders, animated GIFs and
 WebPs, or images straight from a web browser. Images are **embedded** in the
 scene file by default, so a single `.pxref` is easy to share. To keep a large
 file on disk instead, choose *Link…* in the Attribute Editor.
+
+You can also drag in or *File → Insert Movies…* to add video files
+(`.mp4`, `.mov`, `.mkv`, `.webm`…). **Movies are supported by file reference
+only** — there is no embed option like for images, so a shared `.pxref` needs
+its video files alongside it, or the board shows them as missing.
 
 Coming from PureRef? *File → Open PureRef Board (Import Only)…* opens a `.pur`
 board, and dropping one on the canvas adds it to the current board. It's one

@@ -1,0 +1,5 @@
+id = "movie"
+name = "Movies"
+version = "1.0.0"
+api = 1
+description = "Movie nodes: play a video file on the board. Movies are always linked by file reference — there is no option to embed them in the scene, unlike images."

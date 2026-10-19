@@ -255,6 +255,8 @@ the rest also work headless (batch mode, scripts).
 
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
+| `export.copy_image(nodes: Any = None, opaque: bool = False)` | `copy_image_to_clipboard` |  | Flatten nodes (default: the selection, else everything) and put the image on the clipboard. |
+| `export.copy_image_ui()` |  |  | Flatten the selection (or the whole board) and copy it to the clipboard as an image. |
 | `export.dialog()` |  |  | Ask where to save, then render the selection (or the whole board) to PNG/JPEG. |
 | `export.originals(folder: str, nodes: Any = None)` | `export_original_images` |  | Copy the selected (or all) images' original files into a folder. |
 | `export.originals_dialog()` |  |  | Ask for a folder, then write the original image files of the selection (or of every image). |
@@ -271,10 +273,13 @@ the rest also work headless (batch mode, scripts).
 | `file.open()` |  |  | Choose a scene file to open (asks about unsaved changes first). |
 | `file.open_folder()` |  |  | Open the folder holding the open scene file in the system file browser. |
 | `file.open_path(path: str, confirm: bool = True)` |  |  | Open a scene file (asks about unsaved changes unless confirm=False). |
+| `file.resume_last_session()` |  |  | Bring back the Untitled draft kept from the last time pixelRef closed. |
 | `file.save()` |  |  | Save the scene to its file (asks for a name the first time). |
 | `file.save_as()` |  |  | Save the scene under a new file name (dialog). |
 | `file.save_to(path: str)` |  |  | Save the scene to ``path``. |
+| `file.set_resume_enabled(value: bool)` |  |  | Turn Session Resume on or off (the start panel's checkbox). |
 | `file.thumbnail(path: str \| None = None, save_to: str \| None = None)` |  |  | A scene file's thumbnail (default: the open scene's file): its size and date, |
+| `file.toggle_resume()` |  |  | Switch Session Resume (reopen your last board automatically on launch) on or off. |
 
 ## grouping
 
@@ -367,6 +372,14 @@ the rest also work headless (batch mode, scripts).
 | --- | --- | --- | --- |
 | `minimap.place(corner: str \| None = None, size: str \| None = None, view: str \| None = None)` | `place_minimap` |  | Put a view's minimap in a corner (tl, tr, bl, br) and/or set its size (small, medium, large). |
 | `minimap.toggle(view: str \| None = None, visible: bool \| None = None)` | `toggle_minimap` |  | Show or hide a view's minimap (no ``visible`` toggles); new views follow the last choice. |
+
+## movie
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `movie.import_movie(path: str, translate: Any = None, name: str \| None = None, centered: bool = True)` | `import_movie` | yes | Add a video file by reference (movies are always linked, never embedded). Returns the node name. |
+| `movie.import_movies(paths: list[str], translate: Any = None)` | `import_movies` | yes | Add several video files side by side, centred on ``translate``. |
+| `movie.insert_dialog()` |  |  | Choose video files and add them in a row at the view centre (always linked, never embedded). |
 
 ## navigation
 
@@ -553,7 +566,7 @@ the rest also work headless (batch mode, scripts).
 
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
-| `window_modes.ghost()` | `toggle_ghost_mode` |  | Toggle a translucent window to trace over other applications (G). |
+| `window_modes.ghost()` | `toggle_ghost_mode` |  | Toggle a translucent window to trace over other applications (Ctrl+G). |
 | `window_modes.set_click_through(enabled: bool, output: str \| None = None)` | `set_click_through` |  | Let mouse clicks pass through the window to the application below, to trace over it. |
 | `window_modes.set_opacity(value: float)` | `set_window_opacity` |  | Set the window opacity (0.1 to 1.0). |
 | `window_modes.toggle_click_through()` | `toggle_click_through` |  | Toggle click-through (Ctrl+Shift+T): mouse clicks pass through the window to the app below. |

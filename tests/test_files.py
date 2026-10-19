@@ -6,8 +6,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from harness import QTest, make, make_png, tmp_dir
-from PySide6.QtCore import QMimeData, QPointF, Qt, QUrl
+from PySide6.QtCore import QMimeData, QPointF, QSettings, Qt, QUrl
 from PySide6.QtGui import QColor, QImage
+from PySide6.QtWidgets import QApplication
+
+from pixelref.plugin_api import read_thumbnail
 
 
 def _bitmap_mime(w: int, h: int, color: str) -> QMimeData:
@@ -170,6 +173,21 @@ def test_export_image_renders_selection():
         h.close()
 
 
+def test_export_copy_image_puts_selection_on_clipboard():
+    h = make()
+    try:
+        h.add_image("A", 0, 0, w=100, h=50)
+        h.add_image("B", 500, 0, w=100, h=50)
+        h.select(["A"])
+        size = h.run("export.copy_image")
+        clipboard_image = QApplication.clipboard().image()
+        assert list(size) == [100, 50]
+        assert (clipboard_image.width(), clipboard_image.height()) == (100, 50)
+        assert clipboard_image.pixelColor(50, 25).name() == "#c04040"
+    finally:
+        h.close()
+
+
 # ---- Recovery ------------------------------------------------------------------------------------
 
 
@@ -246,6 +264,380 @@ def test_autosave_after_new_scene_restarts_revision_count():
         assert recovery.autosave(), "new work is autosaved even at a revision number seen before"
     finally:
         _clear_recovery(h)
+        h.close()
+
+
+# ---- Session Resume -------------------------------------------------------------------------------
+
+
+def _clear_resume(h=None):
+    # file.toggle_resume's settings live scoped under the file plugin's own prefix.
+    QSettings().remove("plugins/file/session_resume")
+    QSettings().remove("plugins/file/session_resume_state")
+    QSettings().remove("plugins/file/last_session_had_content")
+    if h is not None and not h.app.closed:
+        _clear_recovery(h)
+
+
+def test_session_resume_disabled_by_default_and_keeps_save_prompt_on_close():
+    import pixelref.builtins.file as file_plugin
+
+    h = make()
+    original = file_plugin.QMessageBox
+    try:
+        _clear_resume(h)
+        assert not h.service("recovery").resume_enabled
+        h.add_image("A", 0, 0)
+        h.session.mark_unsaved()
+
+        class _Box:
+            Discard = file_plugin.QMessageBox.Discard
+
+            @staticmethod
+            def question(*_a, **_k):
+                return _Box.Discard  # close without saving
+
+        file_plugin.QMessageBox = _Box
+        assert h.app.request_close(), "Discard must let the app close"
+        assert h.app.closed
+    finally:
+        file_plugin.QMessageBox = original
+        _clear_resume(h)
+        h.close()
+
+
+def test_session_resume_reopens_saved_file_and_offers_unsaved_changes():
+    """A saved board comes back as its last saved version, with a clear, explicit
+    option to recover the edits that hadn't been saved yet when the app closed."""
+    import pixelref.builtins.file as file_plugin
+
+    h = make()
+    original = file_plugin.QMessageBox
+    try:
+        _clear_resume(h)
+        recovery = h.service("recovery")
+        recovery.resume_enabled = True
+        h.add_image("A", 0, 0)
+        path = tmp_dir() / "board.pxref"
+        assert h.save_to(path)
+        h.add_image("B", 100, 0)
+        h.session.mark_unsaved()
+        assert h.app.request_close(), "Session Resume must not prompt to save on close"
+        assert h.app.closed
+
+        h2 = make()
+        try:
+            recovery2 = h2.service("recovery")
+            recovery2.resume_enabled = True
+            asked = []
+
+            class _Box:
+                Yes = file_plugin.QMessageBox.Yes
+                No = file_plugin.QMessageBox.No
+
+                @staticmethod
+                def question(_parent, _title, text, *_a, **_k):
+                    asked.append(text)
+                    return _Box.Yes  # recover the unsaved edit
+
+            file_plugin.QMessageBox = _Box
+            assert recovery2.resume()
+            h2.refresh()
+            assert asked, "must offer the unsaved edits explicitly, not restore them silently"
+            assert h2.session.scene_path == path, "the saved file reopens at its own path"
+            assert len(h2.nodes_of("image")) == 2, "the recovered edit (image B) came back"
+            assert h2.session.unsaved, "the recovered state is still unsaved"
+        finally:
+            file_plugin.QMessageBox = original
+            h2.close()
+    finally:
+        file_plugin.QMessageBox = original
+        _clear_resume(h)
+        h.close()
+
+
+def test_session_resume_declining_unsaved_changes_keeps_last_saved_version():
+    import pixelref.builtins.file as file_plugin
+
+    h = make()
+    original = file_plugin.QMessageBox
+    try:
+        _clear_resume(h)
+        recovery = h.service("recovery")
+        recovery.resume_enabled = True
+        h.add_image("A", 0, 0)
+        path = tmp_dir() / "board2.pxref"
+        assert h.save_to(path)
+        h.add_image("B", 100, 0)
+        h.session.mark_unsaved()
+        assert h.app.request_close()
+
+        h2 = make()
+        try:
+            recovery2 = h2.service("recovery")
+            recovery2.resume_enabled = True
+
+            class _Box:
+                Yes = file_plugin.QMessageBox.Yes
+                No = file_plugin.QMessageBox.No
+
+                @staticmethod
+                def question(*_a, **_k):
+                    return _Box.No  # keep only the last saved version
+
+            file_plugin.QMessageBox = _Box
+            assert recovery2.resume()
+            h2.refresh()
+            assert len(h2.nodes_of("image")) == 1, "declining drops the unsaved edit"
+            assert not h2.session.unsaved
+        finally:
+            file_plugin.QMessageBox = original
+            h2.close()
+    finally:
+        file_plugin.QMessageBox = original
+        _clear_resume(h)
+        h.close()
+
+
+def test_session_resume_restores_untitled_draft_automatically():
+    """An Untitled board with unsaved work comes back exactly as it was, with no prompt."""
+    h = make()
+    try:
+        _clear_resume(h)
+        recovery = h.service("recovery")
+        recovery.resume_enabled = True
+        h.add_image("Draft", 0, 0)
+        h.session.mark_unsaved()
+        assert h.session.scene_path is None
+        assert h.app.request_close()
+        assert h.app.closed
+
+        h2 = make()
+        try:
+            recovery2 = h2.service("recovery")
+            recovery2.resume_enabled = True
+            assert recovery2.resume(), "an Untitled draft must come back automatically"
+            h2.refresh()
+            assert len(h2.nodes_of("image")) == 1
+            assert h2.session.scene_path is None
+            assert h2.session.unsaved
+        finally:
+            h2.close()
+    finally:
+        _clear_resume(h)
+        h.close()
+
+
+def test_resume_disabled_still_keeps_untitled_draft_recoverable_with_thumbnail():
+    """Even without Session Resume turned on, closing an Untitled board with unsaved
+    work keeps a recoverable, thumbnailed copy instead of losing it outright."""
+    import pixelref.builtins.file as file_plugin
+
+    h = make()
+    original = file_plugin.QMessageBox
+    try:
+        _clear_resume(h)
+        recovery = h.service("recovery")
+        assert not recovery.resume_enabled
+        assert recovery.resumable_untitled() is None, "nothing to resume on an untouched board"
+        h.add_image("Draft", 0, 0, w=300, h=200)
+        h.session.mark_unsaved()
+
+        class _Box:
+            Save, Discard, Cancel = (file_plugin.QMessageBox.Save, file_plugin.QMessageBox.Discard,
+                                      file_plugin.QMessageBox.Cancel)
+
+            @staticmethod
+            def question(*_a, **_k):
+                return _Box.Discard  # close without saving
+
+        file_plugin.QMessageBox = _Box
+        assert h.app.request_close()
+        assert h.app.closed
+
+        h2 = make()
+        try:
+            recovery2 = h2.service("recovery")
+            info = recovery2.resumable_untitled()
+            assert info is not None, "the discarded Untitled draft must still be recoverable"
+            assert info.get("scene_file") is None and info.get("clean")
+            assert read_thumbnail(info["path"]) is not None, "a thumbnail is kept for the start panel card"
+
+            # A plain startup must not show the old blocking crash-recovery dialog for it.
+            class _NoDialog:
+                @staticmethod
+                def question(*_a, **_k):
+                    raise AssertionError("a clean, intentionally-kept draft must not prompt like a crash")
+
+            file_plugin.QMessageBox = _NoDialog
+            assert not recovery2.offer()
+
+            assert h2.app.run_command("file.resume_last_session")
+            h2.refresh()
+            assert len(h2.nodes_of("image")) == 1
+            assert h2.session.scene_path is None and h2.session.unsaved
+        finally:
+            file_plugin.QMessageBox = original
+            h2.close()
+    finally:
+        file_plugin.QMessageBox = original
+        _clear_resume(h)
+        h.close()
+
+
+def test_resume_card_shown_on_start_panel_only_when_resume_is_off():
+    h = make()
+    try:
+        _clear_resume(h)
+        recovery = h.service("recovery")
+        h.add_image("Draft", 0, 0, w=300, h=200)
+        h.session.mark_unsaved()
+        recovery.suspend()  # same snapshot suspend() writes on close, without actually closing
+        # suspend() alone (unlike a real close) doesn't record "the last close had content":
+        # that's on_close()'s job, done here so this stand-in matches a real close.
+        recovery.ui.settings.setValue("last_session_had_content", True)
+        assert recovery.resumable_untitled() is not None
+
+        h2 = make()
+        try:
+            panel = h2.service("start_panel").panels["Main"]
+            panel.reload()
+            assert panel.resume_card is not None, "an empty board offers the kept Untitled draft back"
+            assert panel.resume_card.name.text() == "Resume Last Session"
+
+            h2.service("recovery").resume_enabled = True
+            panel.reload()
+            assert panel.resume_card is None, "Session Resume handles it automatically once turned on"
+        finally:
+            h2.close()
+    finally:
+        _clear_resume(h)
+        h.close()
+
+
+def test_resume_card_survives_a_later_empty_close_that_never_touched_anything():
+    """Opening pixelRef and closing it right away, without doing anything, must not
+    erase an earlier non-empty session's resumable draft: a no-op session reports
+    nothing new, so the last *meaningful* session is still what gets offered back."""
+    import pixelref.builtins.file as file_plugin
+
+    h = make()
+    other = make()
+    original = file_plugin.QMessageBox
+    try:
+        _clear_resume(h)
+        h.add_image("Draft", 0, 0, w=300, h=200)
+        h.session.mark_unsaved()
+
+        class _Box:
+            Save, Discard, Cancel = (file_plugin.QMessageBox.Save, file_plugin.QMessageBox.Discard,
+                                      file_plugin.QMessageBox.Cancel)
+
+            @staticmethod
+            def question(*_a, **_k):
+                return _Box.Discard
+
+        file_plugin.QMessageBox = _Box
+        assert h.app.request_close()
+        assert other.service("recovery").resumable_untitled() is not None, "the draft exists on disk"
+
+        assert other.app.request_close()  # a second window, untouched, closes right away
+
+        h3 = make()
+        try:
+            assert h3.service("recovery").resumable_untitled() is not None, \
+                "a no-op close must not erase the earlier non-empty session's draft"
+        finally:
+            _clear_recovery(h3)
+            h3.close()
+    finally:
+        file_plugin.QMessageBox = original
+        _clear_resume()
+
+
+def test_resume_checkbox_hidden_when_last_session_was_empty():
+    h = make()
+    try:
+        _clear_resume(h)
+        assert h.app.request_close(), "nothing unsaved on a fresh board: closes without asking"
+        assert h.app.closed
+
+        h2 = make()
+        try:
+            panel = h2.service("start_panel").panels["Main"]
+            panel.reload()
+            assert not panel.resume_checkbox.isVisible(), "nothing to resume from an empty last session"
+        finally:
+            h2.close()
+    finally:
+        _clear_resume(h)
+        h.close()
+
+
+def test_resume_checkbox_shown_for_a_draft_edited_back_down_to_zero_items():
+    """A board that had an image added and then removed is still unsaved: it isn't
+    the same as an untouched, truly empty board, so the checkbox must still show
+    (even though the resume card itself will report "0 items")."""
+    import pixelref.builtins.file as file_plugin
+
+    h = make()
+    original = file_plugin.QMessageBox
+    try:
+        _clear_resume(h)
+        h.add_image("Temp", 0, 0)
+        h.run("delete", ["Temp"])
+        h.session.mark_unsaved()
+        assert h.session.unsaved and not h.scene.nodes
+
+        class _Box:
+            Save, Discard, Cancel = (file_plugin.QMessageBox.Save, file_plugin.QMessageBox.Discard,
+                                      file_plugin.QMessageBox.Cancel)
+
+            @staticmethod
+            def question(*_a, **_k):
+                return _Box.Discard
+
+        file_plugin.QMessageBox = _Box
+        assert h.app.request_close()
+        assert h.app.closed
+
+        h2 = make()
+        try:
+            panel = h2.service("start_panel").panels["Main"]
+            panel.reload()
+            assert panel.resume_checkbox.isVisible(), "edited-then-emptied still counts as a real last session"
+        finally:
+            h2.close()
+    finally:
+        file_plugin.QMessageBox = original
+        _clear_resume(h)
+        h.close()
+
+
+def test_resume_checkbox_shown_and_toggles_the_setting():
+    h = make()
+    try:
+        _clear_resume(h)
+        h.add_image("A", 0, 0)
+        assert h.save_to(tmp_dir() / "checkbox.pxref")
+        assert h.app.request_close()
+        assert h.app.closed
+
+        h2 = make()
+        try:
+            recovery2 = h2.service("recovery")
+            panel = h2.service("start_panel").panels["Main"]
+            panel.reload()
+            assert panel.resume_checkbox.isVisible(), "the last session had content worth offering to resume"
+            assert not panel.resume_checkbox.isChecked()
+            panel.resume_checkbox.setChecked(True)
+            assert recovery2.resume_enabled, "checking the box turns Session Resume on"
+            panel.resume_checkbox.setChecked(False)
+            assert not recovery2.resume_enabled
+        finally:
+            h2.close()
+    finally:
+        _clear_resume(h)
         h.close()
 
 

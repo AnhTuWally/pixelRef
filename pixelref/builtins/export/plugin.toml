@@ -2,4 +2,4 @@ id = "export"
 name = "Export"
 version = "1.0.0"
 api = 1
-description = "Export the board or the selection as PNG/JPEG, and export the original image files."
+description = "Export the board or the selection as PNG/JPEG, copy a flattened image to the clipboard, and export the original image files."
