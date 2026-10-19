@@ -6,6 +6,8 @@ together and look at them through as many views as you like. Everything you
 do with the mouse is also a Python command, and every feature is a plugin you
 can replace or extend.
 
+⚡ Developed with AI.
+
 ![The sample board in pixelRef](docs/images/overview.webp)
 
 - **Collect** images, folders, GIFs and browser images by pasting or dragging.
