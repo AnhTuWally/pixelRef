@@ -72,6 +72,11 @@ def run(argv: list[str] | None = None) -> int:
         restored = recovery.resume() or recovery.offer()
     if not restored and scene_args and scene_args[0].exists():
         app.run_command("open_scene", str(scene_args[0]))
+    elif not restored:
+        # The very first launch opens the Getting Started guide (once, ever); Help → Getting Started reopens it.
+        onboarding = app.session.services.get("onboarding")
+        if onboarding is not None:
+            onboarding.show_first_run()
     return QApplication.instance().exec()
 
 

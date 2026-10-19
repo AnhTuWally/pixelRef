@@ -180,3 +180,28 @@ def test_the_version_is_shown_on_the_start_panel_and_in_about():
         h.run("help.show_about")
     finally:
         h.close()
+
+
+def test_getting_started_opens_once_on_first_launch_and_again_from_help():
+    from PySide6.QtCore import QSettings
+
+    h = make()
+    try:
+        onboarding = h.session.services.get("onboarding")
+        assert onboarding is not None
+        # The first launch (no recent boards, flag unset) opens the guide, as an untitled clean copy.
+        h.run("file.clear_recent")
+        QSettings().remove("onboarding_shown")
+        assert onboarding.show_first_run() is True
+        assert h.session.scene.has("Welcome (card)")
+        # Static content is locked; the sandbox pictures are not.
+        assert h.session.compute("Welcome (card)", "world_locked") == 1
+        # Never again on later launches...
+        h.run("new_scene")
+        assert onboarding.show_first_run() is False
+        assert not h.session.scene.has("Welcome (card)")
+        # ...but Help → Getting Started reopens it any time.
+        h.run("help.getting_started")
+        assert h.session.scene.has("Welcome (card)")
+    finally:
+        h.close()

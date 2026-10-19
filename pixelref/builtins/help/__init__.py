@@ -1,10 +1,13 @@
 """Keyboard Shortcuts (F1): every action's keys, editable (saved to keymap.toml), and the mouse reference.
-Also About pixelRef: the version of the app, Python and Qt."""
+Also About pixelRef (the version of the app, Python and Qt) and Getting Started, the onboarding board
+that opens by itself the first time pixelRef starts."""
 
 from __future__ import annotations
 
 import platform
+import sys
 from html import escape
+from pathlib import Path
 from typing import Any
 
 from pixelref.plugin_api import APP_VERSION
@@ -34,6 +37,22 @@ MOUSE_HELP = (
     "Window manager: Ctrl+W then H/J/K/L focus, Shift+H/J/K/L move, S/V split, N new view, T tabbed, F fullscreen, "
     "1–9 workspaces, - scratchpad (console), Esc leaves",
 )
+
+
+GUIDE_FILE = "onboard.pxref"
+GUIDE_MARKER = "Welcome"           # the view marker the guide opens looking through
+ONBOARDING_SHOWN_SETTING = "onboarding_shown"
+
+
+def guide_path() -> Path | None:
+    """The Getting Started board: examples/scenes/onboard.pxref next to the sources, or beside the
+    bundled app's libraries in the standalone build. None when the file isn't there."""
+    roots = [Path(getattr(sys, "_MEIPASS", "")) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[3]]
+    for root in roots:
+        path = root / "examples" / "scenes" / GUIDE_FILE
+        if path.is_file():
+            return path
+    return None
 
 
 def activate_ui(ui: Any) -> None:
@@ -123,6 +142,54 @@ def activate_ui(ui: Any) -> None:
         box.show()
         state["about"] = box
 
+    def open_guide(confirm: bool = True) -> bool:
+        """Open the Getting Started board: a tour of the basic and advanced features, with screenshots.
+        It opens as an untitled copy (Save asks for a name), so the shipped file is never overwritten."""
+        from PySide6.QtWidgets import QMessageBox
+
+        path = guide_path()
+        files = ui.service("files")
+        if path is None or files is None:
+            QMessageBox.warning(app.main_window(), "Getting Started", f"The guide ({GUIDE_FILE}) wasn't found.")
+            return False
+        if confirm and not files.may_discard():
+            return False
+        session = ui.session
+        try:
+            session.load_text(session.format.read_text(path), None)
+        except Exception as exc:  # noqa: BLE001  (loading is atomic: the open board is untouched)
+            QMessageBox.critical(app.main_window(), "Getting Started", f"{path}\n\n{exc}")
+            return False
+        session.revision = session.saved_revision = 0  # the guide opens clean: closing it never asks to save
+        cache = ui.service("image_cache")
+        if cache is not None:
+            cache.clear()
+            ui.canvas.request_full_refresh()
+        recovery = ui.service("recovery")
+        if recovery is not None:
+            recovery.clear()
+        if session.scene.has(GUIDE_MARKER):
+            app.run_command("views.look_through", GUIDE_MARKER, animate=False)
+        else:
+            app.run_command("navigation.frame_all")
+        ui.status("Getting Started")
+        return True
+
+    def show_first_run() -> bool:
+        """At startup: open the guide the very first time pixelRef runs (once, ever).
+        Someone who already has recent boards is an existing user and isn't shown it."""
+        if ui.settings.value(ONBOARDING_SHOWN_SETTING, False, type=bool):
+            return False
+        ui.settings.setValue(ONBOARDING_SHOWN_SETTING, True)  # first: a crash while opening must not repeat it
+        files = ui.service("files")
+        if files is None or files.recent_files():
+            return False
+        return open_guide(confirm=False)
+
+    ui.provide_service("onboarding", type("Onboarding", (), {
+        "show_first_run": staticmethod(show_first_run), "open_guide": staticmethod(open_guide),
+    })())
+    ui.command("getting_started", open_guide, undoable=False, echo=False)
     ui.command("show", show_help, undoable=False, echo=False)
     ui.command("about", about, undoable=False, echo=False)
     ui.command("show_about", show_about, undoable=False, echo=False)
@@ -132,6 +199,10 @@ def activate_ui(ui: Any) -> None:
               icon="keyboard")
     ui.bind("F1", "help.shortcuts")
     ui.bind("?", "help.shortcuts")
+    ui.action("help.getting_started", "help.getting_started", "Getting Started…",
+              keywords="tutorial onboarding welcome guide tour learn introduction help basics", category="Window",
+              icon="info")
+    ui.menu("canvas", "help.getting_started", group="app", order=-1)
     ui.menu("canvas", "help.shortcuts", group="app", order=0)
     ui.action("help.about", "help.show_about", "About pixelRef…", keywords="version info credits", category="Window",
               icon="info")
