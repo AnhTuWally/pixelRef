@@ -1,6 +1,20 @@
 # Design notes: per-frame annotations and frame links
 
-Status: **design only, no code written.** Compiled 2026-10-20 from a design discussion.
+Status: **build steps 1-3 done** in the `frames` plugin (`frame` attribute, visibility rule, pin / unpin /
+copy-to, drawing on a paused frame, `Alt+F`, badges, filmstrip ticks, `source_frame` / `target_frame` on links,
+click-to-jump). Not done: dragging from a tick to make a link, drawing a frame link from the tick instead of the
+element edge, and step 4. Compiled 2026-10-20 from a design discussion.
+
+Findings while building step 1:
+
+- The `playback` plugin already is the frames service for GIFs and movies (`animated`, `frame_count()`,
+  `current_frame()`, `go_to_frame()`) and already owns the `,` / `.` step keys, so no new service was needed.
+- Drawing tools create top-level nodes, never children of an image. So a tidy hook adopts what a drawing
+  command made into the paused animation under it and stamps the frame. While it plays, drawing is unchanged.
+- Decided: default-valued sparse attributes are omitted from saved files (`Attr(omit_default=True)`, set back to
+  default removes the value). Link frames are sparse attributes on `link`, so the links plugin was not touched.
+- Pinned children hide through a `visible_rule` on the item that `CanvasDocument._finish` honours, so hidden
+  notes also stop taking clicks.
 
 ## Goal
 

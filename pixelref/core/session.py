@@ -100,6 +100,10 @@ class Session:
         })
         self.extensions.declare("scene.before_save", owner="kernel",
                                 doc="Callables (session, path) run before a scene is written")
+        from .attr_symbols import check_contribution
+
+        self.extensions.declare("attributes.symbols", owner="kernel", validator=check_contribution,
+                                doc="{name: glyph} tables: symbols beside attribute names in the Attribute Editor")
         self.extensions.declare("scene.after_new", owner="kernel",
                                 doc="Callables (session) run after a new, empty scene is created")
 

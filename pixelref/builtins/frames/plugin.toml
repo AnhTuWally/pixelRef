@@ -1,0 +1,7 @@
+id = "frames"
+name = "Frame Notes"
+version = "1.0.0"
+api = 1
+requires = ["playback"]
+optional = ["links"]
+description = "Per-frame annotations: pin a note, arrow or drawing to one frame of a GIF or movie so it only shows while that frame does."

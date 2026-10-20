@@ -221,7 +221,10 @@ class CanvasView(QGraphicsView):
         self._gray_cache = None
         self._gray_cache_key = None
 
-    TILE_MIN_ITEMS = 300  # scenes with fewer items paint directly
+    # Scenes with fewer items paint directly. Benchmarked (tests/bench_interactive.py): tiles cut
+    # paint ~5 ms -> ~2 ms already at 3-20 items and pan 40+ ms -> ~18 ms at 150-200, whatever the
+    # image size, so only near-empty scenes are not worth a tile cache.
+    TILE_MIN_ITEMS = 10
 
     def uses_tiles(self) -> bool:
         """Paint from the tile cache (see .tiles): busy scenes, axis-aligned cameras."""

@@ -404,6 +404,9 @@ class CanvasDocument:
             if fresh is None or name in fresh or item.locked != effective:
                 item.set_locked(effective)
             expected_visible = visible.get(name, True)
+            rule = getattr(item, "visible_rule", None)  # e.g. pinned to a frame of an animated parent
+            if expected_visible and rule is not None:
+                expected_visible = bool(rule())
             if fresh is None or name in fresh or item.isVisible() != expected_visible:
                 item.setVisible(expected_visible)
             z = float(order.get(name, 0))

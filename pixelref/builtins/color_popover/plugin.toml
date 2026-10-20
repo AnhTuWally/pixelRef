@@ -1,0 +1,5 @@
+id = "color_popover"
+name = "Color popover"
+version = "1.0.0"
+api = 1
+description = "The default colour picker for every colour swatch: saturation/brightness square, hue and alpha sliders, hex and RGB fields, screen eyedropper, recent and scene colours; previews live. Other plugins can add pickers (extension point color.pickers); Qt's dialog is the fallback."

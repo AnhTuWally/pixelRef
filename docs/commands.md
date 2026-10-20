@@ -169,6 +169,18 @@ the rest also work headless (batch mode, scripts).
 | --- | --- | --- | --- |
 | `arrow.create(x1: float, y1: float, x2: float, y2: float, name: str = Arrow, arrow: int = 1, arrow_start: int = 0, **attrs: Any)` | `create_arrow` | yes | Create a line from (x1, y1) to (x2, y2); an arrowhead at the end by default. |
 
+## attr_transfer
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `attr_transfer.apply_attr(attr: Any, node: Any = None, nodes: Any = None)` | `apply_attribute` | yes | Push attributes of ``node`` (default: the last selected) onto other nodes that have an |
+| `attr_transfer.copy(node: Any = None)` | `copy_attributes` |  | Copy the attributes of a node (default: the selected item you picked last). |
+| `attr_transfer.copy_selected()` |  |  | Copy the attributes of the item you selected last. |
+| `attr_transfer.paste(attrs: Any = None, nodes: Any = None)` | `paste_attributes` | yes | Paste the copied attributes onto nodes (default: the selection). ``attrs`` limits which |
+| `attr_transfer.paste_dialog()` |  |  | Choose which copied attributes to paste onto the selected items. |
+| `attr_transfer.paste_style()` |  |  | Paste every style attribute without asking. |
+| `attr_transfer.set_values(values: dict[str, Any], nodes: Any = None)` |  | yes | Set attribute values on every node that has them (default: the selection). |
+
 ## brush
 
 | Command | Alias | Undo | Description |

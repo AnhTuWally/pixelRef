@@ -869,9 +869,13 @@ def test_pick_mode_shows_loupe_and_live_color():
         # The loupe draws magnified pixels of the image next to the cursor.
         image = h.grab()
         cursor = h.vp(0, 0)
-        loupe_center = QPoint(cursor.x() + 22 + 11 * 9 // 2, cursor.y() + 22 + 11 * 9 // 2)
-        magnified = image.pixelColor(loupe_center + QPoint(12, 12))
-        assert magnified.name() == "#c04040", magnified.name()
+        # Beside the cursor, or clamped to the left edge when the readout is too wide to fit (the
+        # offscreen platform has no fonts, so its text measures wider than any real desktop's).
+        names = []
+        for left in (cursor.x() + 22, 4):
+            loupe_center = QPoint(left + 11 * 9 // 2, cursor.y() + 22 + 11 * 9 // 2)
+            names.append(image.pixelColor(loupe_center + QPoint(12, 12)).name())
+        assert "#c04040" in names, names
         # Panning refreshes what the loupe samples.
         h.view.pan_by(QPointF(0, 300))
         QTest.qWait(80)

@@ -1,0 +1,6 @@
+id = "attr_transfer"
+name = "Copy attributes"
+version = "1.0.0"
+api = 1
+requires = ["inspector"]
+description = "Copy one item's attributes and paste them onto others (pick what transfers, with groups, search and live preview), push a single attribute to the whole selection, and edit a shared attribute on several items at once."

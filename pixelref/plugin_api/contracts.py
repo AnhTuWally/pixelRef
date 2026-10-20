@@ -18,6 +18,7 @@ Extension point             Declared by        Contribution
 ``eraser.policy``           eraser             callable(item) -> bool (False vetoes)
 ``effects.types``           effects            :class:`EffectType`
 ``effects.processors``      effects            (effect name, fn(QImage, params, fx) -> QImage)
+``color.pickers``           kernel (UI)        :class:`ColorPickerProvider`
 ==========================  =================  =====================================
 """
 
@@ -190,3 +191,20 @@ class EffectType:
         return {"name": self.name, "label": self.nice_name, "category": self.category, "cost": self.cost,
                 "version": self.version, "doc": self.doc,
                 "params": [{"name": p.name, **p.to_dict()} for p in self.params]}
+
+
+@dataclass
+class ColorPickerProvider:
+    """A colour picker the app can use for every colour swatch (extension point ``color.pickers``).
+
+    ``create(parent, initial, title, alpha)`` returns a dialog-like object: a ``QWidget`` with
+    ``currentColorChanged(QColor)`` (emitted as the user changes the colour: the canvas follows it
+    live), ``currentColor()`` and ``exec()`` (blocks; truthy when the user accepted, falsy on cancel).
+    ``QColorDialog`` already fits. A provider that raises from ``create`` is skipped.
+    """
+
+    id: str
+    title: str
+    create: Callable[..., Any]
+    order: float = 50.0
+    description: str = ""

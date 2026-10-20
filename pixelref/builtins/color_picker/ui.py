@@ -49,6 +49,8 @@ def paint_loupe(painter: QPainter, image: QImage, pos: QPoint, width: int, heigh
         x = pos.x() - 22 - panel_w
     if y + size + label_h + 4 > height - 4:
         y = pos.y() - 22 - size - label_h - 4
+    # A panel wider (or taller) than the room on either side must not be flipped off-screen.
+    x, y = max(4, x), max(4, y)
     painter.save()
     painter.setRenderHint(QPainter.SmoothPixmapTransform, False)
     painter.setRenderHint(QPainter.Antialiasing, False)

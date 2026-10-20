@@ -552,7 +552,7 @@ class LinkItem(NodeItemMixin, QGraphicsItem):
 
     def content_rect(self) -> QRectF:
         rect = self._path.boundingRect().united(self._label_rect)
-        return rect if rect.isValid() else QRectF(0.0, 0.0, 1.0, 1.0)
+        return rect if not rect.isNull() else QRectF(0.0, 0.0, 1.0, 1.0)  # a straight horizontal / vertical link is flat
 
     def boundingRect(self) -> QRectF:
         pad = max(self.thickness, self.MIN_HIT_WIDTH) + self.cap_size()

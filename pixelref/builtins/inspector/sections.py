@@ -297,18 +297,14 @@ class AttributeEditor(w.InspectorSection):
         while self.form.rowCount():
             self.form.removeRow(0)
         self._editors = {}
+        reserve = any(w.attr_symbol(self.ui.session, s, self._type) for s in specs)
         for spec in specs:
             editor = w.editor_for(spec, self.body)
             w.bind_edits(self.ui.app, editor, lambda value, s=spec: self._commit(s.name, value),
                          f"Set {spec.nice_name.lower()}")
             editor.context_provider = lambda s=spec: self._menu(s)
             self._editors[spec.name] = (spec, editor)
-            if isinstance(editor, w.NumberField):
-                label: QWidget = w.ScrubLabel(spec.nice_name, editor, editor.per_pixel(), self.body)
-            else:
-                label = QLabel(spec.nice_name, self.body)
-            label.setToolTip(spec.doc or spec.name)
-            self.form.addRow(label, editor)
+            self.form.addRow(w.attr_label(self.ui.session, spec, editor, self._type, reserve, self.body), editor)
 
     def _commit(self, attr: str, value: Any) -> None:
         if self._updating or self._name is None:

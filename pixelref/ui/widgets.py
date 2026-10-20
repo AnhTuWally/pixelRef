@@ -23,7 +23,9 @@ from PySide6.QtWidgets import (
 )
 
 from . import fields  # noqa: F401  (plugins: widgets.fields.option_editor…)
-from .fields import NumberField, bind_edits, drag_factor, editor_for, install_context_menu  # noqa: F401
+from .fields import (  # noqa: F401
+    NumberField, bind_edits, drag_factor, editor_for, install_context_menu, pick_color_live,
+)
 from .icons import icon
 
 LINE_STYLE_CHOICES = (
@@ -306,6 +308,50 @@ class ScrubLabel(QLabel):
             event.accept()
             return
         super().mouseReleaseEvent(event)
+
+
+class AttrLabel(QWidget):
+    """An attribute's name with its symbol (see core.attr_symbols) in a fixed column, so names line up.
+    A number field's name stays a ScrubLabel (drag to change)."""
+
+    def __init__(self, spec: Any, editor: QWidget, symbol: str, reserve: bool, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        if symbol or reserve:
+            glyph = QLabel(symbol, self)
+            glyph.setObjectName("attrSymbol")
+            glyph.setFixedWidth(16)
+            glyph.setAlignment(Qt.AlignCenter)
+            glyph.setStyleSheet("color: #8a93a3;")
+            layout.addWidget(glyph)
+        if isinstance(editor, NumberField):
+            text: QLabel = ScrubLabel(spec.nice_name, editor, editor.per_pixel(), self)
+        else:
+            text = QLabel(spec.nice_name, self)
+        tip = spec.doc or spec.name
+        if spec.unit:
+            tip += f" ({spec.unit})"
+        self.setToolTip(tip)
+        text.setToolTip(tip)
+        layout.addWidget(text, 1)
+        self.text = text
+
+
+def attr_label(session: Any, spec: Any, editor: QWidget, node_type: str = "", reserve: bool = False,
+               parent: QWidget | None = None) -> AttrLabel:
+    """The label for ``spec``'s row. ``reserve``: leave room for a symbol even if it has none."""
+    from pixelref.core.attr_symbols import EXTENSION_POINT, symbol_for
+
+    tables = list(reversed(session.extensions.contributions(EXTENSION_POINT))) if session is not None else []
+    return AttrLabel(spec, editor, symbol_for(spec, node_type, tables), reserve, parent)
+
+
+def attr_symbol(session: Any, spec: Any, node_type: str = "") -> str:
+    from pixelref.core.attr_symbols import EXTENSION_POINT, symbol_for
+
+    return symbol_for(spec, node_type, list(reversed(session.extensions.contributions(EXTENSION_POINT))))
 
 
 def _chevron(expanded: bool) -> QIcon:

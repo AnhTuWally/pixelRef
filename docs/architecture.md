@@ -202,7 +202,7 @@ scenes too. See [file-format.md](file-format.md).
 | `PIXELREF_USER_PLUGINS` | replaces the user plugin folder |
 | `PIXELREF_SCRIPT_PATH` | extra folders for scripts and `userSetup.py` ([scripting.md](scripting.md#usersetuppy), [keymap.md](keymap.md#scripts)) |
 | `PIXELREF_PACKAGES_DIR` | replaces the managed Python package folder ([packaging.md](packaging.md#the-managed-package-folder)) |
-| `PIXELREF_TILES` | the canvas tile cache: `1` always on, `0` off, unset: only for busy scenes |
+| `PIXELREF_TILES` | the canvas tile cache: `1` always on, `0` off, unset: scenes of 10+ items |
 
 ## Goals and non-goals
 

@@ -1,7 +1,7 @@
 """Build the standalone pixelRef folder and check that it really works.
 
-    python packaging/build_exe.py              build dist/pixelRef/, then smoke-test it
-    python packaging/build_exe.py --test-only  smoke-test an existing build
+    python packaging/build_exe.py              build dist/pixelRef/, smoke-test it, zip it for release
+    python packaging/build_exe.py --test-only  smoke-test (and zip) an existing build
 
 Needs PyInstaller (``pip install -r packaging/requirements-build.txt``).
 
@@ -21,6 +21,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import os
+import platform
+import re
 import subprocess
 import sys
 import tempfile
@@ -41,6 +43,21 @@ def build() -> None:
     subprocess.run([sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
                     "--distpath", str(ROOT / "dist"), "--workpath", str(ROOT / "build" / "pyinstaller"),
                     str(ROOT / "packaging" / "pixelref.spec")], check=True, cwd=ROOT)
+
+
+def package() -> Path:
+    """Zip dist/pixelRef/ as dist/pixelRef-v<version>-<os>-<arch>.zip, ready for a GitHub release."""
+    version = re.search(r'__version__\s*=\s*"([^"]+)"', (ROOT / "pixelref" / "__init__.py").read_text(encoding="utf-8"))[1]
+    system = {"win32": "windows", "darwin": "macos"}.get(sys.platform, "linux")
+    arch = {"amd64": "x64", "x86_64": "x64", "arm64": "arm64", "aarch64": "arm64"}.get(platform.machine().lower(), platform.machine().lower())
+    target = DIST.parent / f"pixelRef-v{version}-{system}-{arch}.zip"
+    target.unlink(missing_ok=True)
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+        archive.write(DIST, DIST.name)
+        for path in sorted(DIST.rglob("*")):
+            archive.write(path, path.relative_to(DIST.parent).as_posix() + ("/" if path.is_dir() else ""))
+    print(f"Release zip: {target} ({target.stat().st_size / 1e6:.0f} MB)")
+    return target
 
 
 def make_wheel(folder: Path, name: str, version: str, code: str) -> Path:
@@ -140,6 +157,7 @@ def main(argv: list[str]) -> int:
     if "--test-only" not in argv:
         build()
     smoke_test()
+    package()
     return 0
 
 

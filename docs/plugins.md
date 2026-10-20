@@ -469,6 +469,7 @@ Extension points declared by the built-ins (contribution types are in
 | `gizmo.handles` | gizmo | a handle provider for one node type |
 | `eraser.policy` | eraser | `fn(item) -> bool`; False keeps an item from being erased |
 | `effects.types` / `effects.processors` | effects | `EffectType(name, label, params, category, cost, version)` / `(name, fn(QImage, params, fx) -> QImage)`; see [effects.md](effects.md) |
+| `color.pickers` | kernel (UI) | `ColorPickerProvider(id, title, create, order, description)`: a colour picker for every swatch (see below) |
 | `canvas.item_hooks` | kernel (UI) | `fn(item, node)` after every canvas item is built (paint filters) |
 | `image.movie_hooks` | image | `fn(item)` when an animated image's item starts its movie (playback restores paused frames with it) |
 | `scene.before_save` / `scene.after_new` | kernel | `fn(session, path)` / `fn(session)` |
@@ -499,3 +500,47 @@ session.run("my_plugin.do_thing")
 
 For UI tests, `tests/harness.py` starts the whole app offscreen. See
 `test_external_plugin_example_ellipse` in `tests/test_kernel.py`.
+
+## Colour pickers
+
+Every colour swatch (the attribute editor, Stroke/Fill, text colours, the canvas background…) opens
+the colour picker chosen in **Choose Color Picker…** (setting `colors/picker`). The built-in
+`color_popover` plugin is the default: a popover beside the swatch with a saturation/brightness
+square, hue and alpha sliders, hex and RGB fields, a screen eyedropper (`I`), recent colours and the
+colours used in the scene. Qt's own dialog is the fallback: it is used when chosen, when no other
+picker is installed and when a picker fails to open.
+
+To add your own, contribute a `ColorPickerProvider` to `color.pickers`:
+
+```python
+from pixelref.plugin_api.contracts import ColorPickerProvider
+
+def create(parent, initial, title, alpha):
+    return MyPicker(parent, initial, title, alpha)   # a QWidget, see below
+
+ui.contribute("color.pickers", ColorPickerProvider("my_picker", "My picker", create, order=10))
+```
+
+`create(parent, initial: QColor, title: str, alpha: bool)` returns a dialog-like widget:
+
+| Member | Meaning |
+| --- | --- |
+| `currentColorChanged(QColor)` | emit it whenever the user changes the colour: the canvas previews every change live, as one undo step |
+| `currentColor() -> QColor` | the colour now |
+| `exec() -> int` | show it and block; return truthy when the user accepted, falsy on cancel (the original colour is restored) |
+
+`alpha` says whether the colour has an alpha channel (otherwise keep it opaque). Anything that fits
+`QColorDialog`'s interface works. The user picks the provider from "Choose Color Picker…", or scripts
+`color_popover.use_picker <id>` (`default` = the lowest `order`).
+
+## Attribute symbols
+
+The Attribute Editor shows a small glyph beside attribute names where one applies (◐ opacity, ↻ rotate…).
+Defaults live in `pixelref/core/attr_symbols.py` (by attribute name, then by type). A plugin can:
+
+- name the symbol on its own attribute: `Attr("bevel", "float", symbol="◣")`;
+- register symbols for any attributes, overriding the defaults:
+  `ctx.register_attr_symbols({"bevel": "◣", "my_node.depth": "⇕", "type:float2": "⌖"})`
+  (keys: `"<node type>.<attr>"`, `"<attr>"`, `"type:<attr type>"`).
+
+Attributes without a match get no symbol.

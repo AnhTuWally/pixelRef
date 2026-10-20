@@ -33,7 +33,6 @@ from PySide6.QtGui import QColor, QCursor, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
-    QColorDialog,
     QComboBox,
     QDoubleSpinBox,
     QHBoxLayout,
@@ -43,6 +42,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QWidget,
 )
+
+from . import color_dialog
 
 if TYPE_CHECKING:
     from ..core.attributes import Attr
@@ -509,6 +510,9 @@ class ColorEditor(QPushButton):
     """A swatch; click to choose a colour (``[r, g, b]``, or ``[r, g, b, a]`` with alpha)."""
 
     committed = Signal(object)
+    previewed = Signal(object)
+    scrub_started = Signal()
+    scrub_finished = Signal(bool)  # True: the dialog was cancelled (value restored)
 
     def __init__(self, alpha: bool, title: str = "Color", parent: QWidget | None = None) -> None:
         super().__init__("", parent)
@@ -534,14 +538,33 @@ class ColorEditor(QPushButton):
         self._show()
 
     def pick(self) -> None:
-        option = QColorDialog.ColorDialogOption.ShowAlphaChannel if self.alpha else QColorDialog.ColorDialogOption(0)
-        color = QColorDialog.getColor(self.color, self.window(), self.title, option)
-        if color.isValid() and color != self.color:
+        """Open the colour dialog; the canvas follows the dialog live (one undo step, Cancel restores)."""
+        original = QColor(self.color)
+        dialog = color_dialog.create(self.window(), original, self.title, self.alpha)
+        state = {"open": False}
+
+        def preview(color: QColor) -> None:
+            if not color.isValid() or color == self.color:
+                return
             if not self.alpha:
                 color.setAlpha(255)
-            self.color = color
+            if not state["open"]:
+                state["open"] = True
+                self.scrub_started.emit()
+            self.color = QColor(color)
             self._show()
-            self.committed.emit(self.read())
+            self.previewed.emit(self.read())
+
+        dialog.currentColorChanged.connect(preview)
+        accepted = bool(dialog.exec())
+        if accepted:
+            preview(dialog.currentColor())
+        elif self.color != original:
+            self.color = original
+            self._show()
+            self.previewed.emit(self.read())  # put the value back before closing the edit
+        if state["open"]:
+            self.scrub_finished.emit(not accepted)
 
     def _show(self) -> None:
         from .widgets import swatch
@@ -691,6 +714,44 @@ def editor_for(attr: "Attr", parent: QWidget | None = None) -> QWidget:
 def is_live(editor: Any) -> bool:
     """True for editors that preview while dragging."""
     return hasattr(editor, "previewed") and hasattr(editor, "scrub_started")
+
+
+def pick_color_live(app: "App", parent: QWidget | None, initial: QColor, title: str,
+                    apply: Callable[[QColor], Any], label: str = "Edit", alpha: bool = False,
+                    live: bool = True) -> QColor | None:
+    """Colour dialog whose every change calls ``apply(color)`` live: one undo step, Cancel restores.
+
+    ``live=False`` calls ``apply`` once, on OK. Returns the chosen colour, or ``None`` when
+    cancelled (or nothing changed).
+    """
+    dialog = color_dialog.create(parent, QColor(initial), title, alpha)
+    state = {"open": False, "last": QColor(initial)}
+
+    def preview(color: QColor) -> None:
+        if not color.isValid() or color == state["last"]:
+            return
+        if not live:
+            state["last"] = QColor(color)
+            return
+        if not state["open"]:
+            state["open"] = True
+            app.canvas.begin_interaction()
+        state["last"] = QColor(color)
+        apply(QColor(color))
+
+    dialog.currentColorChanged.connect(preview)
+    accepted = bool(dialog.exec())
+    if accepted:
+        preview(dialog.currentColor())
+        if not live and state["last"] != initial:
+            apply(QColor(state["last"]))
+    elif state["open"]:
+        apply(QColor(initial))
+        app.canvas.cancel_interaction()
+        state["open"] = False
+    if state["open"]:
+        app.canvas.end_interaction(label)
+    return QColor(state["last"]) if accepted and state["last"] != initial else None
 
 
 def bind_edits(app: "App", editor: Any, apply: Callable[[Any], Any], label: str = "Edit",

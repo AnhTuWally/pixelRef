@@ -434,20 +434,27 @@ class StrokeSection(w.InspectorSection):
         self.ui.app.run_command("brush.restyle", self._names[0], self.wanted())
 
     def _pick_stroke(self) -> None:
-        color = QColorDialog.getColor(self._stroke, self.window(), "Stroke color")
-        if color.isValid():
+        original = self._stroke
+
+        def live(color: Any) -> None:
             self._stroke = color
             w.swatch(self.stroke_btn, color)
             self.apply()
 
+        w.pick_color_live(self.ui.app, self.window(), original, "Stroke color", live, "Set stroke color")
+
     def _pick_fill(self) -> None:
-        color = QColorDialog.getColor(self._fill, self.window(), "Fill color")
-        if color.isValid():
+        original = self._fill
+        opacity = self.fill_opacity_spin.value()
+
+        def live(color: Any) -> None:
+            if opacity == 0.0 and self.fill_opacity_spin.value() == 0.0:
+                self.fill_opacity_spin.setValue(35.0)  # a fill colour is invisible at 0 % alpha
             self._fill = color
-            if self.fill_opacity_spin.value() == 0.0:
-                self.fill_opacity_spin.setValue(35.0)
             w.swatch(self.fill_btn, color)
             self.apply()
+
+        w.pick_color_live(self.ui.app, self.window(), original, "Fill color", live, "Set fill color")
 
 
 def activate_ui(ui: Any) -> None:

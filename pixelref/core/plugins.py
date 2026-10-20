@@ -192,6 +192,14 @@ class PluginContext:
         attrs = (attrs,) if isinstance(attrs, Attr) else tuple(attrs)
         return self.track(self.session.types.extend(TypeExtension(type_name, attrs, plugin=self.plugin_id)))
 
+    def register_attr_symbols(self, symbols: dict[str, str]) -> Disposable:
+        """Symbols for the Attribute Editor: ``{"bevel": "◣", "my_node.depth": "⇕", "type:float2": "⌖"}``.
+
+        Keys are ``"<node type>.<attribute>"``, ``"<attribute>"`` or ``"type:<attr type>"``; they override
+        the global defaults. An attribute you declare can also carry ``Attr(symbol=...)``.
+        """
+        return self.contribute("attributes.symbols", dict(symbols))
+
     def command(self, name: str, fn: Callable[..., Any], *, alias: str | None = None, **options: Any) -> Disposable:
         """Register ``<plugin id>.<name>`` (plus an optional flat alias)."""
         full = name if name.startswith(self.plugin_id + ".") else f"{self.plugin_id}.{name}"

@@ -106,13 +106,7 @@ class EffectRow(QFrame):
         self.update_values(entry)
 
     def _label(self, spec: Any, editor: QWidget) -> QWidget:
-        if isinstance(editor, w.NumberField):
-            label: QWidget = w.ScrubLabel(spec.nice_name, editor, editor.per_pixel(), self)
-        else:
-            label = QLabel(spec.nice_name, self)
-        if spec.doc:
-            label.setToolTip(spec.doc)
-        return label
+        return w.attr_label(self.section.ui.session, spec, editor, "", False, self)
 
     # ---- Defaults ----------------------------------------------------------------------------
 

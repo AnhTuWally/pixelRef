@@ -22,7 +22,7 @@ from ..ui.canvas.items import (
 from ..ui.canvas.tools import Tool
 from ..ui.canvas.view import CanvasView, cursor_pos_in, pattern_color
 from ..ui.icons import app_icon, icon, logo_pixmap
-from ..ui import theme, widgets
+from ..ui import color_dialog, theme, widgets
 from ..ui.wm.manager import WorkspacePreset
 from ..ui.panels import PanelType
 from ..ui.wm.widgets import ViewType
@@ -48,6 +48,7 @@ __all__ = [
     "WheelEvent",
     "WorkspacePreset",
     "app_icon",
+    "color_dialog",
     "compose_transform",
     "cursor_pos_in",
     "decompose_transform",

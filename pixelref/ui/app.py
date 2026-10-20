@@ -24,6 +24,7 @@ from shiboken6 import isValid
 from ..core.events import EventStream
 from ..core.extensions import Disposable
 from ..core.session import Session
+from . import color_dialog
 from .actions import ActionRegistry, Keymap, MenuRegistry
 from .canvas.display import BackgroundSpec, compute_hidden
 from .canvas.document import CanvasDocument, NodeTypeUI
@@ -125,6 +126,7 @@ class App:
         self._tool_bindings: dict[str, list[Disposable]] = {}
 
         self._declare_extension_points()
+        color_dialog.attach(self)
         self._register_kernel_ui()
         self.input.add(ActiveToolHandler(self.tools), 500)
         self.tools.watch(self._on_tool_changed)
@@ -184,6 +186,7 @@ class App:
             ("escape", "(order, callable() -> bool) Esc handlers, before the tool and the selection"),
             ("canvas.item_hooks", "callable(item, node) run after every canvas item is built (any node type): "
                                   "e.g. install paint filters with item.add_paint_filter()"),
+            ("color.pickers", "ColorPickerProvider: a colour picker for every colour swatch (Qt's is the fallback)"),
         ):
             self._disposables.append(ext.declare(name, owner="kernel", doc=doc))
         self.canvas.item_hooks = list(ext.contributions("canvas.item_hooks"))

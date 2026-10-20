@@ -146,6 +146,12 @@ class FilmstripWidget(QWidget):
     def mouseMoveEvent(self, event: Any) -> None:  # noqa: N802
         if event.buttons() & Qt.LeftButton:
             self._scrub_to(event.position().x())
+        item = self._item()
+        notes = self.ui.service("frames")
+        if item is not None and notes is not None and self.name:
+            total = max(1, item.frame_count())
+            frame = round(max(0.0, min(1.0, event.position().x() / max(1.0, float(self.width())))) * (total - 1)) + 1
+            self.setToolTip(notes.describe_frame(self.name, frame))
 
     def paintEvent(self, _event: Any) -> None:  # noqa: N802
         item = self._item()
@@ -163,6 +169,9 @@ class FilmstripWidget(QWidget):
         total = max(1, item.frame_count())
         fraction = (item.current_frame() - 1) / (total - 1) if total > 1 else 0.0
         x = fraction * self.width()
+        notes = self.ui.service("frames")  # the optional frame notes plugin marks annotated frames
+        if notes is not None and self.name:
+            notes.paint_ticks(painter, self.name, total, self.width(), self.height())
         painter.setPen(QPen(QColor(theme.ACCENT), 2))
         painter.drawLine(QPointF(x, 0.0), QPointF(x, float(self.height())))
 

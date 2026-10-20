@@ -71,6 +71,13 @@ class Attr:
     soft_max: float | None = None
     unit: str = ""
     display_scale: float = 1.0
+    # Sparse (extension) attributes only: setting the default removes the value, so files stay small.
+    omit_default: bool = False
+    # Copy / paste attributes: "style" (offered and ticked), "geometry" (offered, unticked), "never"
+    # (not offered). Empty: inferred from the type and name (see core.transfer).
+    transfer: str = ""
+    # A glyph shown beside the name in the Attribute Editor (see core.attr_symbols); empty: the global default.
+    symbol: str = ""
     extra: dict[str, Any] = field(default_factory=dict, compare=False, hash=False)
     # Extra check after the type's own coercion: validator(value) -> canonical
     # value, raising SceneError for bad data (e.g. an effect stack's entries).
@@ -79,6 +86,8 @@ class Attr:
     def __post_init__(self) -> None:
         if self.type not in ATTR_TYPES:
             raise SceneError(f"Attribute '{self.name}': unknown type '{self.type}'")
+        if self.transfer not in ("", "style", "geometry", "never"):
+            raise SceneError(f"Attribute '{self.name}': transfer must be style, geometry or never")
 
     @property
     def nice_name(self) -> str:
@@ -102,7 +111,7 @@ class Attr:
         data: dict[str, Any] = {"type": self.type}
         if self.default is not None:
             data["default"] = fast_copy(self.default)
-        for key in ("short", "label", "group", "doc"):
+        for key in ("short", "label", "group", "doc", "symbol"):
             if getattr(self, key):
                 data[key] = getattr(self, key)
         if self.minimum is not None:
@@ -120,6 +129,8 @@ class Attr:
             data["unit"] = self.unit
         if self.display_scale != 1.0:
             data["display_scale"] = self.display_scale
+        if self.transfer:
+            data["transfer"] = self.transfer
         return data
 
     @classmethod
@@ -138,12 +149,14 @@ class Attr:
             label=str(data.get("label", "")),
             group=str(data.get("group", "")),
             doc=str(data.get("doc", "")),
+            symbol=str(data.get("symbol", "")),
             step=_limit(data.get("step")),
             precision=_precision(data.get("precision")),
             soft_min=_limit(data.get("soft_min")),
             soft_max=_limit(data.get("soft_max")),
             unit=str(data.get("unit", "")),
             display_scale=_limit(data.get("display_scale")) or 1.0,
+            transfer=str(data.get("transfer", "")) if data.get("transfer") in ("style", "geometry", "never") else "",
         )
 
 

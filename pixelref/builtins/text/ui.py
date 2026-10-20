@@ -254,24 +254,29 @@ class TextSection(w.InspectorSection):
             self.ui.app.run_command("text.clear_formatting", self._names)
 
     def _pick_text_color(self) -> None:
-        color = QColorDialog.getColor(self._text_color, self.window(), "Text color")
-        if color.isValid():
+        def live(color: QColor) -> None:
             self._text_color = color
             self._refresh_swatches(True)
             self.apply_format("color", w.rgb(color), "Text color")
+
+        # While editing words in place there is no canvas edit to preview: apply on OK.
+        w.pick_color_live(self.ui.app, self.window(), self._text_color, "Text color", live, "Text color",
+                          live=self.editor() is None)
 
     def _pick_highlight(self) -> None:
         start = QColor(self._highlight_color)
         if start.alpha() == 0:
             start.setAlpha(160)
-        color = QColorDialog.getColor(start, self.window(), "Highlight color",
-                                      QColorDialog.ColorDialogOption.ShowAlphaChannel)
-        if color.isValid():
+
+        def live(color: QColor) -> None:
             if color.alpha() == 0:
                 color.setAlpha(160)
             self._highlight_color = color
             self._refresh_swatches(True)
             self.apply_format("highlight_color", w.rgba(color), "Highlight color")
+
+        w.pick_color_live(self.ui.app, self.window(), start, "Highlight color", live, "Highlight color",
+                          alpha=True, live=self.editor() is None)
 
     def _refresh_swatches(self, highlight_on: bool) -> None:
         w.swatch(self.text_color_btn, self._text_color)
@@ -384,26 +389,33 @@ class TextBoxSection(w.InspectorSection):
         start = QColor(self._bg)
         if start.alpha() == 0:
             start = QColor(40, 44, 52, 220)
-        color = QColorDialog.getColor(start, self.window(), "Box background color",
-                                      QColorDialog.ColorDialogOption.ShowAlphaChannel)
-        if color.isValid():
+        fill_style = self.text_fill_style_combo.currentData()
+
+        def live(color: QColor) -> None:
             self._bg = color
             updates: dict[str, Any] = {"background_color": w.rgba(color)}
-            if self.text_fill_style_combo.currentData() == "none":
+            if fill_style == "none":
                 updates["fill_style"] = "solid"
             self._set(updates, "Box background")
 
+        w.pick_color_live(self.ui.app, self.window(), start, "Box background color", live, "Box background",
+                          alpha=True)
+
     def _pick_border(self) -> None:
-        color = QColorDialog.getColor(self._border, self.window(), "Border color",
-                                      QColorDialog.ColorDialogOption.ShowAlphaChannel)
-        if color.isValid():
+        width = self.text_border_width_spin.value()
+        border_style = self.text_border_style_combo.currentData()
+
+        def live(color: QColor) -> None:
             self._border = color
             updates: dict[str, Any] = {"border_color": w.rgba(color)}
-            if self.text_border_width_spin.value() <= 0:
+            if width <= 0:
                 updates["border_width"] = 1.5
-            if self.text_border_style_combo.currentData() == "none":
+            if border_style == "none":
                 updates["border_style"] = "solid"
             self._set(updates, "Border color")
+
+        w.pick_color_live(self.ui.app, self.window(), self._border, "Border color", live, "Border color",
+                          alpha=True)
 
     def refresh(self, info: SelectionInfo) -> None:
         self._names = [n["name"] for n in info.nodes if n["type"] == "annotation_text"]

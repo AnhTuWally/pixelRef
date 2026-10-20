@@ -193,6 +193,46 @@ Sticky note, Callout, Highlighter) and side handles to set its width
 These are in the **More** row of the Text section, and in **Text** when you
 right-click a note.
 
+### Copying attributes between items
+
+Three ways to make items match without editing each one.
+
+**Copy and paste attributes.** Select an item and choose **Copy Attributes**
+(`Ctrl+Alt+Shift+C`, right-click → *Attributes*, or the button in the
+Attribute Editor's Appearance section). Select the items to change and choose
+**Paste Attributes…** (`Ctrl+Alt+Shift+V`). A window lists what was copied:
+
+- Attributes are in **groups** (Stroke, Fill, Text…). Each group has its own
+  checkbox, and the **All attributes** box at the top ticks everything,
+  including the closed **Geometry** group (position, size, rotation, shape),
+  which starts closed and unticked. A dash means "some".
+- The **search** box filters the list by name or group. While a search is
+  active, the group and master boxes only change the rows you can see.
+  **Only differences** hides values the items already have.
+- Click rows to select them (`Shift`/`Ctrl` for several). Ticking one
+  selected row ticks or unticks all of them, `Space` does the same, and
+  **Tick selected** / **Untick selected** do it in one click.
+- The canvas shows the result while you tick. **Cancel** (or `Esc`) puts
+  everything back, **Paste** is one undo step. Your ticks are remembered for
+  that kind of item.
+- An item takes an attribute when it has one with the **same name and the
+  same type**, so a rectangle's stroke can go onto an ellipse or an arrow.
+  The *Applies to* column says how many of the selected items can take each
+  row. **Paste Style Attributes** pastes the style ones without asking.
+
+**Several items selected.** The Attribute Editor shows a **Shared
+attributes** section with the attributes the selected items have in common.
+Editing a row sets it on every item that has it. *mixed* means they differ.
+**⇉** gives the other items the value of the item named in *Values from*
+(the one you selected last, or pick another). Right-click a row to apply it
+to every item of that type in the scene. Here an attribute only needs the
+same *name* on the other items, and a value that does not fit an item is
+skipped.
+
+**From a script.** `attr_transfer.copy("Rect")`, `attr_transfer.paste()`,
+`attr_transfer.apply_attr("thickness")` and
+`attr_transfer.set_values({"thickness": 4})`.
+
 ### Colour picker
 
 A magnifier loupe shows the exact pixel and its hex, RGB and HSV values,

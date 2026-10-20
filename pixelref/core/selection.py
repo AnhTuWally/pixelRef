@@ -14,11 +14,18 @@ class Selection:
         self._removals = removals
         self._pruned_at: int | None = None
         self._names: list[str] = []
+        self._active: str | None = None
         self._listeners: list[Callable[[list[str]], None]] = []
 
     @property
     def names(self) -> list[str]:
         return list(self._names)
+
+    @property
+    def active(self) -> str | None:
+        """The item added to the selection most recently (the "reference" item when copying
+        attributes); the names list itself stays in scene order."""
+        return self._active
 
     def __len__(self) -> int:
         return len(self._names)
@@ -39,6 +46,12 @@ class Selection:
                 cleaned.append(name)
         if cleaned == self._names:
             return False
+        before = set(self._names)
+        added = [name for name in cleaned if name not in before]
+        if added:
+            self._active = added[-1]
+        elif self._active not in seen:
+            self._active = cleaned[-1] if cleaned else None
         self._names = cleaned
         for callback in list(self._listeners):
             callback(list(self._names))
@@ -82,5 +95,7 @@ class Selection:
     def rename(self, old: str, new: str) -> None:
         if old in self._names:
             self._names = [new if n == old else n for n in self._names]
+            if self._active == old:
+                self._active = new
             for callback in list(self._listeners):
                 callback(list(self._names))

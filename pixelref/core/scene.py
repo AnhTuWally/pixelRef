@@ -367,10 +367,20 @@ class SceneGraph:
         self._structure_changed()
         return node
 
+    def _store(self, node: Node, key: str, value: Any) -> None:
+        """Write a value. A sparse (extension) attribute flagged ``omit_default`` set back to its
+        default is removed instead, so files only carry what differs."""
+        if key in self.types.sparse_attrs(node.node_type):
+            spec = self.attr_spec(node, key)
+            if spec is not None and spec.omit_default and value == spec.default_value():
+                node.attrs.pop(key, None)
+                return
+        node.attrs[key] = value
+
     def set_attr(self, name: str, key: str, value: Any, strict: bool = True) -> None:
         node = self.get_node(name)
         key, value = self._prepare_value(node, key, value, strict)
-        node.attrs[key] = value
+        self._store(node, key, value)
         self.revision += 1
         if self.event_stream.has_listeners:
             self.emit("node.attr_changed", {"name": name, "attr": key, "value": fast_copy(value)})
@@ -381,7 +391,7 @@ class SceneGraph:
         node = self.get_node(name)
         prepared = [self._prepare_value(node, key, value, strict) for key, value in attrs.items()]
         for key, value in prepared:
-            node.attrs[key] = value
+            self._store(node, key, value)
             self.revision += 1
             if self.event_stream.has_listeners:
                 self.emit("node.attr_changed", {"name": name, "attr": key, "value": fast_copy(value)})

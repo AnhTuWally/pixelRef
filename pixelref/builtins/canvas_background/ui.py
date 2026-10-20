@@ -166,15 +166,15 @@ def activate_background_ui(ui: Any) -> None:
 
     def pick_background() -> None:
         """Choose the background colour in a colour dialog."""
-        color = QColorDialog.getColor(service.background_color, app.main_window(), "Background color")
-        if color.isValid():
-            app.run_command("canvas_background.set", background=w.rgb(color))
+        w.pick_color_live(app, app.main_window(), service.background_color, "Background color",
+                          lambda color: app.run_command("canvas_background.set", background=w.rgb(color)),
+                          "Background color")
 
     def pick_pattern_color() -> None:
         """Choose the pattern colour in a colour dialog."""
-        color = QColorDialog.getColor(service.grid_color, app.main_window(), "Pattern color")
-        if color.isValid():
-            app.run_command("canvas_background.set", pattern_color=w.rgb(color))
+        w.pick_color_live(app, app.main_window(), service.grid_color, "Pattern color",
+                          lambda color: app.run_command("canvas_background.set", pattern_color=w.rgb(color)),
+                          "Pattern color")
 
     ui.command("pick_color", pick_background, undoable=False, echo=False)
     ui.command("pick_pattern_color", pick_pattern_color, undoable=False, echo=False)

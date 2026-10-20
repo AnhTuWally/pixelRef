@@ -223,6 +223,7 @@ adjusted by its handles without leaving the tool.
   from their attribute schema, and dynamic attributes appear under *Extra
   attributes*. Drag a number field left or right to scrub it: `Shift` is
   faster, `Alt` finer, `Ctrl` snaps to the step and `Esc` reverts.
+- **Copy attributes** (`attr_transfer`): `Copy Attributes` / `Paste Attributes…` (`Ctrl+Alt+Shift+C` / `V`) copy an item's attributes and paste the ticked ones onto the selection (matching attribute name and type; groups with master toggles, search, multi-row ticking and a live preview). With several items selected, the Attribute Editor's *Shared attributes* section edits an attribute on all of them and `⇉` pushes the reference item's value to the others (matching name only). Commands: `attr_transfer.copy/paste/apply_attr/set_values`.
 - **Quick editor**: a bar under the selection with the most-used attributes
   of each type. Its **⋯** menu chooses the fields for each type. Turn it on
   or off with *View ▸ Quick Attribute Editor*.
@@ -834,6 +835,15 @@ For tests of the UI, `tests/harness.py` starts the whole app offscreen
 and `grab`). `tests/test_kernel.py::test_external_plugin_example_ellipse` is a
 worked example. Run the tests with `python tests/run_tests.py [name]`.
 
+The harness defaults to `QT_QPA_PLATFORM=offscreen`, which has no fonts: text
+paints as tofu boxes of unrelated width. Anything whose layout depends on text
+width can differ from a real desktop, so write such tests without assuming a
+position. Known case: the Pick loupe's readout pill is measured too wide to fit
+beside the cursor, so the loupe is flipped and clamped to the left edge of the
+viewport. `paint_loupe` clamps the panel so it can never leave the viewport, and
+`test_annotations.test_pick_mode_shows_loupe_and_live_color` accepts either
+position.
+
 ## 8. Rules for code changes
 
 These apply to changes to pixelRef itself and to its built-in plugins.
@@ -886,6 +896,7 @@ Which built-in plugin provides each feature:
 | `arrow`, `rect`, `text`, `pen`, `steps`, `redact` | the annotation types and their tools |
 | `brush` | per-tool colour and width, recent colours, the Stroke section |
 | `canvas_background` | background colour and pattern |
+| `attr_transfer` | copy / paste attributes, push one attribute, shared attributes of several items |
 | `clipboard` | copy, paste, duplicate, delete; ingesting drops and pastes |
 | `color_picker`, `eraser`, `crop` | the colour picker, eraser and crop tools |
 | `console` | the Script Editor |
