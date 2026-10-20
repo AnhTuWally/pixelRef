@@ -18,6 +18,7 @@ from PySide6.QtGui import QImage
 
 ROOT = Path(__file__).resolve().parents[1]
 SAMPLE = ROOT / "examples" / "scenes" / "animals.pxref"
+GIFS = ROOT / "examples" / "scenes" / "gifs.pxref"
 SHOT_DIR = Path(tempfile.gettempdir()) / "pixelref_onboarding_shots"
 
 CARD_W = 1500          # every screenshot is scaled to this width
@@ -28,6 +29,7 @@ TITLE_SCALE = 1.6
 BODY_SCALE = 2.3
 BLUE = (61, 142, 240)
 ORANGE = (255, 160, 60)
+GREEN = (90, 205, 140)
 CALLOUT = (255, 204, 0)
 
 # Animal pictures reused from the sample board: wanted key -> node name in animals.pxref.
@@ -117,7 +119,7 @@ ADVANCED = [
          lead="GIFs and videos play right on the board. This one is already running.",
          marks=["Select it and press K to pause or play. Step with , and . and jump to the ends.",
                 "Click or drag along the filmstrip under the picture to scrub to a moment.",
-                "It keeps its annotations: add a note or a frame and it stays put while the picture plays."],
+                "It keeps its annotations. To pin a note to one frame, see lesson N4."],
          extra=["Movies (mp4, mov, webm …) are always linked, never embedded: keep the video file next to the board."]),
     dict(title="Script it with Python", shot="script_editor",
          lead="Every action in pixelRef is a command, and the same commands can be called from Python.",
@@ -133,8 +135,51 @@ ADVANCED = [
 ]
 
 
+GIF_ASSET = "90.gif"  # the eight-frame reaction GIF in gifs.pxref, used for the frame-notes lessons
+
+
+# What changed most recently. Interface that cannot be recreated on the canvas is a screenshot; the rest is live.
+NEWEST = [
+    dict(title="Copy attributes between items", shot="paste_attrs",
+         lead="Style one item, then give the same look to as many others as you like, and choose exactly what is copied.",
+         marks=[((383, 205, 738, 28), "Search the list by attribute or group name, for example “color”."),
+                ((383, 240, 135, 18), "Tick a whole group, or All attributes. Geometry (position, size, rotation) starts closed and unticked."),
+                ((1008, 240, 112, 18), "Only differences hides values the items already share, so you see what will really change."),
+                ((900, 265, 160, 320), "Value shows the current value, an arrow and the value it becomes. The canvas previews it as you tick."),
+                ((1017, 690, 100, 30), "Paste is one undo step. Cancel puts everything back.")],
+         extra=["Select the source item, press Ctrl+Alt+Shift+C, select the targets and press Ctrl+Alt+Shift+V. "
+                "The buttons are also in Attribute Editor → Appearance.",
+                "An item takes an attribute when it has the same name and type, so a rectangle's stroke can go onto an ellipse or an arrow. "
+                "Paste Style Attributes pastes just the look, without the window."]),
+    dict(title="Edit several items at once", demo="shared", demo_h=640,
+         lead="Select more than one item and the Attribute Editor edits what they have in common. Try it on the three shapes.",
+         marks=["Drag a box around all three. A Shared attributes section appears in the Attribute Editor.",
+                "Change Thickness once and every shape follows. “mixed” means the values differ.",
+                "The ⇉ button gives the others the value of the item named in Values from. Right-click a row to apply it to every item of that type.",
+                "Or copy the thick one (Ctrl+Alt+Shift+C), select the others and press Ctrl+Alt+Shift+V to choose what to paste."],
+         extra=["Here an attribute only needs the same name on the other items. A value that does not fit an item is skipped."]),
+    dict(title="A better colour picker", shot="colour_picker",
+         lead="Every colour swatch (Stroke, Fill, Text, Highlight, Border, the canvas background) opens a popover beside it.",
+         marks=[((258, 619, 42, 28), "Click any colour swatch. Changes show on the canvas while you drag, and the whole edit is one undo step."),
+                ((951, 160, 213, 210), "The square sets saturation and brightness, the ring sets the hue. Sliders and fields set alpha, RGB, HSV and HSL."),
+                ((1030, 379, 134, 26), "Type or paste a hex code such as #E07828 or rgb(224, 120, 40)."),
+                ((940, 161, 32, 30), "The eyedropper picks a colour from anywhere on your screen, even another application."),
+                ((940, 515, 225, 22), "In this scene lists the colours already on your board, so a new item can match an old one.")],
+         extra=["Prefer the classic dialog? Press Ctrl+K and type “picker” to switch back to the Qt colour dialog."]),
+    dict(title="Notes on one frame of a GIF", demo="frames", demo_h=700,
+         lead="Pin a note, arrow or drawing to a single frame of a GIF or movie, so it only appears while that frame shows.",
+         marks=["Pause (K), step with , and . to a frame, then draw. Anything drawn on a paused frame is pinned to it. "
+                "To pin an existing note, select it and press Alt+F.",
+                "The filmstrip under the picture ticks each frame that has a note (amber) or a link (blue). Click a tick to jump there.",
+                "A link drawn from a note onto the paused picture remembers the frame. Clicking that end jumps the GIF back to it.",
+                "Ghost (Attribute Editor) also shows a note faintly on the frames either side. Show on All Frames un-pins it."],
+         extra=["Press play and watch the red box and arrow appear only on their own frames. "
+                "Copy to Frames puts a copy of a note on a range of frames, for example 2-5."]),
+]
+
+
 def asset_files(workdir: Path) -> dict[str, Path]:
-    """The animal pictures embedded in animals.pxref, written out as files."""
+    """The animal pictures embedded in animals.pxref, and the GIF from gifs.pxref, written out as files."""
     data = json.loads(SAMPLE.read_text(encoding="utf-8"))
     by_node = {n["name"]: n["attrs"].get("asset") for n in data["nodes"] if n["type"] == "image"}
     files = {}
@@ -143,6 +188,10 @@ def asset_files(workdir: Path) -> dict[str, Path]:
         path = workdir / f"{key}{Path(asset['name']).suffix}"
         path.write_bytes(base64.b64decode(asset["data"]))
         files[key] = path
+    gifs = json.loads(GIFS.read_text(encoding="utf-8"))
+    asset = next(a for a in gifs["assets"].values() if a["name"] == GIF_ASSET)
+    files["reaction"] = workdir / "reaction.gif"
+    files["reaction"].write_bytes(base64.b64decode(asset["data"]))
     return files
 
 
@@ -270,6 +319,40 @@ class Board:
             points.append((cx + x - 70, top + y - 70))
         self.text("Check the ears", cx + 60, top + 700, 2.2, static, name="Note", font_size=14, color=[226, 229, 235])
         return points[:3]
+
+    def demo_shared(self, cx: float, top: float, static: str) -> list[tuple[float, float]]:
+        h = self.h
+        h.run("rect.create", cx + 80, top + 110, 380, 260, "Rect A", stroke_color=[255, 99, 99], thickness=3,
+              corner_radius=20)
+        h.run("rect.create_ellipse", cx + 560, top + 90, 400, 280, "Ellipse B", stroke_color=[90, 200, 255],
+              thickness=14)
+        h.run("arrow.create", cx + 1100, top + 130, cx + 1400, top + 330, "Arrow C", color=[255, 232, 120],
+              thickness=6)
+        self.text("Select all three, then change Thickness in the Attribute Editor.", cx + 80, top + 470, 2.0, static,
+                  name="Hint", font_size=14, color=[205, 210, 220], width=1300)
+        return [(cx + 60, top + 90), (cx + 540, top + 70), (cx + 1080, top + 110), (cx + 80, top + 400)]
+
+    def demo_frames(self, cx: float, top: float, static: str) -> list[tuple[float, float]]:
+        h = self.h
+        gif, gh = self.pic("reaction", cx + 60, top + 60, 640)
+        h.refresh()
+        h.run("playback.go_to_frame", 3, [gif])
+        h.run("playback.pause", [gif])
+        box = h.run("rect.create", cx + 330, top + 120, 240, 130, "Frame 3 box", stroke_color=[255, 70, 70],
+                    thickness=8, corner_radius=14)
+        h.run("frames.pin", [box], 3)
+        h.run("playback.go_to_frame", 6, [gif])
+        arrow = h.run("arrow.create", cx + 100, top + 480, cx + 300, top + 360, "Frame 6 arrow",
+                      color=[255, 232, 120], thickness=9)
+        h.run("frames.pin", [arrow], 6)
+        note = self.text("Frame 3: the raised eyebrow", cx + 820, top + 140, 2.0, None, name="Frame note", bold=True,
+                         font_size=28, color=[255, 232, 120], width=560)
+        h.run("playback.go_to_frame", 3, [gif])
+        link = h.run("links.connect", note, gif, color=[255, 204, 0], thickness=5)
+        h.run("frames.link_frame", link, "target", 3)
+        self.text("Press K to play: the box and the arrow only show on frames 3 and 6.", cx + 820, top + 560, 2.0, static,
+                  name="Hint", font_size=14, color=[205, 210, 220], width=560)
+        return [(cx + 310, top + 100), (cx + 60, top + 60 + gh + 20), (cx + 810, top + 120), (cx + 100, top + 345)]
 
     def demo_playback(self, cx: float, top: float, static: str) -> list[tuple[float, float]]:
         self.pic("cat", cx + 440, top + 60, 620)

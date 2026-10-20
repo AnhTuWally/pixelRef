@@ -20,13 +20,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gen_screenshots as gs  # noqa: E402  (sets the font dir and import paths first)
 from gen_screenshots import Shots, settle  # noqa: E402
+from PySide6.QtCore import QPoint  # noqa: E402
 from PySide6.QtGui import QImage, QImageWriter, QPainter  # noqa: E402
 
-from onboarding_board import ADVANCED, BASIC, BLUE, ORANGE, SHOT_DIR, Board  # noqa: E402
+from onboarding_board import ADVANCED, BASIC, BLUE, GREEN, NEWEST, ORANGE, SHOT_DIR, Board  # noqa: E402
 
 SAMPLE = gs.SCENE
 TARGET = ROOT / "examples" / "scenes" / "onboard.pxref"
-SHOT_NAMES = ("start", "navigate", "command_search", "review", "script_editor", "shortcuts")  # only interface that can't be recreated on the canvas
+SHOT_NAMES = ("start", "navigate", "command_search", "review", "script_editor", "shortcuts", "paste_attrs", "colour_picker")  # only interface that can't be recreated on the canvas
 
 
 class OnboardingShots(Shots):
@@ -67,6 +68,47 @@ class OnboardingShots(Shots):
         self.run("navigation.frame_all")
         self.window("navigate")
 
+    def paste_attrs(self) -> None:
+        """The Paste Attributes window: a styled rectangle copied onto two plainer items."""
+        from PySide6.QtGui import QColor  # noqa: F401
+        from pixelref.builtins.attr_transfer.dialog import PasteDialog
+        from pixelref.core import transfer
+        from pixelref.ui.app import UIContext
+
+        self.run("select", clear=True)
+        source = self.run("rect.create", 5000, 5000, 300, 200, "Styled", stroke_color=[255, 160, 60], thickness=9,
+                          corner_radius=40, fill_color=[40, 90, 160], fill_opacity=0.6)
+        a = self.run("rect.create", 5400, 5000, 300, 200, "Plain A", stroke_color=[200, 200, 200], thickness=2)
+        b = self.run("rect.create_ellipse", 5800, 5000, 300, 200, "Plain B", stroke_color=[90, 200, 255], thickness=4)
+        snap = transfer.snapshot(self.h.scene, source)
+        ui = UIContext(self.h.app, self.h.session.plugins.get("attr_transfer"))
+        dialog = PasteDialog(ui, snap, [a, b], self.h.window)
+        dialog.resize(760, 560)
+        dialog.show()
+        dialog.move(self.h.window.mapToGlobal(QPoint(370, 170)))
+        settle(1.0)
+        self.window("paste_attrs", (dialog,))
+        dialog.reject()
+        settle(0.3)
+
+    def colour_picker(self) -> None:
+        """The colour popover opened from a swatch."""
+        from PySide6.QtGui import QColor
+        from pixelref.ui import color_dialog
+
+        self.run("select", clear=True)
+        rect = self.run("rect.create", 5000, 5000, 300, 200, "Swatch demo", stroke_color=[224, 120, 40], thickness=8,
+                        fill_color=[40, 90, 160], fill_opacity=0.5)
+        self.run("select", [rect])
+        self.frame([rect], 0.5)
+        dialog = color_dialog.create(self.h.window, QColor(224, 120, 40), "Stroke")
+        dialog.show()
+        dialog.move(self.h.window.mapToGlobal(QPoint(930, 150)))
+        settle(1.0)
+        self.window("colour_picker", (dialog,))
+        dialog.reject()
+        settle(0.3)
+
     def shortcuts(self) -> None:
         self.run("select", clear=True)
         self.run("help.show")
@@ -96,26 +138,32 @@ def take_shots(names: tuple[str, ...]) -> None:
         shots.close()
 
 
-WELCOME_LINES = (
-    "How to read this guide",
-    "",
-    "•  Scroll to zoom. Hold Space (or the middle mouse button) and drag to pan.",
-    "•  Ctrl+1 shows this welcome, Ctrl+2 the Basic Features and Ctrl+3 the Advanced Features. "
-    "The Markers menu in a view's header jumps to any lesson.",
-    "•  Each lesson is a screenshot with yellow numbered callouts. The numbers match the explanation under it.",
-    "•  The “Your turn” cards and the framed areas on the lessons hold real pictures, notes and shapes to practise on. "
-    "Text, backgrounds and screenshots are locked, so they stay put while you edit. This guide opens as an untitled "
-    "copy, so nothing you do to it is kept unless you save it.",
-    "",
-    "Save and share",
-    "",
-    "•  Ctrl+S saves the whole board, pictures included, as one .pxref file. Ctrl+E exports an image, "
-    "Ctrl+Alt+C copies the board (or the selection) to the clipboard.",
-    "",
-    "Come back any time",
-    "",
-    "•  Right-click the canvas and choose Getting Started…, press Ctrl+K and type “getting started”, "
-    "or click Getting Started on the start panel of an empty board.",
+WELCOME_BLOCKS = (
+    ('How to read this guide',
+     [
+         '•  Scroll to zoom. Hold Space (or the middle mouse button) and drag to pan.',
+         '•  Each lesson is a card. A screenshot has yellow numbered callouts, and a live card has numbered dots on real items. The numbers match the explanation under it.',
+         '•  Pictures, notes and shapes on a “live” card or a “Your turn” card are real: drag, edit and break them. Text, backgrounds and screenshots are locked, so they stay put. This guide opens as an untitled copy, so nothing you do to it is kept unless you save it.',
+     ]),
+    ('Jump around',
+     [
+         "•  Ctrl+1 is this welcome, Ctrl+2 the Basic Features, Ctrl+3 the Advanced Features and Ctrl+4 the New Features. The Markers menu in a view's header lists every lesson, and clicking one flies you there.",
+         '•  Press Shift+F to see the whole guide at once, then scroll in on the card you want.',
+     ]),
+    ('Where to start',
+     [
+         '•  New here?  Basic Features, lessons B1 to B6, take about ten minutes.',
+         '•  Know another reference tool?  Skim Advanced Features: effects, links, redaction, Steps, views, playback and scripts.',
+         '•  Back after an update?  New Features covers copying attributes, editing several items at once, the colour picker and notes on single GIF frames.',
+     ]),
+    ('Save and share',
+     [
+         '•  Ctrl+S saves the whole board, pictures included, as one .pxref file. Ctrl+E exports an image, Ctrl+Alt+C copies the board (or the selection) to the clipboard.',
+     ]),
+    ('Come back any time',
+     [
+         '•  Right-click the canvas and choose Getting Started…, press Ctrl+K and type “getting started”, or click Getting Started on the start panel of an empty board.',
+     ]),
 )
 
 
@@ -139,7 +187,7 @@ def build_board() -> None:
                         "Made a mess? Ctrl+Z undoes it."],
          ["leopard", "tiger", "cat", "poodle", "jumper", "brown_poodle"]))
     advanced_top = basic_bottom + 450
-    board.section(
+    advanced_right, advanced_bottom = board.section(
         "Advanced Features", "When the basics feel natural: effects, links, redaction, review views, playback and scripting.",
         ADVANCED, "A", 0, advanced_top, ORANGE,
         ("the advanced tools", ["Select a picture and add an Edge Detect effect in the Attribute Editor.",
@@ -149,6 +197,15 @@ def build_board() -> None:
                                 "Press Ctrl+W then N to open a second view of the same board.",
                                 "Press Ctrl+K and type “script” to open the Script Editor."],
          ["fennec", "red_poodle", "jumper", "poodle", "leopard", "cat"]))
+    board.section(
+        "New Features", "Fresh in this version: copy styling between items, edit many items at once, pick colours "
+        "properly and pin notes to single frames of a GIF.",
+        NEWEST, "N", 0, advanced_bottom + 450, GREEN,
+        ("the new tools", ["Select a rectangle, press Ctrl+Alt+Shift+C, select a picture's note and press Ctrl+Alt+Shift+V.",
+                           "Shift+click several pictures and look for Shared attributes in the Attribute Editor.",
+                           "Press R, drag a box, then click its Stroke swatch to try the colour picker.",
+                           "Click the GIF, press K to pause it, step with . and draw a box on one frame. Press K to play."],
+         ["reaction", "fennec", "cat", "jumper"]))
     place_markers(board)
     h.run("select", clear=True)
     h.refresh()
@@ -174,9 +231,15 @@ def welcome(board: Board) -> None:
                       "pan, zoom and click around it just like you will your own.", 0, y, 3.0, group, 2600,
                       name="Lead", font_size=14, color=[205, 210, 220])
     y += board.height(lead) + 120
-    how = board.text("\n".join(WELCOME_LINES), 0, y, 2.6, group, 1550, name="How to read", font_size=14,
-                     color=[226, 229, 235])
-    bottom = y + board.height(how)
+    bottom = y
+    for head, bullets in WELCOME_BLOCKS:
+        title_node = board.text(head, 0, bottom, 3.0, group, 1550, name=f"{head} heading", bold=True, font_size=18,
+                                color=[255, 204, 0])
+        bottom += board.height(title_node) + 24
+        body = board.text("\n\n".join(bullets), 0, bottom, 2.6, group, 1550, name=f"{head} text", font_size=14,
+                          color=[226, 229, 235])
+        bottom += board.height(body) + 90
+    bottom -= 90
     for key, x, py, w, tilt in (("tiger", 1750, y, 520, -6), ("leopard", 2250, y - 40, 400, 5),
                                 ("jumper", 1700, y + 470, 440, 4), ("cat", 2180, y + 430, 400, -4)):
         board.picture(board.animals[key], x, py, w, rotate=tilt)  # loose and unlocked: yours to drag around
@@ -191,16 +254,16 @@ def place_markers(board: Board) -> None:
     """View markers: Welcome, the two sections, then one per lesson (Ctrl+1…9 reach the first nine)."""
     h = board.h
     boxes = {name: (x, y, w, hh) for name, x, y, w, hh in board.markers}
-    for band in ("Basic Features band", "Advanced Features band"):
+    for band in ("Basic Features band", "Advanced Features band", "New Features band"):
         node = h.scene.nodes[band]
         x, y = node.attrs["translate"]
         w, hh = node.attrs["size"]
         boxes[band.replace(" band", "")] = (x, y, w, hh)
-    order = ["Welcome", "Basic Features", "Advanced Features"] + [n for n, *_ in board.markers if n != "Welcome"]
+    order = ["Welcome", "Basic Features", "Advanced Features", "New Features"] + [n for n, *_ in board.markers if n != "Welcome"]
     for name in order:
         x, y, w, hh = boxes[name]
         zoom = round(min(1150 / w, 830 / hh) * 0.92, 4)
-        color = list(BLUE if name.startswith("B") or name == "Welcome" else ORANGE)
+        color = list({"B": BLUE, "A": ORANGE, "N": GREEN}.get(name[0], BLUE) if name != "Welcome" else BLUE)
         h.run("create_node", "camera", name, attrs={"translate": [x + w / 2, y + hh / 2],
                                                       "center": [x + w / 2, y + hh / 2], "zoom": zoom, "color": color})
 

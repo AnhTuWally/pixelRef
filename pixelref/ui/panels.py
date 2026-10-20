@@ -867,8 +867,8 @@ class PanelManager:
                         host.take_widget()
                 widget.hide()
                 widget.setParent(None)
-            if section is not None:
-                section.setVisible(mode == "docked")
+            if section is not None and mode != "docked":
+                section.hide()  # a docked section is shown by sidebar.set_sections once it has a parent: showing it earlier flashes a stray window
             if card is not None:
                 card.setVisible(mode == "floating" and show)
                 if card.isVisible():
