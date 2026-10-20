@@ -14,11 +14,12 @@ from typing import Any
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QScrollArea, QVBoxLayout, QWidget
 
-from pixelref.plugin_api import CommandError
+from pixelref.plugin_api import Attr, CommandError, SceneError
 from pixelref.plugin_api.contracts import InspectorSection, SelectionInfo
 from pixelref.plugin_api.ui import PanelType, icon
 from pixelref.plugin_api.ui import widgets as w
 
+from .notes import MetadataSection, NoteSection
 from .sections import CORE_ATTRS, AppearanceSection, AttributeEditor, TransformSection
 
 COLLAPSED_KEY = "collapsed"
@@ -266,6 +267,27 @@ class InspectorService:
         return (visible or self.panels or [None])[0]
 
 
+def check_metadata(value: Any) -> dict[str, Any]:
+    """A node's metadata: a dict of non-empty text keys to JSON values."""
+    if not isinstance(value, dict):
+        raise SceneError(f"Attribute 'metadata' expects a dict of key: value, got {value!r}")
+    out: dict[str, Any] = {}
+    for key, item in value.items():
+        if not isinstance(key, str) or not key.strip():
+            raise SceneError(f"Metadata keys must be non-empty text, got {key!r}")
+        out[key.strip()] = item
+    return out
+
+
+def activate(ctx: Any) -> None:
+    # Sparse (stored only once set), so scenes that never use them don't change.
+    ctx.extend_node_type("node", (
+        Attr("note", "text", "", group="Notes", doc="Free-form note about this node"),
+        Attr("metadata", "any", {}, group="Notes", validator=check_metadata,
+             doc="Your own key / value fields (text, numbers, true/false)"),
+    ))
+
+
 def activate_ui(ui: Any) -> None:
     for name, doc in (("inspector.sections", "InspectorSection contributions"),
                       ("inspector.rows", "InspectorRows: extra rows in another plugin's section"),
@@ -329,6 +351,16 @@ def activate_ui(ui: Any) -> None:
         key="extra_attributes", title="Extra attributes", order=90, applies=dynamic_applies,
         build=lambda parent, _i: AttributeEditor(ui, parent, "extra_attributes", "Extra attributes",
                                                  dynamic_only=True)))
+
+    def has_node(info: SelectionInfo) -> bool:
+        return info.single and session.scene.has(info.names[0])
+
+    ui.contribute("inspector.sections", InspectorSection(
+        key="note", title="Note", order=95, applies=has_node, generic=True,
+        build=lambda parent, _i: NoteSection(ui, parent)))
+    ui.contribute("inspector.sections", InspectorSection(
+        key="metadata", title="Metadata", order=96, applies=has_node, generic=True,
+        build=lambda parent, _i: MetadataSection(ui, parent)))
 
     def make_panel(_parent: Any = None) -> Inspector:
         panel = Inspector(ui)

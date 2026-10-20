@@ -338,6 +338,11 @@ def _draw(name: str, painter: QPainter, color: QColor) -> None:
         painter.setBrush(color)
         painter.drawPolygon(QPolygonF([QPointF(2, 6.5), QPointF(6.5, 3), QPointF(6.5, 10)]))
         painter.restore()
+    elif name == "backdrop":  # a frame with a title bar and something sitting on it
+        painter.drawRoundedRect(QRectF(1.8, 2.5, 12.4, 11), 1.8, 1.8)
+        painter.drawLine(QPointF(1.8, 5.8), QPointF(14.2, 5.8))
+        painter.setBrush(color)
+        painter.drawRoundedRect(QRectF(4.5, 8, 4, 3.2), 0.6, 0.6)
     elif name == "frame":  # corner brackets around a picture
         for x, y, dx, dy in ((2, 2, 1, 1), (14, 2, -1, 1), (2, 14, 1, -1), (14, 14, -1, -1)):
             painter.drawPolyline(QPolygonF([QPointF(x, y + 3.5 * dy), QPointF(x, y), QPointF(x + 3.5 * dx, y)]))

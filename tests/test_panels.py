@@ -1086,3 +1086,48 @@ def test_shutdown_does_not_rebuild_shortcuts_per_binding():
     keymap.rebuild_shortcuts = lambda: (rebuilds.append(1), original())
     h.app.close(force=True)
     assert not rebuilds, f"{len(rebuilds)} shortcut rebuilds while closing"
+
+
+# ---- Note and metadata ----------------------------------------------------------------------------
+
+
+def test_note_and_metadata_editing_round_trips_and_undoes():
+    h = make()
+    try:
+        h.add_image("Img", 0, 0)
+        h.select(["Img"])
+        note, meta = h.section("note"), h.section("metadata")
+        assert note.isVisible() and meta.isVisible()
+        note.edit.setText("check the sky")
+        note.edit.editingFinished.emit()
+        assert h.attr("Img", "note") == "check the sky"
+        meta._add_blank()
+        row = meta._rows[0]
+        row.key_edit.setText("shot")
+        row.value_edit.setText("12")
+        row.value_edit.editingFinished.emit()
+        assert h.attr("Img", "metadata") == {"shot": 12}
+        row.value_edit.setText('"12"')
+        row.value_edit.editingFinished.emit()
+        assert h.attr("Img", "metadata") == {"shot": "12"}
+        meta._remove(meta._rows[0])
+        assert h.attr("Img", "metadata") == {}
+        h.undo()
+        assert h.attr("Img", "metadata") == {"shot": "12"}
+        h.select(["Img"])
+        assert meta._rows[0].value_edit.text() == '"12"'
+    finally:
+        h.close()
+
+
+def test_metadata_rejects_bad_keys():
+    h = make()
+    try:
+        h.add_image("Img", 0, 0)
+        try:
+            h.run("set_attr", "Img", "metadata", {"": 1})
+        except Exception:  # noqa: BLE001
+            return
+        raise AssertionError("empty key accepted")
+    finally:
+        h.close()

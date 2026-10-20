@@ -9,6 +9,7 @@ searches every command.
 - [Annotations](#annotations)
 - [Links](#links)
 - [Groups, the Outliner and the Attribute Editor](#groups-the-outliner-and-the-attribute-editor)
+- [Backdrops](#backdrops)
 - [Effects](#effects)
 - [Views and window management](#views-and-window-management)
 - [Animated images](#animated-images)
@@ -281,6 +282,13 @@ attribute schema**. Plugin node types get an editor for free, and dynamic
 attributes added with `pxcmd.add_attr` appear under *Extra attributes*. Drag a
 field's label to scrub its value.
 
+Every node (one selected) also has a **Note** (free text, applied when you
+click away) and **Metadata** (your own key / value fields: *+ Add field*, type
+a key and a value, ✕ removes it). Values can be text, numbers or `true` /
+`false`; put "quotes" around text that looks like a number. Keys you've used on
+other nodes autocomplete. Both are saved with the scene and undoable; from
+scripts they are the `note` and `metadata` (a dict) attributes.
+
 **Quick editor.** Select something on the canvas and a small bar appears
 below it with the attributes you change most: colour, width and line style
 for shapes, colour, size and alignment for text, opacity for images. Edits
@@ -294,6 +302,56 @@ plugin.
 The Tools, Outliner and Attribute Editor are **panels**: docked in the
 sidebar, floating over the canvas, or hidden and popped up on demand (`Alt+T`,
 `Alt+O`, `Alt+A`). See [Panels](window-manager.md#panels).
+
+## Backdrops
+
+A **backdrop** is a coloured, titled frame that carries what sits on it, like a
+stack of papers you move together. Drop something on it and it joins; drag it
+off and it leaves; move the backdrop and everything on it moves too. Membership
+is ordinary hierarchy (the contents are children of the backdrop), so the
+Outliner shows the nesting, and hiding, locking, copying and undo all work on
+the backdrop as a whole.
+
+- `K` puts a backdrop around the selection and asks for its title. With nothing
+  selected it starts the **Backdrop** tool: drag a frame around things and
+  everything inside joins. The palette's **Backdrop** button does the same.
+- Drag a node over a backdrop: the backdrop it will join lights up green with a
+  *+ Join* chip; one it will leave lights up amber (*Leave*). Release to do it.
+  The move and the membership change are **one undo step**. Hold `Alt` when you
+  release to move without joining or leaving.
+- Only the title bar and the border pick a backdrop, so you can click and
+  rubber-band inside the frame. Double-click the title bar to rename it. The
+  corner and edge points resize it (they change its size, not its scale, so its
+  contents stay where they are). Select a backdrop to see its contents outlined.
+- A node joins when at least half of it is inside, and stays until less than a
+  third is. Where backdrops overlap, the smallest one that holds it wins, so
+  backdrops nest. A backdrop never swallows something larger than itself.
+  Locked nodes never join or leave.
+- Backdrops always draw behind the other nodes next to them. Contents draw above
+  their backdrop; *Bring to front* cannot lift a backdrop over its neighbours.
+
+**Anything can be a backdrop.** Select a rectangle or image and choose
+**Act as Backdrop** (right-click menu or command search): it captures what it
+covers, and the same item switches it off again, putting its contents back
+where they were. A hollow rectangle is moved by its border. The Attribute Editor's **Backdrop** section (shown for rectangles, images and
+backdrops) has the same switch as a tick box, plus **Join when** to choose how
+it takes things in and a count of what it holds. The setting is the node's
+`backdrop_mode` attribute: `auto` (the type decides), `off`, `inside` (join when mostly
+inside), `overlap` (any overlap) or `touch` (overlap with a small margin).
+By default (**strict** hosting) only backdrops act as backdrops. In **free**
+hosting, rectangles and images do too, so dropping a small image on a big one
+stacks it. Switch with **View ▸ Free Backdrop Mode** (a tick; it is
+remembered), or `pxcmd.backdrops.set_mode("free")` / `"strict"`; a node's own
+setting always wins. **Settle Backdrops** (right-click menu, with something
+selected) re-applies the rules to the selection, for example after changing a
+node's setting or switching modes.
+
+Scripting: `pxcmd.backdrops.wrap(nodes, padding, title)`, `.create(x, y, w, h)`,
+`.settle(nodes)`, `.adopt(backdrop, nodes)`, `.release(nodes)` and
+`.contents(backdrop)`. Setting an attribute never changes membership; only
+these commands and canvas gestures do. Decisions use the nodes' axis-aligned
+bounds, so rotated nodes count by their bounding box. Design notes:
+[design-backdrop-hosting.md](design-backdrop-hosting.md).
 
 ## Effects
 

@@ -1,0 +1,6 @@
+id = "backdrops"
+name = "Backdrops"
+version = "1.0.0"
+api = 1
+requires = ["gizmo"]
+description = "Backdrops: coloured, titled frames that adopt whatever is dropped on them and carry it when moved. Wrap (K), draw a backdrop, strict or free hosting."

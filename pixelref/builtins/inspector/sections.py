@@ -13,7 +13,7 @@ from pixelref.plugin_api.contracts import SelectionInfo
 from pixelref.plugin_api.ui import compose_transform
 from pixelref.plugin_api.ui import widgets as w
 
-CORE_ATTRS = {"translate", "rotate", "scale", "pivot", "visibility", "opacity", "locked", "tags"}
+CORE_ATTRS = {"translate", "rotate", "scale", "pivot", "visibility", "opacity", "locked", "tags", "note", "metadata"}
 
 
 class TransformSection(w.InspectorSection):

@@ -93,6 +93,7 @@ class CanvasDocument:
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.timeout.connect(self._flush_refresh)
         self._flush_handlers: list[Callable[[], None]] = []
+        self._interaction_handlers: list[Callable[[str, list[str]], None]] = []
         self._disposables = [
             self.session.add_geometry_provider(self._geometry),
             self.session.selection.subscribe(lambda _names: self._on_selection_model_changed()),
@@ -140,6 +141,19 @@ class CanvasDocument:
         """Called before any command runs (e.g. commit a text edit in progress)."""
         self._flush_handlers.append(handler)
         return Disposable(lambda: handler in self._flush_handlers and self._flush_handlers.remove(handler))
+
+    def add_interaction_handler(self, handler: Callable[[str, list[str]], None]) -> Disposable:
+        """``handler(label, names)``: a canvas edit (drag, nudge, resize) was committed to the
+        document, inside its still-open undo step. ``names`` are the nodes it changed (e.g. backdrops
+        settle what a move dropped on them, so the move and the membership change undo together)."""
+        self._interaction_handlers.append(handler)
+        return Disposable(lambda: handler in self._interaction_handlers and self._interaction_handlers.remove(handler))
+
+    def _commit_interaction(self, label: str) -> None:
+        committed = self.commit_dirty()
+        if committed and label != "Cancelled":
+            for handler in list(self._interaction_handlers):
+                handler(label, committed)
 
     # ---- Refresh ---------------------------------------------------------------------------
 
@@ -658,10 +672,11 @@ class CanvasDocument:
     def mark_dirty(self, item: Any) -> None:
         self._dirty.add(item.node_name)
 
-    def commit_dirty(self) -> None:
+    def commit_dirty(self) -> list[str]:
+        """Write the edited items' values to the document; returns the nodes that changed."""
         dirty, self._dirty = self._dirty, set()
         if not dirty:
-            return
+            return []
         scene = self.session.scene
         committed = []
         with self.batch():
@@ -679,6 +694,7 @@ class CanvasDocument:
                 node = scene.get_node(name).to_dict()
                 self.nodes[name] = node
                 self._signatures[name] = self._signature(node)
+        return committed
 
     def begin_interaction(self) -> None:
         """Start a canvas edit (drag): everything until end_interaction is one undo step."""
@@ -692,7 +708,7 @@ class CanvasDocument:
             self.commit_dirty()
             return
         try:
-            self.commit_dirty()
+            self._commit_interaction(label)
         finally:
             self._interaction = False
             self.session.undo.end(label)
@@ -727,8 +743,10 @@ class CanvasDocument:
         label, self._coalesce_label = self._coalesce_label, None
         self._coalesce_command = None
         self._coalesce_timer.stop()
-        self.commit_dirty()
-        self.session.undo.end(label)
+        try:
+            self._commit_interaction(label)
+        finally:
+            self.session.undo.end(label)
         self.refresh()
 
     def flush_pending(self, handlers: bool = True) -> None:
