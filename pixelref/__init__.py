@@ -9,4 +9,4 @@
 * ``pixelref/builtins`` the plugins that provide every feature
 """
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"

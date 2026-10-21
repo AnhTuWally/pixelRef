@@ -26,9 +26,10 @@ Everything below runs Python inside pixelRef, with your permissions:
 The **MCP server** (`python -m pixelref mcp`, for AI assistants) is off by
 default: it refuses to start until you switch on the built-in plugin *AI
 assistant connection (MCP)* in *Window → Plugins…*. Even then it runs only
-when an AI app you configured starts it, and it can only search and read
-pixelRef's documentation. It can't open, change or save boards, or run
-commands. Switching the plugin off stops new servers from starting; one an
+when an AI app you configured starts it, and it can only read: pixelRef's
+documentation, and the `.pxref` files the agent names (as JSON, without
+loading plugins or running anything in them). It can't change or save
+boards, or run commands. Switching the plugin off stops new servers from starting; one an
 AI app already started keeps running until that app closes it.
 
 Boards (`.pxref` files) aren't code: opening one never runs anything and

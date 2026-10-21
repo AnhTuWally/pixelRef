@@ -19,7 +19,8 @@ always current:
   menu item (with its keys), command, node type, attribute, effect, plugin and
   guide section. Search it with `pxcmd.docs.search(…)` / `pxcmd.docs.get(…)`,
   `python -m pixelref docs search …`, or, as an AI agent, through the MCP server
-  `python -m pixelref mcp` (tools `search_docs` and `get_doc`; off until the user switches on the
+  `python -m pixelref mcp` (tools `search_docs` and `get_doc`, and read-only `inspect_scene`,
+  `list_scene_nodes`, `get_scene_node` and `scene_thumbnail` for `.pxref` files; off until the user switches on the
   *AI assistant connection (MCP)* plugin in *Window → Plugins…*).
 
 **Contents**
@@ -929,7 +930,7 @@ These apply to changes to pixelRef itself and to its built-in plugins.
 | `pixelref/ui/` | the Qt kernel: `app.py` (App, UIContext, actions, menus), `canvas/` (document, views, items, tools, input), `wm/` (window manager), `panels.py`, `widgets.py`, `command_search.py` |
 | `pixelref/builtins/<plugin>/` | one folder per feature. Each has `plugin.toml` and `__init__.py`, and often a `ui.py` |
 | `pixelref/pxcmd.py`, `pxnode.py`, `batch.py` | the scripting API and batch mode |
-| `pixelref/docs_cli.py`, `mcp_server.py` | `python -m pixelref docs` and the MCP server for AI agents |
+| `pixelref/docs_cli.py`, `mcp_server.py`, `scene_inspect.py` | `python -m pixelref docs`, the MCP server for AI agents, and its read-only scene file reader |
 | `examples/plugins/ellipse/` | the commented example plugin |
 | `examples/scenes/animals.pxref` | the sample board |
 | `tests/` | headless end-to-end tests (`harness.py`, `run_tests.py`) |

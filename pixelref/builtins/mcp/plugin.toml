@@ -1,6 +1,6 @@
 id = "mcp"
 name = "AI assistant connection (MCP)"
-version = "1.0.0"
+version = "1.1.0"
 api = 1
 enabled_by_default = false
-description = "Lets AI assistants (Claude Code and other MCP apps) search and read pixelRef's documentation through `python -m pixelref mcp`. Off by default: the server refuses to start until you switch this on. It can only read documentation, never your boards."
+description = "Lets AI assistants (Claude Code and other MCP apps) search and read pixelRef's documentation, and read the boards (.pxref files) they're pointed at, through `python -m pixelref mcp`. Off by default: the server refuses to start until you switch this on. It only reads: it never changes or saves a board or runs anything in one."

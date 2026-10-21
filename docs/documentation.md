@@ -108,12 +108,31 @@ Other clients take the same command in their JSON configuration:
                              "cwd": "D:/tools/pixelRef"}}}
 ```
 
-It offers three read-only tools:
+Every tool it offers is read-only. Three are for the documentation:
 
 - **`search_docs`** `(query, kind?, limit?)` returns the best matches with
   their ids, summaries, keys and Python usage.
 - **`get_doc`** `(name)` returns one entry as Markdown.
 - **`list_doc_kinds`** `()` returns the kinds and their counts.
+
+Four let the agent look at a board you name, for example "what's on
+moodboard.pxref?", "which linked images are missing?" or "list every note on
+this board":
+
+- **`inspect_scene`** `(path)` summarises a `.pxref` file: node counts by type,
+  the top-level outline, saved views, images (embedded, linked and missing),
+  notes, click actions and scene plugin data.
+- **`list_scene_nodes`** `(path, type?, parent?, query?, limit?, offset?)`
+  lists nodes a page at a time, filtered by type, parent or words.
+- **`get_scene_node`** `(path, node)` returns one node's saved attributes,
+  parents, children and embedded image details (never the image data).
+- **`scene_thumbnail`** `(path)` returns the preview image saved in the file.
+
+The scene tools read the file's JSON directly: no plugin is loaded, no code
+in the board runs and nothing is written. To change a board, the agent gives
+you commands to run or a [batch script](scripting.md#batch-mode). Text in a
+board (names, notes, labels) was written by whoever made it, and the server
+tells the agent to treat it as data, not instructions.
 
 The server also tells the agent how to answer: a key or menu item first,
 Python when you want automation, and never a guessed command name. To give

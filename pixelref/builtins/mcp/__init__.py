@@ -1,8 +1,9 @@
 """AI assistant connection (MCP): the switch for ``python -m pixelref mcp``.
 
 The MCP server (:mod:`pixelref.mcp_server`) is a separate process an AI app starts; it lets
-the assistant search and read pixelRef's documentation, nothing else. This plugin is **off
-by default**, and while it is off the server refuses to start
+the assistant search and read pixelRef's documentation and read ``.pxref`` files, nothing else
+(it never writes or runs anything). This plugin is **off by default**, and while it is off
+the server refuses to start
 (:func:`pixelref.mcp_server.mcp_enabled`). Switching it on in *Window → Plugins…* allows it,
 and adds ways to set an AI app up:
 
