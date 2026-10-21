@@ -23,7 +23,7 @@ def headless(folder: Path | None = None, packages_root: Path | None = None, **kw
 
     paths = [folder] if folder is not None else []
     packages = PackageManager(root=packages_root or tmp_dir())
-    return Session(plugin_paths=paths, packages=packages, make_current=False, **kwargs).start()
+    return Session(trusted_plugin_paths=paths, packages=packages, make_current=False, **kwargs).start()
 
 
 def write_plugin(folder: Path, plugin_id: str, manifest: str = "", code: str = "def activate(ctx):\n    pass\n"
@@ -424,10 +424,12 @@ def test_plugins_window_installs_what_plugins_need_in_the_background():
     dialog = PluginManagerDialog(h.app, h.window)
     try:
         assert h.session.plugins.get("uses_beta").state == "unavailable"
-        row = next(dialog.tree.topLevelItem(i) for i in range(dialog.tree.topLevelItemCount())
-                   if dialog.tree.topLevelItem(i).data(0, Qt.UserRole) == "uses_beta")
-        assert row.text(1) == "unavailable" and "pxt-beta" in row.text(3)
-        assert row.checkState(0) == Qt.Checked, "switched on: it runs once its package is there"
+        row = next(i for i, info in enumerate(dialog.model.rows) if info["id"] == "uses_beta")
+        status = dialog.model.index(row, 1)
+        assert status.data() == "unavailable" and "pxt-beta" in status.data(Qt.ToolTipRole)
+        assert dialog.model.index(row, 0).data(Qt.CheckStateRole) == Qt.Checked,             "switched on: it runs once its package is there"
+        dialog.select_plugin("uses_beta")
+        assert "pxt-beta (missing)" in dialog.details.toPlainText()
         assert not dialog.install_needed_button.isHidden() and "pxt-beta" in dialog.needed_label.text()
         with offline():
             dialog.install_needed_button.click()

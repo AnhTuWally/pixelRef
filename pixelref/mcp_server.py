@@ -14,6 +14,10 @@ or in a client's JSON configuration::
 Tools: ``search_docs``, ``get_doc`` and ``list_doc_kinds``. The index is the same as the
 Help browser's (see ``core.docs``) and is built on the first call. ``--no-user`` leaves out
 your own plugins and keymap.toml.
+
+**Off by default.** The server only starts while the built-in "AI assistant connection (MCP)"
+plugin is switched on in Window → Plugins… (``pxcmd.load_plugin("mcp")``); otherwise it says
+how to switch it on and exits. ``pxcmd.mcp.setup()`` then gives the lines above for this computer.
 """
 
 from __future__ import annotations
@@ -24,6 +28,14 @@ import traceback
 from typing import Any
 
 from . import __version__
+
+PLUGIN_ID = "mcp"
+SWITCHED_OFF = (
+    "pixelRef's MCP server is switched off.\n"
+    "To let AI assistants read pixelRef's documentation, open pixelRef, choose Window > Plugins..., "
+    "switch on \"AI assistant connection (MCP)\" (or run pxcmd.load_plugin(\"mcp\") in the Script Editor), "
+    "then restart your AI app."
+)
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 
@@ -86,9 +98,11 @@ TOOLS = [
 
 
 class Server:
-    def __init__(self, user: bool = True, plugin_paths: tuple[str, ...] = ()) -> None:
+    def __init__(self, user: bool = True, plugin_paths: tuple[str, ...] = (), trusted_paths: tuple[str, ...] = ()
+                 ) -> None:
         self.user = user
         self.plugin_paths = plugin_paths
+        self.trusted_paths = trusted_paths
         self._app: Any = None
 
     @property
@@ -96,7 +110,7 @@ class Server:
         if self._app is None:
             from .docs_cli import build_app
 
-            self._app = build_app(self.user, self.plugin_paths)
+            self._app = build_app(self.user, self.plugin_paths, self.trusted_paths)
         return self._app.session.docs
 
     def close(self) -> None:
@@ -173,13 +187,35 @@ def _text(text: str, structured: dict[str, Any] | None = None, error: bool = Fal
     return result
 
 
+def mcp_enabled(settings: Any = None) -> bool:
+    """Is the "AI assistant connection (MCP)" plugin switched on? (``settings``: the user's, by default.)"""
+    from .core.plugins import BUILTIN_DIR, PluginManifest, switched_on
+
+    if settings is None:
+        from PySide6.QtCore import QCoreApplication
+
+        from .ui.settings import QtSettings
+
+        QCoreApplication.setOrganizationName("pixelRef")  # the user's settings, as the app keeps them
+        QCoreApplication.setApplicationName("pixelRef")
+        settings = QtSettings()
+    return switched_on(settings, PluginManifest.load(BUILTIN_DIR / PLUGIN_ID, builtin=True), "builtin")
+
+
 def main(argv: list[str]) -> int:
+    if not mcp_enabled():
+        print(SWITCHED_OFF, file=sys.stderr)
+        return 1
     plugin_paths: list[str] = []
+    trusted_paths: list[str] = []
     args = iter(argv)
     for arg in args:
         if arg == "--plugin-path":
             plugin_paths.append(next(args, ""))
-    server = Server(user="--no-user" not in argv, plugin_paths=tuple(p for p in plugin_paths if p))
+        elif arg == "--trust-plugin-path":
+            trusted_paths.append(next(args, ""))
+    server = Server(user="--no-user" not in argv, plugin_paths=tuple(p for p in plugin_paths if p),
+                    trusted_paths=tuple(p for p in trusted_paths if p))
     stdin = sys.stdin.buffer
     stdout = sys.stdout.buffer
     try:

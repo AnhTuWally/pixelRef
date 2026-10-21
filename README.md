@@ -230,9 +230,11 @@ python -m pixelref --batch script.py [scene.pxref] [--save out.pxref]
   *Set Shortcut…*. Rearrange the Tools panel with *Customize Palette…*.
 - **Drop a `.py` file** into the scripts folder (*Scripts → Open Scripts
   Folder*) to turn it into a command.
-- **Install plugins** into the user plugin folder, then enable them in
-  *Window → Plugins…*. Plugins that need Python packages install them from
-  the same window.
+- **Install plugins** into the user plugin folder (or add their folder in
+  *Window → Plugins… → Sources*), then review and approve them there.
+  Plugins run with your permissions: only install ones from people you
+  trust ([Staying safe](docs/security.md)). Plugins that need Python packages
+  install them from the same window.
 
 ### 14. Save and export
 
@@ -256,7 +258,8 @@ python -m pixelref --batch script.py [scene.pxref] [--save out.pxref]
 | [Command reference](docs/commands.md) | every command, generated from the code |
 | [Views and the window manager](docs/window-manager.md) | workspaces, splits, panels, display presets, linked views |
 | [Effects](docs/effects.md) | using effects, caching, writing new effect types |
-| [Writing plugins](docs/plugins.md) | the plugin API: node types, tools, views, panels, extension points |
+| [Writing plugins](docs/plugins.md) | the plugin API: node types, tools, views, panels, extension points, manifests and signing |
+| [Staying safe with plugins and scripts](docs/security.md) | what plugins and scripts can do, approving and trusting them, what pixelRef checks |
 | [Architecture](docs/architecture.md) | how the kernel and plugins fit together |
 | [File format](docs/file-format.md) | the `.pxref` scene file |
 | [Packaging](docs/packaging.md) | the standalone build and managed Python packages |
@@ -270,7 +273,7 @@ commands) and whose `activate_ui(ui)` registers the Qt parts (drawing, tools,
 keys, menus, panels).
 
 ```bash
-python -m pixelref --plugin-path examples/plugins    # load the example ellipse plugin
+python -m pixelref --trust-plugin-path examples/plugins    # load the example ellipse plugin (trusted for this run)
 ```
 
 Start with [docs/plugins.md](docs/plugins.md) and the commented

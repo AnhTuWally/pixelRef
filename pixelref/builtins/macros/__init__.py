@@ -100,6 +100,9 @@ class Recording:
             self.paused_at = None
 
 
+SCRIPTS_NOTICE_KEY = "macros/risk_notice_seen"
+
+
 def activate_ui(ui: Any) -> None:
     from PySide6.QtCore import QFileSystemWatcher, QTimer, QUrl
     from PySide6.QtGui import QColor, QDesktopServices
@@ -161,6 +164,16 @@ def activate_ui(ui: Any) -> None:
             last = next((line for line in reversed("".join(errors).splitlines()) if line.strip()), "error")
             raise CommandError(f"{label} failed: {last.strip()} (traceback in the Script Editor, Ctrl+`)")
 
+    def note_scripts_risk() -> None:
+        """Before the first script file ever runs: say (once) what scripts can do."""
+        if session.settings.value(SCRIPTS_NOTICE_KEY, False, type=bool):
+            return
+        session.settings.setValue(SCRIPTS_NOTICE_KEY, True)
+        from pixelref.ui.security_text import GUIDE, SCRIPTS
+
+        app.toast(SCRIPTS, QColor("#e0b341"), duration_ms=10000,
+                  actions=[("Learn more", lambda: app.run_command("help.docs", GUIDE))])
+
     def run_step(step: str) -> Any:
         spec = app.actions.specs.get(step)
         if spec is not None:
@@ -185,6 +198,7 @@ def activate_ui(ui: Any) -> None:
             run_python(python, label)
         else:
             path = find_script(str(script))
+            note_scripts_risk()
             run_python(path.read_text(encoding="utf-8"), label, path)
         ui.status(f"Ran {label}")
 

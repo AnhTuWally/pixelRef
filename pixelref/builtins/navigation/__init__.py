@@ -185,7 +185,9 @@ class ZoomBlock(QWidget):
     def update_zoom(self) -> None:
         view = self.target_view()
         if view is not None:
-            self.zoom_label.setText(f"{view.zoom_level() * 100.0:.0f}%")
+            percent = view.zoom_level() * 100.0
+            # Whole percents, but two significant digits below 1% (never a bare "0%").
+            self.zoom_label.setText(f"{percent:.0f}%" if percent >= 0.995 else f"{percent:.2g}%")
 
 
 def activate_ui(ui: Any) -> None:

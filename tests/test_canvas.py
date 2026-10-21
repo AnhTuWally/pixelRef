@@ -208,6 +208,54 @@ def test_layer_children_keep_positions_and_inherit_visibility():
         h.close()
 
 
+def test_unlock_from_canvas_menu_and_lock_badge():
+    from pixelref.builtins.outliner.ui import LockBadge
+
+    h = make()
+    try:
+        h.reset_view()
+        h.add_image("Img", 0, 0, 300, 200)
+        h.create("group", "Layer", pick_members=1)
+        h.outliner.on_tree_reparent("Img", "Layer")
+        h.run("set_attr", "Layer", "locked", 1)
+        h.run("set_attr", "Img", "locked", 1)
+        h.refresh()
+        assert h.item("Img").locked
+
+        # Right-click menu: one entry unlocks the item and the locked group holding it.
+        h.select(["Img"])
+        menu = h.app.build_context_menu(h.view)
+        texts = [a.text() for a in menu.actions()]
+        assert "Unlock 2 Items" in texts, texts
+        h.run("outliner.unlock")
+        h.refresh()
+        assert h.attr("Img", "locked") == 0 and h.attr("Layer", "locked") == 0
+        assert not h.item("Img").locked
+        h.undo()
+        h.refresh()
+        assert h.attr("Img", "locked") == 1 and h.attr("Layer", "locked") == 1
+
+        # Badge: hovering the locked item shows it; clicking it unlocks and selects the item.
+        h.select([])
+        h.run("set_attr", "Layer", "locked", 0)
+        h.refresh()
+        badge = next(x for x in h.app.input.handlers() if isinstance(x, LockBadge))
+        h.set_tool("select")
+        center = h.view.mapFromScene(h.item("Img").sceneBoundingRect().center())
+        h.mouse("move", center, button=Qt.NoButton, buttons=Qt.NoButton)
+        assert badge.hovered is not None and badge.hovered[1] == "Img"
+        rect = badge.badge_rect(h.view, "Img")
+        h.mouse("move", rect.center().toPoint(), button=Qt.NoButton, buttons=Qt.NoButton)
+        assert badge.over
+        h.click(rect.center().toPoint())
+        h.refresh()
+        assert h.attr("Img", "locked") == 0
+        assert h.sel() == ["Img"]
+        assert badge.hovered is None
+    finally:
+        h.close()
+
+
 def test_outliner_filter_icons_and_empty_hint():
     h = make()
     try:

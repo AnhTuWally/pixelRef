@@ -143,6 +143,19 @@ Until they're installed it is *unavailable*, not broken. The Plugins window
 installs them into a managed folder that goes on `sys.path` before plugins
 load (`core/packages.py`, [packaging.md](packaging.md)).
 
+**Third-party plugins are untrusted until the user says otherwise.** The
+`PluginManager` finds plugins in *sources* (`core/plugin_sources.py`) and
+keeps every copy of an id as a candidate, choosing one. Before importing a
+third-party plugin it checks trust (`core/plugin_trust.py`): an Ed25519
+signature by a publisher the user trusts, the user's approval pinned to a
+SHA-256 hash of every file, or a source that trusts everything. It hashes
+the files again right before running `__init__.py` and runs the bytes it
+checked. Built-in plugins activate before third-party ones, and registries
+refuse names that are taken (unless a manifest declares an override). An
+audit hook (`core/plugin_audit.py`) records what third-party plugins do
+against the permissions they declare; it reports, it never blocks. What
+this protects against, and what it can't, is in [security.md](security.md).
+
 ## The Qt side
 
 `pixelref.ui.App` owns the UI registries:
@@ -198,7 +211,7 @@ scenes too. See [file-format.md](file-format.md).
 
 | Variable | Effect |
 | --- | --- |
-| `PIXELREF_PLUGIN_PATH` | extra plugin folders, separated like `PATH` ([plugins.md](plugins.md#layout-and-loading)) |
+| `PIXELREF_PLUGIN_PATH` | extra plugin folders, separated like `PATH`; their plugins still need approving ([plugins.md](plugins.md#where-plugins-are-found)) |
 | `PIXELREF_USER_PLUGINS` | replaces the user plugin folder |
 | `PIXELREF_SCRIPT_PATH` | extra folders for scripts and `userSetup.py` ([scripting.md](scripting.md#usersetuppy), [keymap.md](keymap.md#scripts)) |
 | `PIXELREF_PACKAGES_DIR` | replaces the managed Python package folder ([packaging.md](packaging.md#the-managed-package-folder)) |

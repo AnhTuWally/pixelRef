@@ -19,6 +19,8 @@ Extension point             Declared by        Contribution
 ``effects.types``           effects            :class:`EffectType`
 ``effects.processors``      effects            (effect name, fn(QImage, params, fx) -> QImage)
 ``color.pickers``           kernel (UI)        :class:`ColorPickerProvider`
+``interactions.steps``      interactions       :class:`StepKind`
+``interactions.verbs``      interactions       :class:`ClickVerb`
 ==========================  =================  =====================================
 """
 
@@ -208,3 +210,41 @@ class ColorPickerProvider:
     create: Callable[..., Any]
     order: float = 50.0
     description: str = ""
+
+
+@dataclass
+class StepKind:
+    """A command a click action may run (extension point ``interactions.steps``).
+
+    A click action is a list of steps, ``{"command": name, "args": [...], "kwargs": {...}}``,
+    saved in the scene. Only commands contributed here run from a click, so a board someone
+    sends you can't run arbitrary code. ``describe(session, args, kwargs)`` returns the
+    sentence the Attribute Editor shows ("Go to frame 5 · walk_cycle"); ``targets(args, kwargs)``
+    returns the node references (names or ids) the step acts on: a step whose node is gone is
+    skipped, and hovering its sentence highlights them.
+    """
+
+    command: str
+    describe: Callable[[Any, list, dict], str]
+    targets: Callable[[list, dict], list[str]] = lambda args, kwargs: []
+    icon: str = "play"
+
+
+@dataclass
+class ClickVerb:
+    """Something a click can do to the item it is connected to (extension point ``interactions.verbs``).
+
+    Connecting a button to an item lists the verbs whose ``applies(session, target)`` is true.
+    ``build(session, target)`` returns ``(steps, back_steps)``: what the click runs and what
+    clicking again runs to put things back (empty: the click can't be undone by clicking again).
+    ``prepare(session, target)``, if given, runs once when the verb is chosen, in the same undo
+    step (Show hides the item until the click). Steps must use commands contributed to
+    ``interactions.steps``.
+    """
+
+    id: str
+    label: str
+    applies: Callable[[Any, str], bool]
+    build: Callable[[Any, str], tuple[list, list]]
+    prepare: Callable[[Any, str], None] | None = None
+    order: float = 50.0

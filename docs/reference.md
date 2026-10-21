@@ -19,7 +19,8 @@ always current:
   menu item (with its keys), command, node type, attribute, effect, plugin and
   guide section. Search it with `pxcmd.docs.search(…)` / `pxcmd.docs.get(…)`,
   `python -m pixelref docs search …`, or, as an AI agent, through the MCP server
-  `python -m pixelref mcp` (tools `search_docs` and `get_doc`).
+  `python -m pixelref mcp` (tools `search_docs` and `get_doc`; off until the user switches on the
+  *AI assistant connection (MCP)* plugin in *Window → Plugins…*).
 
 **Contents**
 
@@ -284,6 +285,32 @@ adjusted by its handles without leaving the tool.
   The **scratchpad** holds hidden tiles such as the Script Editor.
 - See [window-manager.md](window-manager.md).
 
+### Interactive boards (`interactions`)
+
+- Any `canvas_node` can have a **click action** (sparse attributes `on_click`,
+  `click_toggles`, `action_set`, `action_on`). `button` nodes exist to carry one
+  (*Insert Button*).
+- **Demonstrate** (`interactions.demonstrate` → change the board →
+  `interactions.finish`, or *Done* / `Ctrl+Enter` in the banner): what changed
+  becomes absolute steps, the board goes back, new items stay hidden until the
+  click. One undo step. *Include this view* adds a view marker to fly to.
+- **Connect**: drag the handle beside a selected button onto an item, or
+  *Connect Click To…*, then pick a verb: show, hide, frame, play, pause, fly_to,
+  click (`interactions.connect(node, target, verb)`).
+- **Templates**: `interactions.make_tabs`, `make_reveal`, `make_before_after`;
+  `interactions.make_set` makes items one at a time.
+- **Running**: a plain click on a **locked** item runs its action; an unlocked item
+  is selected as usual (▶ Run / ↺ Reset in its quick-edit bar, *Try it* in the
+  Attribute Editor). `interactions.click(node, back=None)` is one undo step;
+  clicking again runs the steps' `back` steps.
+- **Problems**: an amber dashed outline marks an item whose last run skipped or failed a
+  step, or with a step that can't run now (`interactions.status`, `interactions.check`).
+  A toast offers *Show Log*; the *Click Action Log…* window and `interactions.log()`
+  list this session's clicks with the reason for each problem.
+- Only commands contributed to `interactions.steps` run from a click (no
+  scripts). The Attribute Editor's *Click Action* section lists the steps as
+  sentences, with Try it, Reset, Demonstrate again and Connect.
+
 ### Arrange (`arrange`)
 
 - `Ctrl+P` packs. `Ctrl+Alt+H` / `V` / `G` lay out in a row, a column or a
@@ -358,6 +385,16 @@ that need Python packages are listed as *unavailable* until those packages
 are installed, which the same window does (the *Python packages* tab). See
 [plugins.md](plugins.md) and [packaging.md](packaging.md).
 
+Plugins and scripts run with the user's permissions. Third-party plugins
+don't run until approved (or signed by a trusted publisher); an approval is
+pinned to the plugin's files, so a changed plugin needs approving again. The
+window searches plugins by name, author, tag or what they provide, shows
+each plugin's origin, declared permissions, activity and README, and its
+*Sources* tab manages plugin folders, their trust policy and trusted
+publishers. Scripts: `pxcmd.plugin_trust(id)`, `pxcmd.plugins_needing_review()`,
+`pxcmd.add_plugin_source(path)`, `pxcmd.plugin_activity(id)`. See
+[security.md](security.md).
+
 ## 4. Default keys
 
 Every key can be changed in `F1`. In a running app, `pxcmd.keymap.list()`
@@ -376,6 +413,7 @@ shows the actual bindings.
 | Links | `Ctrl+L` link the selection · `Ctrl+Shift+L` select linked |
 | Look | `Shift+G` grayscale effect · `Alt+V` value check · `Alt+I` image info · `Shift+I` isolate in view · `Ctrl+'` background pattern |
 | Animation | `K` play/pause · `,` / `.` step · `Ctrl+,` / `Ctrl+.` first / last frame |
+| Interactions | `Ctrl+Enter` finish demonstrating a click action |
 | Panels | `Alt+T` Tools · `Alt+O` Outliner · `Alt+A` or `Alt+Enter` Attribute Editor · `Tab` hide panels |
 | Window | ``Ctrl+` `` Script Editor · `Ctrl+Alt+R` record macro · `Ctrl+T` on top · `F11` frameless · `Ctrl+G` ghost mode · `Ctrl+Shift+T` click-through · `Ctrl+Alt+arrows` move focus |
 | Window mode (`Ctrl+W`, then) | `H` `J` `K` `L` / arrows focus · `Shift`+those move · `S` / `V` next split beside / below · `N` new view · `T` tabbed · `Shift+S` stacked · `E` toggle orientation · `F` fullscreen · `Space` float · `R` resize mode · `=` equalize · `Q` close · `-` scratchpad · `O` tear off · `M` / `'` mark / jump · `Shift+R` rename · `1`–`9` workspace · `Shift+1`–`9` move view to workspace |
@@ -399,6 +437,8 @@ shows the actual bindings.
   `local_matrix`, `world_matrix`, `world_bounds`, `world_visibility`,
   `world_opacity` and `world_locked`. The effects plugin adds `effects` and
   `effects_muted` to every `canvas_node`, and `effects_all_frames` to images.
+  The interactions plugin adds `on_click`, `click_toggles`, `action_set` and
+  `action_on` (click actions).
 - The transform, as implemented in `pixelref/core/xform.py`:
   `parent_point = translate + pivot + R(rotate) · S(scale) · (local_point − pivot)`.
   A child's transform is relative to its parent.
@@ -427,6 +467,7 @@ such as link endpoints, are left out. Enum choices are in brackets.
 | `annotation_blur` (redact) | `size`, `radius` | radius |
 | `annotation_pixelate` (redact) | `size`, `cell_size` | cell_size |
 | `link` (links) | `source_anchor` / `target_anchor` (auto/center/top/right/bottom/left/fixed), `routing` (straight/curved/elbow), `gap`, `color`, `thickness`, `stroke_style`, `start_cap` / `end_cap` (none/arrow/triangle/circle/diamond/bar), `cap_size`, `label`, `label_size` | color, thickness, stroke_style, routing, end_cap |
+| `button` (interactions) | `label`, `size`, `font_size`, `corner_radius`, `fill_color`, `text_color`, `active_color` | label, fill_color, text_color |
 | `camera` (views): a view marker | `color`, `center`, `zoom`, `rotation`, `flip_x`, `flip_y` | — |
 | `display_preset` (views; a `dg_node`) | `show_types`, `hide_types`, `show_tags`, `hide_tags`, `isolate`, `grayscale`, `background`, `show_grid`, `show_overlays`, `frame_guide` (none/16:9/2.39:1/1:1/4:3/3:2) | — |
 
@@ -533,7 +574,7 @@ pxcmd.callbacks.remove(cid)
   a window (dialogs, views, tools, `export.render`) aren't available.
 
   ```bash
-  python -m pixelref --batch build.py board.pxref --save out.pxref --plugin-path my_plugins
+  python -m pixelref --batch build.py board.pxref --save out.pxref --trust-plugin-path my_plugins
   ```
 
   ```python
@@ -551,7 +592,7 @@ User folders on Windows, with the equivalent Qt locations elsewhere:
 | --- | --- |
 | scripts, `userSetup.py`, `keymap.toml` | `%LOCALAPPDATA%\pixelRef\pixelRef\` (`scripts\` and `keymap.toml`) |
 | user plugins | `%APPDATA%\pixelRef\pixelRef\plugins\` |
-| more plugins / scripts | `$PIXELREF_PLUGIN_PATH`, `--plugin-path DIR` / `$PIXELREF_SCRIPT_PATH` |
+| more plugins / scripts | *Plugins → Sources*, `$PIXELREF_PLUGIN_PATH`, `--plugin-path DIR` (need approving), `--trust-plugin-path DIR` (trusted for the run) / `$PIXELREF_SCRIPT_PATH` |
 
 ### 7.1 A script in the Script Editor or batch mode
 
@@ -660,7 +701,7 @@ def activate_ui(ui):                                  # Qt: the desktop app only
     ui.menu("canvas", "my_tidy.snap", path="Transform", group="transform", when="selection.count > 0")
 ```
 
-Load it with `python -m pixelref --plugin-path DIR`, or copy it into the user
+Load it with `python -m pixelref --trust-plugin-path DIR` while developing, or copy it into the user
 plugin folder. `pxcmd.reload_plugin("my_tidy")` re-imports it while you're
 developing it. Nested `ctx.run` calls join the outer command's undo step.
 
@@ -832,7 +873,7 @@ Plugins also share **services**: `ctx.provide_service(name, obj)` and
 ```python
 from pixelref.core.session import Session
 
-session = Session(plugin_paths=["path/to/plugins"]).start()   # headless
+session = Session(trusted_plugin_paths=["path/to/plugins"]).start()   # headless, trusted for this run
 session.run("my_tidy.snap_rotation")
 ```
 

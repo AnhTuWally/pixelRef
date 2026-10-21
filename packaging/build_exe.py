@@ -13,7 +13,9 @@ things most likely to break only break when frozen:
 * a package installs into pixelRef's folder and imports (offline, from a
   wheel the test builds), the way the Plugins window does it;
 * standard library modules pixelRef itself never imports are there for
-  packages installed later.
+  packages installed later;
+* plugin signing works (``cryptography`` is bundled): a key is made, a plugin
+  signed and its signature verified with ``pixelref-cli plugin``.
 """
 
 from __future__ import annotations
@@ -98,7 +100,7 @@ def smoke_test() -> None:
             raise SystemExit(f"FAILED: pixelref-cli {' '.join(args)}\n{result.stdout}\n{result.stderr}")
         return result.stdout
 
-    print("1/4 bundled pip:", run("--run-pip", "--version").strip())
+    print("1/5 bundled pip:", run("--run-pip", "--version").strip())
 
     wheel = make_wheel(work, "pixelref-smoke", "1.0.0", "MESSAGE = 'installed and imported'\n")
     script = work / "smoke.py"
@@ -117,7 +119,7 @@ def smoke_test() -> None:
         print("stdlib: ok")
         print("frozen:", getattr(sys, "frozen", False))
     """), encoding="utf-8")
-    print("2/4 batch mode + package install:")
+    print("2/5 batch mode + package install:")
     print(textwrap.indent(run("--batch", str(script)).strip(), "    "))
 
     # The real UI kernel (offscreen): catches Qt libraries the spec left out by mistake.
@@ -145,11 +147,22 @@ def smoke_test() -> None:
         assert guide_path() is not None, "Getting Started board (onboard.pxref) is not bundled"
         print("ui: canvas renders, image formats:", ", ".join(sorted(formats)))
     """), encoding="utf-8")
-    print("3/4 UI kernel (offscreen):")
+    print("3/5 UI kernel (offscreen):")
     print(textwrap.indent(run("--batch", str(ui_script)).strip(), "    "))
 
+    plugin = work / "signed" / "smoke_plugin"
+    plugin.mkdir(parents=True)
+    (plugin / "plugin.toml").write_text('id = "smoke_plugin"\nname = "Smoke"\nlicense = "MIT"\n'
+                                        '[author]\nname = "Smoke test"\n[source]\nhomepage = "https://example.com"\n',
+                                        encoding="utf-8")
+    (plugin / "__init__.py").write_text("def activate(ctx):\n    pass\n", encoding="utf-8")
+    run("plugin", "keygen", str(work / "smoke.pem"), "--name", "Smoke test")
+    run("plugin", "sign", str(plugin), "--key", str(work / "smoke.pem"))
+    print("4/5 plugin signing:", run("plugin", "verify", str(plugin), "--publisher",
+                                     str(work / "smoke.pub.toml")).strip())
+
     size = sum(f.stat().st_size for f in DIST.rglob("*") if f.is_file())
-    print(f"4/4 build size: {size / 1e6:.0f} MB in {DIST}")
+    print(f"5/5 build size: {size / 1e6:.0f} MB in {DIST}")
     print("Smoke test passed.")
 
 

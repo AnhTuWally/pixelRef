@@ -149,11 +149,24 @@ class ServiceRegistry:
     def __init__(self) -> None:
         self._services: dict[str, tuple[Any, str | None]] = {}
 
-    def provide(self, name: str, service: Any, plugin: str | None = None) -> Disposable:
-        if name in self._services:
-            raise ValueError(f"Service '{name}' is already provided by {self._services[name][1]}")
-        self._services[name] = (service, plugin)
-        return Disposable(lambda: self._services.pop(name, None))
+    def provide(self, name: str, service: Any, plugin: str | None = None, replace: bool = False) -> Disposable:
+        """Provide a service. A name that is taken fails, unless ``replace``: then this one
+        stands in for the existing service until disposed."""
+        previous = self._services.get(name)
+        if previous is not None and not replace:
+            owner = f"plugin '{previous[1]}'" if previous[1] else "pixelRef"
+            raise ValueError(f"Service '{name}' is already provided by {owner}")
+        entry = (service, plugin)
+        self._services[name] = entry
+
+        def withdraw() -> None:
+            if self._services.get(name) is entry:
+                if previous is not None:
+                    self._services[name] = previous
+                else:
+                    del self._services[name]
+
+        return Disposable(withdraw)
 
     def get(self, name: str, default: Any = None) -> Any:
         entry = self._services.get(name)

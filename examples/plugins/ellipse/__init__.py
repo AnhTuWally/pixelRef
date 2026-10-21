@@ -14,7 +14,7 @@ Shows the layers of a pixelRef feature:
 
 Try it::
 
-    python -m pixelref --plugin-path examples/plugins
+    python -m pixelref --trust-plugin-path examples/plugins
     # then press O and drag, or in the Script Editor:
     pxcmd.ellipse.create(0, 0, 200, 120, fill_color=[80, 160, 255], fill_opacity=0.5)
 """
@@ -60,8 +60,9 @@ def activate(ctx: Any) -> None:
         session.selection.set([final])
         return final
 
-    # Registered as ``ellipse.create``: commands are namespaced by plugin id.
-    ctx.command("create", create, alias="create_ellipse", label="Draw Ellipse")
+    # Registered as ``ellipse.create``: commands are namespaced by plugin id. A flat alias
+    # (alias="...") must not be taken already: the built-in rect plugin owns create_ellipse.
+    ctx.command("create", create, label="Draw Ellipse")
 
 
 def activate_ui(ui: Any) -> None:

@@ -141,7 +141,9 @@ def corners_close(a: list, b: list, tol: float = 0.05) -> bool:
 class Harness:
     """One running App (its own session) with the default Board workspace showing."""
 
-    def __init__(self, plugin_paths: tuple = (), only: Any = None, fresh_panels: bool = True) -> None:
+    def __init__(self, plugin_paths: tuple = (), only: Any = None, fresh_panels: bool = True,
+                 trusted: bool = True) -> None:
+        """``plugin_paths`` are trusted for the run (like --trust-plugin-path) unless ``trusted=False``."""
         from pixelref.ui import create_app
 
         if fresh_panels:  # every test starts with the default panel layout
@@ -149,7 +151,8 @@ class Harness:
         work = tmp_dir()
         os.chdir(work)
         self.work = work
-        self.app = create_app([], persist_layout=False, plugin_paths=plugin_paths, load_user_files=False)
+        paths = {"trusted_plugin_paths" if trusted else "plugin_paths": plugin_paths}
+        self.app = create_app([], persist_layout=False, load_user_files=False, **paths)
         self.session = self.app.session
         self.window = self.app.wm.primary_window()
         self.window.resize(1400, 860)

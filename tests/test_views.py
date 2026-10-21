@@ -162,3 +162,28 @@ def test_markers_are_shared_coloured_and_show_the_current_one():
         assert app.run_command("views.update_camera", None, "ReviewValue") is None, "no current marker: nothing to update"
     finally:
         h.close()
+
+
+def test_zoom_out_limit_follows_the_board():
+    h = make()
+    try:
+        view = h.view
+        assert view.min_zoom() == view.MIN_ZOOM, "an empty board stops at MIN_ZOOM"
+        h.add_image("near", 0.0, 0.0)
+        assert view.min_zoom() == view.MIN_ZOOM, "a small board doesn't zoom out further"
+        h.add_image("far", 400_000.0, 300_000.0)
+        limit = view.min_zoom()
+        assert view.FLOOR_ZOOM <= limit < view.MIN_ZOOM, "a board spread wide may be zoomed out further"
+        for _ in range(200):
+            view.zoom_by(0.5)
+        assert abs(view.zoom_level() - limit) < 1e-9, "zooming out stops at the limit"
+        # The board shrinks: a camera already below the limit stays there instead of jumping in.
+        h.run("delete", ["far"])
+        h.refresh()
+        assert view.min_zoom() == view.MIN_ZOOM
+        view.zoom_by(0.5)
+        assert abs(view.zoom_level() - limit) < 1e-9
+        view.set_camera(zoom=1e-9)
+        assert view.camera()["zoom"] == view.FLOOR_ZOOM, "scripts are held only by the hard floor"
+    finally:
+        h.close()

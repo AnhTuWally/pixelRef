@@ -84,6 +84,12 @@ to your settings.
 
 ## For AI agents (MCP)
 
+**It is off by default.** Switch on *AI assistant connection (MCP)* in
+*Window → Plugins…* first (or `pxcmd.load_plugin("mcp")`); until then the
+server says how to do that and exits. Once it's on, *Copy AI Assistant (MCP)
+Setup* (Ctrl+K) copies the Claude Code line for this computer, and
+`pxcmd.mcp.setup()` also gives the JSON other apps use.
+
 `python -m pixelref mcp` is a [Model Context Protocol](https://modelcontextprotocol.io)
 server over stdio. Point an AI client at it and the agent can look things up
 while it talks with you, for example "how do I blur a face?" or "write a

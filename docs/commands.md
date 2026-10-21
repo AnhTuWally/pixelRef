@@ -12,9 +12,12 @@ the rest also work headless (batch mode, scripts).
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
 | `add_attr(node: str, name: Any, type: str = 'any', default: Any = None, value: Any = None, **spec: Any)` |  | yes | Add a dynamic attribute to one node (saved with the scene); ``name`` may also be an ``Attr``. |
+| `add_plugin_source(path: str, label: str = '', policy: str = 'ask')` |  |  | Look for plugins in another folder too (remembered); its plugins still need approving. |
+| `add_trusted_publisher(public_key: str, name: str = '')` |  |  | Trust a publisher's signing key: a ``*.pub.toml`` file or the base64 key itself. |
 | `attr_info(node: str, attr: str)` |  |  | The specification of one attribute. |
 | `attrs(node: str, computed: bool = True, hidden: bool = True)` |  |  | Attribute names of a node. |
 | `children(node: str, all_descendants: bool = False, type: str \| None = None)` |  |  | The children (or all descendants) of a node, optionally of one type. |
+| `clear_plugin_activity(plugin_id: str \| None = None)` |  |  | Forget the recorded activity (of one plugin, or all). |
 | `create_node(node_type: str, name: str \| None = None, parent: str \| None = None, attrs: dict[str, Any] \| None = None, index: int \| None = None, **attr_values: Any)` |  | yes | Create a node; taken names get a numbered suffix. Returns the new name. |
 | `delete(nodes: Any = None)` |  | yes | Delete nodes (and everything below them). |
 | `delete_attr(node: str, name: str)` |  | yes | Remove a dynamic attribute. |
@@ -34,6 +37,7 @@ the rest also work headless (batch mode, scripts).
 | `load_plugin(plugin_id: str)` |  |  | Enable a plugin (remembered between sessions). |
 | `ls(type: str \| list[str] \| None = None, tags: str \| list[str] \| None = None, selection: bool = False, visible: bool \| None = None, pattern: str \| None = None, roots: bool = False)` |  |  | List nodes in scene order, optionally filtered. |
 | `move_nodes(nodes: Any, parent: str \| None = None, anchor: str \| None = None, place: str = 'end')` |  | yes | Reparent (keeping canvas placement) and position among the new siblings. |
+| `move_plugin_source(path: str, offset: int)` |  |  | Move an added source up (-1) or down (1): earlier sources win when two hold the same plugin. |
 | `new_scene()` |  |  | Clear the document and start a new scene. |
 | `node_id(node: str)` |  |  | A node's permanent unique id (names can change, ids don't). |
 | `node_type(node: str)` |  |  | The type of a node. |
@@ -56,11 +60,22 @@ the rest also work headless (batch mode, scripts).
 | `panels.toggle_all()` |  |  | Hide or show the sidebar and floating panels (Tab on the canvas). True when shown. |
 | `parent(nodes: Any = None, parent: str \| None = None, index: int \| None = None, preserve_transform: bool = True)` |  | yes | Parent nodes under ``parent`` (None = scene root), keeping them in place on the canvas. |
 | `parent_of(node: str)` |  |  | The parent of a node, or None for a top-level node. |
+| `plugin_activity(plugin_id: str, limit: int = 100, violations_only: bool = False)` |  |  | What the activity monitor noticed a third-party plugin doing, newest last. |
+| `plugin_changes(plugin_id: str)` |  |  | Files changed since the plugin was approved: "+ added", "- removed", "~ changed". |
 | `plugin_info(plugin_id: str)` |  |  | Details of one plugin (manifest, status, error). |
+| `plugin_monitor(enabled: bool \| None = None)` |  |  | Turn the plugin activity monitor on or off (or just say whether it's on). |
+| `plugin_resolve(plugin_id: str, path: str)` |  |  | Use the copy of a plugin in ``path`` when several sources hold one with that id. |
+| `plugin_revoke_trust(plugin_id: str)` |  |  | Forget a plugin's approval and switch it off. |
+| `plugin_sources()` |  |  | Where plugins are looked for (in precedence order), with their trust policy and warnings. |
+| `plugin_trust(plugin_id: str, enable: bool = True, allow_invalid: bool = False)` |  |  | Approve a third-party plugin's current files and switch it on (``enable=False``: just approve). |
+| `plugins_needing_review()` |  |  | Third-party plugins that are new or changed and wait for your decision. |
 | `redo()` |  |  | Redo the last undone change; returns its label. |
 | `reload_plugin(plugin_id: str)` |  |  | Re-import a plugin's code (for plugin development). |
+| `remove_plugin_source(path: str)` |  |  | Stop looking for plugins in a folder you added. |
+| `remove_trusted_publisher(key_id: str)` |  |  | Stop trusting a publisher's key (its plugins then need approving one by one). |
 | `rename(node: str, new_name: str)` |  | yes | Rename a node. Names are unique: renaming to a taken name is an error. |
 | `reorder(nodes: Any = None, mode: str = 'front')` |  | yes | Change stacking: front, back, forward or backward (within each parent). |
+| `rescan_plugins()` |  |  | Look in every source again; returns the ids of plugins waiting for review. |
 | `restack(names: list[str])` |  | yes | Set the order of siblings, back-most first. |
 | `save_scene(path: str \| None = None)` |  |  | Save the scene (to its current file when ``path`` is omitted). |
 | `scene_info()` |  |  | Summary of the open scene. |
@@ -68,7 +83,9 @@ the rest also work headless (batch mode, scripts).
 | `selected()` |  |  | The selected node names. |
 | `set_attr(target: str, *values: Any)` |  | yes | ``set_attr("Node.attr", value)`` or ``set_attr("Node", "attr", value)``. |
 | `set_attrs(node: str, attrs: dict[str, Any])` |  | yes | Set several attributes of one node. |
+| `set_plugin_source(path: str, enabled: bool \| None = None, policy: str \| None = None, label: str \| None = None)` |  |  | Switch a source on or off, or change its policy: "ask", "signed_only" or "trust_all". |
 | `set_transform(nodes: Any = None, translate: Iterable[float] \| None = None, rotate: float \| None = None, scale: Iterable[float] \| float \| None = None, pivot: Iterable[float] \| None = None, relative: bool = False, world_space: bool = False)` |  | yes | Set the core transform attributes. |
+| `trusted_publishers()` |  |  | Publishers whose signed plugins load without asking. |
 | `undo()` |  |  | Undo the last change; returns its label. |
 | `undo_info()` |  |  | The undo and redo labels, oldest first. |
 | `unload_plugin(plugin_id: str)` |  |  | Disable a plugin (remembered between sessions); its UI disappears, nodes stay. |
@@ -103,7 +120,7 @@ the rest also work headless (batch mode, scripts).
 | `ui.active_view()` | `active_view` |  | The name of the canvas view that commands act on (the focused or last-used one). |
 | `ui.confirm_dialog(message: str, title: str = 'pixelRef')` | `confirm_dialog` |  | Ask a yes/no question; returns True for yes. |
 | `ui.in_view_message(text: str, color: str \| None = None)` | `in_view_message` |  | Show a short message over the active canvas view. |
-| `ui.plugins()` |  |  | Open the plugin manager. |
+| `ui.plugins(query: str = '', show: str = 'all')` |  |  | Open the plugin manager, searching for ``query``, showing only ``show`` (active, off, attention…). |
 | `ui.prompt_dialog(message: str, title: str = 'pixelRef', text: str = '')` | `prompt_dialog` |  | Ask for a line of text; returns None when cancelled. |
 | `ui.status(text: str)` | `status` |  | Show a message in the status bar. |
 | `ui.views()` | `views` |  | Names of the canvas views (tiles). |
@@ -394,6 +411,37 @@ the rest also work headless (batch mode, scripts).
 | --- | --- | --- | --- |
 | `inspector.set_opacity(nodes: Any, opacity: float)` |  | yes | Set the opacity of several nodes. |
 
+## interactions
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `interactions.add_step(node: Any, command: str, *args: Any, back: list \| None = None, **kwargs: Any)` |  | yes | Append one step to an item's click action; returns how many steps it has. |
+| `interactions.check(node: Any = None)` |  |  | The steps of an item's click action that can't run now: [{"index", "step", "reason"}]. |
+| `interactions.clear(nodes: Any = None)` |  | yes | Remove the click actions of items (default: the selection). |
+| `interactions.clear_log()` |  |  | Forget the click log (and the failed state it gives items). |
+| `interactions.click(node: Any = None, back: bool \| None = None)` |  | yes | Run an item's click action (``back=True``: put back what it changed). One undo step. |
+| `interactions.connect(node: Any, target: Any, verb: str = 'show')` |  | yes | Connect an item to another: its click does ``verb`` to it (show, hide, frame, play, pause, |
+| `interactions.create_button(x: float = 0.0, y: float = 0.0, label: str = 'Button', name: str \| None = None, **attrs: Any)` |  | yes | Place a button with its top-left corner at (x, y). |
+| `interactions.demonstrate(node: Any = None)` |  |  | Start demonstrating an item's click: change the board the way it should look after the |
+| `interactions.demonstrating()` |  |  | The item whose click is being demonstrated, or None. |
+| `interactions.describe(node: Any = None)` |  |  | An item's click action as sentences ("Show answer", "Go to frame 5 · walk"). |
+| `interactions.finish(cancel: bool = False, view: dict \| None = None)` |  |  | Finish demonstrating: what changed becomes the click action and the board goes back |
+| `interactions.finish_ui()` |  |  | Done: finish the demonstration (with this view if "Include this view" is ticked). |
+| `interactions.fly_to(node: str, view: str \| None = None)` |  |  | Fly a view to an item (smoothly), fitting it in the view. |
+| `interactions.log(node: Any = None, limit: int = 50, problems_only: bool = False)` |  |  | What clicks did this session, newest last: time, node, on, ran, problems, status. |
+| `interactions.make_before_after(nodes: Any = None)` |  | yes | For two selected items (before, then after): a button that swaps which one shows; the |
+| `interactions.make_reveal(nodes: Any = None)` |  | yes | A button above the selected items that shows them; they hide until it's clicked, and |
+| `interactions.make_set(nodes: Any = None, name: str \| None = None)` |  | yes | Make items one-at-a-time: clicking one turns the others off (default: the selection). |
+| `interactions.make_tabs(nodes: Any = None)` |  | yes | A row of buttons above the selected items, one per item: each shows its item and hides |
+| `interactions.pick_target(node: str \| None = None)` |  |  | Connect…: the next click on the canvas picks the item the click acts on. |
+| `interactions.place_button(label: str = 'Button')` |  | yes | Place a button in the middle of the view and select it. |
+| `interactions.remove_step(index: int, node: Any = None)` |  | yes | Remove step ``index`` (from 0) of an item's click action; returns how many are left. |
+| `interactions.set_action(node: Any, steps: list, toggles: bool \| None = None, action_set: str \| None = None)` |  | yes | Replace an item's click action with ``steps`` (see the plugin's docs for the format). |
+| `interactions.set_toggles(toggles: bool, nodes: Any = None)` |  | yes | Whether clicking again puts back what the click changed. |
+| `interactions.show_log(node: str \| None = None)` |  |  | Open the Click Action Log (``node``: only that item's runs, to start with). |
+| `interactions.status(node: Any = None)` |  |  | An item's click action: "ok", "partial" or "failed" (its last run had problems), |
+| `interactions.verbs(target: Any)` |  |  | What connecting to ``target`` offers: [{"id", "label"}]. |
+
 ## links
 
 | Command | Alias | Undo | Description |
@@ -423,6 +471,13 @@ the rest also work headless (batch mode, scripts).
 | `macros.remove_last()` |  |  | Take the last step out of the macro being recorded; returns it. |
 | `macros.run(commands: list[str] \| None = None, python: str \| None = None, script: str \| None = None, label: str = 'Macro')` | `run_macro` | yes | Run a macro as one undo step: action/command names in order, Python code or a script file. |
 | `macros.run_script(path: str)` | `run_user_script` | yes | Run a script file from the scripts folder (or a full path) as one undo step. |
+
+## mcp
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `mcp.copy_setup()` |  |  | Copy the command that adds pixelRef to Claude Code (other AI apps: pxcmd.mcp.setup()). |
+| `mcp.setup()` |  |  | How to add pixelRef to an AI app: the Claude Code command line and the JSON other MCP apps use. |
 
 ## minimap
 
@@ -472,6 +527,7 @@ the rest also work headless (batch mode, scripts).
 | `outliner.show_all()` | `show_all` | yes | Make every node visible (Alt+H). |
 | `outliner.toggle_lock(nodes: Any = None)` | `toggle_lock` | yes | Lock the nodes (or unlock them if all are locked). |
 | `outliner.toggle_visibility(nodes: Any = None)` | `toggle_visibility` | yes | Hide the nodes (or show them if all are hidden). |
+| `outliner.unlock(nodes: Any = None)` |  | yes | Unlock the nodes so they can be selected again, and the locked groups holding them. |
 | `outliner.unlock_all()` | `unlock_all` | yes | Unlock every node (Alt+L). |
 
 ## pen

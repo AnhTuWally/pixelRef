@@ -231,3 +231,39 @@ def test_mcp_server_protocol():
         assert call("resources/list")["error"]["code"] == -32601
     finally:
         h.close()
+
+
+def test_mcp_server_is_off_until_its_plugin_is_switched_on():
+    import contextlib
+    import io
+
+    from pixelref.core.settings import MemorySettings
+    from pixelref.mcp_server import main, mcp_enabled
+
+    settings = MemorySettings()
+    assert not mcp_enabled(settings), "off by default"
+    settings.setValue("plugins/enabled", ["mcp"])
+    assert mcp_enabled(settings)
+    settings.setValue("plugins/disabled", ["mcp"])
+    assert not mcp_enabled(settings)
+    h = make()
+    try:
+        record = h.session.plugins.get("mcp")
+        assert record is not None and not record.active and not h.session.commands.exists("mcp.setup")
+        # The command line reads the user's settings: switched off, it explains and exits without serving.
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            assert main([]) == 1
+        assert "Window > Plugins" in err.getvalue() and "AI assistant connection (MCP)" in err.getvalue()
+        h.session.plugins.set_enabled("mcp", True)
+        assert mcp_enabled(), "the switch in the Plugins window is the switch for the server"
+        setup = h.session.run("mcp.setup")
+        assert setup["claude_code"].startswith("claude mcp add pixelref -- ") and setup["command"][-1] == "mcp"
+        assert setup["json"]["mcpServers"]["pixelref"]["args"][-1] == "mcp"
+        assert h.app.actions.get("mcp.copy_setup") is not None
+        h.session.plugins.set_enabled("mcp", False)
+        assert not mcp_enabled()
+    finally:
+        h.session.settings.remove("plugins/enabled")
+        h.session.settings.remove("plugins/disabled")
+        h.close()

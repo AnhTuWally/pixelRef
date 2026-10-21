@@ -300,6 +300,12 @@ renames, eye/lock columns, a name filter, `G` group / `Ctrl+Shift+G`
 ungroup, `Ctrl+Shift+N` new group. Reparenting keeps items exactly where they
 are on the board. The stacking keys are under [Arrange](#arrange).
 
+**Unlocking on the canvas.** A locked item can't be clicked to select it, but
+hovering it with the Select tool shows a 🔒 badge in its corner: click the
+badge to unlock the item and select it. Right-clicking a locked item also offers
+**Unlock ‹name›** at the top of the menu. Both unlock the locked groups holding
+the item too, so it really becomes editable. `Alt+L` unlocks everything.
+
 **Filtering by type.** The **Types** menu next to the name filter has two
 halves. *Show in Outliner* has a check box per node type in the scene, plus
 collections such as *Annotations* (every rectangle, arrow, text note and pen
@@ -433,6 +439,88 @@ slider, a go-to-frame field (also *Go to Frame…* in the right-click
 
 A paused image keeps its frame when the scene is saved. Playback isn't
 undoable, like camera moves.
+
+## Interactive boards
+
+Any item can do something when it's clicked: show the answer to a question,
+hide a draft, swap a before for an after, jump a GIF to frame 5 or fly the
+view somewhere. That's its **click action**. Buttons (*Insert Button* in the
+right-click menu) exist only to carry one, but a picture, a note or a shape
+can have one too.
+
+**Show it what to do (Demonstrate).** Select the item, then *Click Action ›
+Demonstrate Click Action…* (or **Demonstrate…** in the Attribute Editor's
+*Click Action* section). A green frame and banner appear. Change the board
+the way it should look *after* the click: hide things, move them, fade them,
+step a GIF to a frame, draw something new. Then press **Done** (`Ctrl+Enter`).
+pixelRef works out what changed, saves it as the click action and puts the
+board back as it was. Anything you drew meanwhile stays, hidden until the
+click. Tick **Include this view** in the banner to fly the view to where it is
+now as well. **Cancel** throws the demonstration away. Either way the whole
+demonstration is one undo step.
+
+**Or connect it to an item.** A selected button has a round handle beside
+it. Drag the handle onto another item and choose what the click does to that
+item: *Show it (hidden until the click)*, *Hide it*, *Go to the frame on show*,
+*Play it*, *Pause it*, *Fly the view to it*, or *Run its click action*.
+*Connect Click To…* (right-click menu, or **Connect…** in the Attribute
+Editor) does the same thing with a click on the target instead of a drag.
+
+**Or start from a template.** Select some items and use *Click Action*:
+
+| Template | Makes |
+| --- | --- |
+| *Make Tabs from Selection* | one button per item above them; each shows its item and hides the others, like tabs |
+| *Make Reveal Button* | a button that shows the selected items (hidden until clicked) |
+| *Make Before / After Button* | for two items, a button that swaps which one shows |
+
+**Running it.** On the canvas, only a **locked** item runs its click action:
+a plain click on it runs it, and the pointer turns into a hand over it. An
+unlocked item is one you're still editing, so a click selects it as usual.
+Lock an item with the lock in the Outliner or the Attribute Editor; locking
+your buttons is how you finish a board before sharing it. To edit a locked
+button again, click the 🔒 badge in its corner (or right-click it → **Unlock**).
+
+To try an unlocked item's action while you edit, select it and click **▶ Run**
+in the quick-edit bar under it (**↺ Reset** puts things back), or **Try it**
+in the Attribute Editor.
+
+**The Click Action section** of the Attribute Editor lists the steps as
+sentences ("Show Answer", "Go to frame 5 · walk_cycle"). Point at a sentence
+to outline its item on the canvas, and click × to remove the step. **Try it**
+runs the action, **Reset** puts back what it changed, and **Demonstrate
+again…** starts from the action's result so you can adjust it.
+
+- **Click again to put things back** (on by default): a second click undoes
+  the first, so a reveal button hides the answer again.
+- **One at a time with**: give several items the same set name (or use *Make
+  One-at-a-Time Set*). Clicking one turns off the one that's on, like tabs. A
+  button that's on draws an outline and a dot in its *When on* colour.
+
+Steps refer to items by id, so renaming an item doesn't break them. A step
+whose item was deleted is skipped.
+
+**When something goes wrong.** An item whose click action has a problem gets
+an amber dashed outline. That happens when its last run skipped or failed a
+step, or when a step can't run at all (its item was deleted, or it needs a
+plugin that's off). Pointing at the item says what's wrong in the status bar,
+and **▶ Run** in its quick-edit bar turns amber. A click that goes wrong also
+shows a toast with a **Show Log** button. In the Click Action section, each bad
+step is amber with the reason under it, with a line such as "Last run 14:03:05
+(on): 1 of 2 steps ran". The outline goes away after a run with no problems,
+or once you remove or fix the bad step.
+
+**The Click Action Log** (*Click Action › Click Action Log…*, the **Log…**
+button in the section, or `Ctrl+K`) lists every click this session, newest
+first: the time, the item (click its name to select it), on or off, how many
+steps ran, and for each failed or skipped step, why. Tick *Only problems* to
+hide the clicks that worked. The log isn't saved with the board; **Clear**
+empties it.
+
+Clicking is an ordinary command (`pxcmd.interactions.click("Reveal")`), so it can be undone.
+A board can only run the steps pixelRef allows in click actions (show, hide,
+set attributes, GIF frames, playing, flying the view, clicking another item),
+never arbitrary scripts, so a board someone sends you is safe to click.
 
 ## Contact sheet
 
@@ -584,7 +672,36 @@ Python and your own key modes. See [keymap.md](keymap.md).
 
 ## Plugins
 
+> **Plugins and scripts run with the same access as you.** They can read and
+> change your files, use the network and start other programs. Only install
+> them from people you trust. See
+> [Staying safe with plugins and scripts](security.md), which is also the
+> *Safety* tab of *Window → Plugins…*.
+
 *Window → Plugins…* enables and disables plugins at runtime. Nodes of a
 disabled plugin's types keep their data and show as placeholders. Plugins
-that need Python packages install them from the same window. See
-[plugins.md](plugins.md).
+that need Python packages install them from the same window.
+
+- **Find a plugin** by typing in the search box: its name, author, a tag, or
+  something it provides (a command, tool or node type). The buttons under it
+  show only active, off, built-in or third-party plugins, or the ones that
+  **need attention** (waiting for review, failed, conflicting, or doing
+  things they didn't declare).
+- **Read about a plugin** on its page beside the list: who made it and how
+  pixelRef knows (signature, your approval), what it declares it does, what
+  it provides, what it needs, what the activity monitor noticed it doing, and
+  its own notes. *Open in Help* shows the same in the Help browser.
+- **New plugins stay off** until you approve them. Ticking one opens the
+  approval dialog, which shows what it says about itself. A plugin whose
+  files changed since you approved it stops until you approve it again.
+- **Add plugin folders** in the *Sources* tab: a studio share, a folder of
+  downloaded plugins. Each folder's policy decides whether its plugins need
+  approving, must be signed by a trusted publisher, or (for your own
+  development folder) are all trusted. When two folders hold the same plugin,
+  its page lists both copies and lets you choose.
+- **Trusted publishers** (also in *Sources*): add a publisher's key once, and
+  plugins they sign load without asking.
+
+When new or changed plugins wait for review, pixelRef says so at startup.
+*Help → Staying Safe with Plugins & Scripts…* opens the safety guide.
+See [plugins.md](plugins.md) for writing plugins.

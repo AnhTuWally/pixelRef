@@ -63,6 +63,14 @@ class UndoStack:
     def labels(self) -> list[str]:
         return [label for label, _state in self._undo]
 
+    def __len__(self) -> int:
+        return len(self._undo)
+
+    def truncate(self, size: int) -> None:
+        """Forget the undo steps after the first ``size`` (and the redo stack)."""
+        del self._undo[max(0, size):]
+        self._redo.clear()
+
     def clear(self) -> None:
         self._undo.clear()
         self._redo.clear()
@@ -183,6 +191,12 @@ class UndoManager:
     def snapshot(self, label: str = "") -> None:
         """Record the current state as an undo step (for edits made outside a chunk)."""
         self.stack.checkpoint(self._dump(), label)
+        self._notify("checkpoint", label)
+
+    def record(self, before: str, label: str = "") -> None:
+        """Record an undo step that goes back to ``before`` (a ``dump``), for edits that
+        replaced several steps with one (a demonstration turned into a click action)."""
+        self.stack.checkpoint(before, label)
         self._notify("checkpoint", label)
 
     # ---- Undo / redo -------------------------------------------------------------------

@@ -283,3 +283,7 @@ def activate_ui(ui: Any) -> None:
               tip="Search every tool, command, attribute and guide; over a button or field, shows its help")
     ui.bind("Shift+F1", "help.docs")
     ui.menu("canvas", "help.docs", group="app", order=-0.5)
+    ui.action("help.security", "help.docs", "Staying Safe with Plugins & Scripts…", args=("guide:security",),
+              keywords="security safety trust malicious plugins scripts packages risk warning approve",
+              category="Window", icon="info")
+    ui.menu("canvas", "help.security", group="app", order=-0.25)

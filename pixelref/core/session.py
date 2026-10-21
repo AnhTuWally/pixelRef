@@ -61,6 +61,7 @@ class Session:
         only_plugins: set[str] | None = None,
         make_current: bool = True,
         packages: PackageManager | None = None,
+        trusted_plugin_paths: list[Path] | tuple[Path, ...] = (),
     ) -> None:
         self.settings = settings if settings is not None else MemorySettings()
         # Python packages installed from the Plugins window: on sys.path before
@@ -87,8 +88,11 @@ class Session:
         self._geometry_providers: list[GeometryProvider] = []
         if user_plugin_dir is None and os.environ.get("PIXELREF_USER_PLUGINS"):
             user_plugin_dir = Path(os.environ["PIXELREF_USER_PLUGINS"])
+        # plugin_paths: plugins there need the user's approval; trusted_plugin_paths
+        # (--trust-plugin-path, tests, developer setups) are trusted for this run.
         self.plugins = PluginManager(self, paths=list(plugin_paths), builtins=builtins,
-                                     user_dir=user_plugin_dir, only=only_plugins)
+                                     user_dir=user_plugin_dir, only=only_plugins,
+                                     trusted_paths=list(trusted_plugin_paths))
 
         self.packages.watch(lambda _result: self.plugins.refresh_python_requirements())
         self.undo.subscribe(self._on_undo_event)

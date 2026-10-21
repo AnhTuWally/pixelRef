@@ -160,6 +160,7 @@ class App:
         from .package_jobs import check_packages_on_start
 
         QTimer.singleShot(0, lambda: None if self.closed else check_packages_on_start(self))
+        QTimer.singleShot(0, lambda: None if self.closed else self.notify_plugin_review())
 
     # ---- Paths ----------------------------------------------------------------------------
 
@@ -458,11 +459,13 @@ class App:
             return [{"id": p.id, "title": p.title, "mode": app.panels.mode(p.id), "shown": app.panels.is_shown(p.id)}
                     for p in app.panels.ordered()]
 
-        def show_plugins() -> None:
-            """Open the plugin manager."""
+        def show_plugins(query: str = "", show: str = "all") -> None:
+            """Open the plugin manager, searching for ``query``, showing only ``show`` (active, off, attention…).
+
+            ``show``: "all", "active", "off", "attention" (waiting for review, errors…), "builtin" or "external"."""
             from .plugin_manager import PluginManagerDialog
 
-            PluginManagerDialog(app, app.main_window()).exec()
+            PluginManagerDialog(app, app.main_window(), query=query, show=show).exec()
 
         for name, fn, options in (
             ("tools.set", set_tool, {"alias": "set_tool", "undoable": False}),
@@ -856,6 +859,18 @@ class App:
     def on_layout_applied(self) -> None:
         self.panels.raise_cards()
         self.events.emit("layout.applied", {})
+
+    def notify_plugin_review(self) -> list[str]:
+        """Say when third-party plugins are new or changed and wait for the user's review."""
+        from .security_text import review_toast
+
+        waiting = self.session.plugins.needs_review()
+        if waiting:
+            message = review_toast(len(waiting))
+            self.set_status(f"{message}: Window → Plugins…")
+            self.toast(message, QColor("#e0b341"), duration_ms=12000,
+                       actions=[("Review", lambda: self.run_command("ui.plugins", show="attention"))])
+        return waiting
 
     def _on_plugins_changed(self) -> None:
         if self.started:

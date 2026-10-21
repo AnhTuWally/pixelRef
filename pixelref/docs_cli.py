@@ -26,9 +26,10 @@ from pathlib import Path
 from typing import Any
 
 
-def build_app(user: bool = True, plugin_paths: tuple[str, ...] = ()) -> Any:
+def build_app(user: bool = True, plugin_paths: tuple[str, ...] = (), trusted_paths: tuple[str, ...] = ()) -> Any:
     """An offscreen App whose ``session.docs`` holds every entry. In-memory settings, so the
-    user's real settings are never written; plugins' prints go to stderr (stdout may be a protocol)."""
+    user's real settings are never written (their plugin choices and approvals are copied in,
+    so the same plugins load as in the app); plugins' prints go to stderr (stdout may be a protocol)."""
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication
 
@@ -39,8 +40,13 @@ def build_app(user: bool = True, plugin_paths: tuple[str, ...] = ()) -> Any:
     from .ui import _user_plugin_dir
     from .ui.app import App
 
+    from .core.settings import MemorySettings
+    from .ui.settings import plugin_choices
+
+    settings = plugin_choices() if user else MemorySettings()
     with contextlib.redirect_stdout(sys.stderr):
-        session = Session(plugin_paths=tuple(Path(p) for p in plugin_paths),
+        session = Session(settings=settings, plugin_paths=tuple(Path(p) for p in plugin_paths),
+                          trusted_plugin_paths=tuple(Path(p) for p in trusted_paths),
                           user_plugin_dir=_user_plugin_dir() if user else None)
         session.start()
         return App(session, persist_layout=False, load_user_files=user)
@@ -49,11 +55,15 @@ def build_app(user: bool = True, plugin_paths: tuple[str, ...] = ()) -> Any:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="pixelref docs", description="Search pixelRef's documentation.")
     parser.add_argument("--no-user", action="store_true", help="leave out your own plugins and keymap.toml")
-    parser.add_argument("--plugin-path", action="append", default=[], metavar="DIR", help="also load plugins from DIR")
+    parser.add_argument("--plugin-path", action="append", default=[], metavar="DIR",
+                        help="also load plugins from DIR (the ones you approved in the app)")
+    parser.add_argument("--trust-plugin-path", action="append", default=[], metavar="DIR",
+                        help="also load every plugin in DIR, trusting its code for this run")
     # The same options after the action too (`docs search blur --no-user`); SUPPRESS keeps the ones given before it.
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--no-user", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
     common.add_argument("--plugin-path", action="append", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    common.add_argument("--trust-plugin-path", action="append", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
     sub = parser.add_subparsers(dest="action", required=True)
     sub.add_parser = functools.partial(sub.add_parser, parents=[common])
     search = sub.add_parser("search", help="find entries (every word must match)")
@@ -73,7 +83,8 @@ def main(argv: list[str]) -> int:
     export.add_argument("-o", "--output", help="file to write (default: standard output)")
     args = parser.parse_args(argv)
 
-    app = build_app(user=not args.no_user, plugin_paths=tuple(args.plugin_path))
+    app = build_app(user=not args.no_user, plugin_paths=tuple(args.plugin_path),
+                    trusted_paths=tuple(args.trust_plugin_path))
     docs = app.session.docs
     try:
         if args.action == "search":

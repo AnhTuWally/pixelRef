@@ -102,20 +102,46 @@ class CommandRegistry:
         alias: str | None = None,
         plugin: str | None = None,
         doc: str = "",
+        replace: bool = False,
     ) -> Disposable:
+        """Register a command. A name (or alias) that is taken fails, naming its owner; with
+        ``replace=True`` the new command stands in for an existing one of that name until
+        disposed, when the original comes back."""
         if not re.fullmatch(r"[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*", name):
             raise CommandError(f"Invalid command name '{name}' (use snake_case, dots for namespaces)")
-        if name in self._commands or name in self._aliases:
-            raise CommandError(f"Command '{name}' is already registered")
-        if alias and (alias in self._commands or alias in self._aliases):
-            raise CommandError(f"Command alias '{alias}' is already registered")
+        previous = self._commands.get(name) if replace else None
+        if previous is None and (name in self._commands or name in self._aliases):
+            raise CommandError(f"Command '{name}' is already registered by {self._owner(name)}")
+        if alias and alias != (previous.alias if previous else None) and (
+                alias in self._commands or alias in self._aliases):
+            raise CommandError(f"Command alias '{alias}' is already registered by {self._owner(alias)}")
+        if previous is not None and previous.alias:
+            self._aliases.pop(previous.alias, None)
         command = Command(name=name, fn=fn, label=label, undoable=undoable, echo=echo, alias=alias,
                           plugin=plugin, doc=doc or (fn.__doc__ or "").strip())
         self._commands[name] = command
         if alias:
             self._aliases[alias] = name
         self._changed()
-        return Disposable(lambda: self.unregister(name))
+        if previous is None:
+            return Disposable(lambda: self.unregister(name))
+
+        def restore() -> None:
+            if self._commands.get(name) is not command:
+                return
+            self.unregister(name)
+            if previous.alias and previous.alias in self._aliases:
+                return  # its alias was taken in the meantime
+            self._commands[name] = previous
+            if previous.alias:
+                self._aliases[previous.alias] = name
+            self._changed()
+
+        return Disposable(restore)
+
+    def _owner(self, name: str) -> str:
+        command = self.get(name)
+        return f"plugin '{command.plugin}'" if command is not None and command.plugin else "pixelRef"
 
     def unregister(self, name: str) -> None:
         command = self._commands.pop(name, None)

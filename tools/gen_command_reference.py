@@ -30,6 +30,11 @@ def main() -> int:
     from pixelref.ui import create_app
 
     app = create_app([], persist_layout=False, load_user_files=False)
+    plugins = app.session.plugins
+    for plugin_id in plugins.load_order():  # built-in plugins that start off (mcp) are documented too
+        record = plugins.get(plugin_id)
+        if record.manifest.builtin and not record.active:
+            plugins.activate(plugin_id)  # for this run only: nothing is saved
     registry = app.session.commands
     groups: dict[str, list] = {}
     seen: set[str] = set()

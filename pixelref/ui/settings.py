@@ -6,7 +6,22 @@ from typing import Any
 
 from PySide6.QtCore import QSettings
 
-from ..core.settings import Settings, convert
+from ..core.settings import MemorySettings, Settings, convert
+
+# The user's plugin choices (approvals, sources, publishers…), shared with tools that don't run the app.
+PLUGIN_KEYS = ("plugins/disabled", "plugins/enabled", "plugins/trust", "plugins/publishers", "plugins/sources",
+               "plugins/resolved", "plugins/monitor")
+
+
+def plugin_choices() -> MemorySettings:
+    """In-memory settings holding a copy of the user's plugin choices: batch mode and the docs
+    tools load the same plugins as the app, and never write the user's settings."""
+    settings = MemorySettings()
+    real = QtSettings()
+    for key in PLUGIN_KEYS:
+        if real.contains(key):
+            settings.setValue(key, real.value(key))
+    return settings
 
 
 class QtSettings(Settings):

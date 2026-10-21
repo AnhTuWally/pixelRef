@@ -1,9 +1,11 @@
 """The content and layout of examples/scenes/onboard.pxref (used by tools/gen_onboarding.py).
 
-``Board`` lays the lessons out in a running pixelRef test harness: a welcome card, then a
-"Basic Features" and an "Advanced Features" section, each a grid of cards. A card is a
-group holding a screenshot, numbered callouts drawn on it with pixelRef's own rectangle
-and Step tools, and the explanation under it.
+``Board`` lays the lessons out in a running pixelRef test harness: a welcome card (with a
+"stay safe" warning panel), then a "Staying Safe" section and the "Basic", "Advanced" and
+"New Features" sections, each a grid of cards. A card is a group holding a screenshot,
+numbered callouts drawn on it with pixelRef's own rectangle and Step tools, and the
+explanation under it. A callout can name a widget instead of giving a rectangle: the
+screenshot step measured where it is (``<shot>.json``).
 """
 
 from __future__ import annotations
@@ -14,7 +16,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtGui import QImage
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPen
 
 ROOT = Path(__file__).resolve().parents[1]
 SAMPLE = ROOT / "examples" / "scenes" / "animals.pxref"
@@ -30,6 +33,8 @@ BODY_SCALE = 2.3
 BLUE = (61, 142, 240)
 ORANGE = (255, 160, 60)
 GREEN = (90, 205, 140)
+RED = (235, 80, 70)
+AMBER = (255, 190, 40)
 CALLOUT = (255, 204, 0)
 
 # Animal pictures reused from the sample board: wanted key -> node name in animals.pxref.
@@ -135,6 +140,36 @@ ADVANCED = [
 ]
 
 
+# Plugins and scripts are code: shown right after the welcome, marked with the warning sign.
+SAFETY = [
+    dict(title="Plugins can do anything you can", shot="plugins_safety",
+         lead="Plugins, scripts and Python packages are code. They run inside pixelRef with your permissions: "
+              "they can read and change your files, use the network and start other programs.",
+         marks=[("notice", "The first time you open Window → Plugins…, this notice says what plugins can do. "
+                           "Read it, then click Got it."),
+                ("banner", "This line turns amber whenever a plugin is waiting for your review."),
+                ("attention", "Needs attention lists plugins that are new, changed, failing or doing more than "
+                              "they declared."),
+                ("trust", "Its trust sign: this one is “? Not reviewed”, so its code has never run (see S2)."),
+                ("details", "Who made it, whether it is signed, and what it says it will do: here, use the "
+                            "network. Read this before you approve anything."),
+                ("approve", "Nothing runs until you approve it. The approval dialog asks once more, and "
+                            "Cancel is the default.")],
+         extra=["A plugin whose files change after you approved it stops until you approve it again.",
+                "Scripts, userSetup.py and Python packages aren't checked like plugins: only run code you "
+                "wrote or got from someone you trust."]),
+    dict(title="Read the trust signs", demo="trust", demo_h=760,
+         lead="Every third-party plugin in Window → Plugins… carries one of these signs.",
+         marks=["Green and blue: allowed to run. Signed by a publisher you trust, or approved by you with "
+                "exactly these files.",
+                "Amber: waiting for you. Ask who made it, where you got it, and why it needs what it asks for.",
+                "Red: blocked. The files don't match the publisher's signature, so someone may have changed "
+                "them. Don't approve it."],
+         extra=["Right-click the canvas → Staying Safe with Plugins & Scripts… opens the full guide: what "
+                "pixelRef checks, what it can't, and what to do if something looks wrong."]),
+]
+
+
 GIF_ASSET = "90.gif"  # the eight-frame reaction GIF in gifs.pxref, used for the frame-notes lessons
 
 
@@ -175,6 +210,21 @@ NEWEST = [
                 "Ghost (Attribute Editor) also shows a note faintly on the frames either side. Show on All Frames un-pins it."],
          extra=["Press play and watch the red box and arrow appear only on their own frames. "
                 "Copy to Frames puts a copy of a note on a range of frames, for example 2-5."]),
+    dict(title="Make the board clickable", demo="interactions", demo_h=820,
+         lead="Buttons, and any other item, can show, hide, move or change things when they're clicked. "
+              "Everything in the frame is live: click the buttons.",
+         marks=["Click it to show the answer, and again to hide it. It was made by dragging the round handle "
+                "beside a selected button onto the note and choosing Show.",
+                "A button runs only when it's locked. Unlocked, a click selects it for editing, and Run in the bar "
+                "under it tries it. These are locked: unlock one in the Outliner to edit it.",
+                "Tabs: select a few pictures, right-click → Click Action → Make Tabs from Selection. One shows at a time.",
+                "Demonstrated, not programmed: select a button, choose Demonstrate…, make the board look the way it "
+                "should after the click (here: the GIF on frame 3), then press Done. The board goes back by itself."],
+         extra=["The Attribute Editor's Click Action section says what a click does in plain words (“Go to frame 3 · "
+                "reaction”). Try it runs it, Reset puts things back, and × removes a step.",
+                "Lock your buttons when the board is finished: that's what makes a plain click run them.",
+                "An amber dashed outline means a step didn't run, for example because its item was deleted. "
+                "Right-click → Click Action → Click Action Log… says why."]),
 ]
 
 
@@ -195,6 +245,35 @@ def asset_files(workdir: Path) -> dict[str, Path]:
     return files
 
 
+def warning_icon(path: Path, size: int = 512) -> Path:
+    """The warning sign used on the board: an amber triangle with an exclamation mark (an image,
+    so it looks the same whatever fonts the computer has)."""
+    image = QImage(size, int(size * 0.9), QImage.Format_ARGB32)
+    image.fill(Qt.transparent)
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.Antialiasing, True)
+    w, h, m = float(size), size * 0.9, size * 0.06
+    triangle = QPainterPath()
+    triangle.moveTo(w / 2, m)
+    triangle.lineTo(w - m, h - m)
+    triangle.lineTo(m, h - m)
+    triangle.closeSubpath()
+    pen = QPen(QColor(25, 25, 25), size * 0.035)
+    pen.setJoinStyle(Qt.RoundJoin)
+    painter.setPen(pen)
+    painter.setBrush(QColor(*AMBER))
+    painter.drawPath(triangle)
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(QColor(25, 25, 25))
+    bar_w = size * 0.1
+    painter.drawRoundedRect(QRectF(w / 2 - bar_w / 2, h * 0.32, bar_w, h * 0.34), bar_w / 2, bar_w / 2)
+    painter.drawEllipse(QPointF(w / 2, h * 0.78), bar_w * 0.62, bar_w * 0.62)
+    painter.end()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(str(path))
+    return path
+
+
 class Board:
     """Builds the onboarding scene in a running test harness."""
 
@@ -203,6 +282,7 @@ class Board:
         self.work = Path(tempfile.mkdtemp(prefix="pixelref_onboarding_"))
         self.animals = asset_files(self.work)
         self.markers: list[tuple[str, float, float, float, float]] = []  # name, x, y, width, height
+        self.warning = warning_icon(self.work / "warning.png")
 
     # ---- Pieces -----------------------------------------------------------------------------
 
@@ -320,6 +400,27 @@ class Board:
         self.text("Check the ears", cx + 60, top + 700, 2.2, static, name="Note", font_size=14, color=[226, 229, 235])
         return points[:3]
 
+    def demo_trust(self, cx: float, top: float, static: str) -> list[tuple[float, float]]:
+        """The trust signs of the Plugins window, as badges with what each means."""
+        rows = (("✔ Verified", GREEN, "Signed by a publisher you trust. Loads without asking."),
+                ("● Approved", BLUE, "You approved exactly these files."),
+                ("? Not reviewed", AMBER, "Never approved: its code has not run."),
+                ("⚠ Changed", AMBER, "Changed since you approved it: stopped."),
+                ("✖ Invalid signature", RED, "Its files don't match the signature."))
+        points = []
+        for i, (badge, color, meaning) in enumerate(rows):
+            y = top + 70 + i * 135
+            self.rect(cx + 60, y, 560, 96, static, "Badge", stroke_color=list(color), thickness=5,
+                      fill_color=list(color), fill_opacity=0.18, corner_radius=48)
+            self.text(badge, cx + 100, y + 20, 1.0, static, name="Badge text", bold=True, font_size=32,
+                      color=list(color))
+            self.text(meaning, cx + 660, y + 22, 2.0, static, 520, name="Meaning", font_size=14,
+                      color=[226, 229, 235])
+            if i in (0, 2, 4):
+                points.append((cx + 40, y - 10))
+        self.picture(self.warning, cx + 1210, top + 230, 260, static)
+        return points
+
     def demo_shared(self, cx: float, top: float, static: str) -> list[tuple[float, float]]:
         h = self.h
         h.run("rect.create", cx + 80, top + 110, 380, 260, "Rect A", stroke_color=[255, 99, 99], thickness=3,
@@ -354,6 +455,50 @@ class Board:
                   name="Hint", font_size=14, color=[205, 210, 220], width=560)
         return [(cx + 310, top + 100), (cx + 60, top + 60 + gh + 20), (cx + 810, top + 120), (cx + 100, top + 345)]
 
+    def demo_interactions(self, cx: float, top: float, static: str) -> list[tuple[float, float]]:
+        """A quiz with a locked "Show the answer" button, tabs over three pictures, and a GIF with
+        a demonstrated "Frame 3" button and a connected Play / Pause button."""
+        h = self.h
+        hint = dict(font_size=14, color=[205, 210, 220])
+        # The quiz: a button connected to a note (Show hides the note until the click).
+        self.text("Who has the biggest ears?", cx + 60, top + 40, 1.9, static, 420, name="Question", bold=True,
+                  font_size=20, color=[246, 247, 250])
+        _fox, fox_h = self.pic("fennec", cx + 60, top + 230, 400)
+        answer = self.text("A fennec fox. The ears shed heat in the desert.", cx + 60, top + 250 + fox_h, 1.9, None,
+                           400, name="Answer", bold=True, font_size=16, color=[255, 232, 120])
+        quiz = h.run("interactions.create_button", cx + 60, top + 705, "Show the answer", "Show the answer",
+                     size=[400.0, 76.0], fill_color=[46, 160, 110])
+        h.run("interactions.connect", quiz, answer, "show")
+        self.lock(quiz)
+        # Tabs: three pictures in one place, one button each, one at a time.
+        tabs_x = cx + 540
+        names = [self.pic(key, tabs_x, top + 190, 400)[0] for key in ("tiger", "leopard", "cat")]
+        buttons = h.run("interactions.make_tabs", names)
+        self.lock(*buttons)
+        for i, (button, label) in enumerate(zip(buttons, ("Tiger", "Leopard", "Cat"))):
+            h.run("set_attrs", button, {"translate": [tabs_x + i * 146.0, top + 90.0], "size": [140.0, 64.0],
+                                        "label": label, "font_size": 20.0})
+        self.text("Tabs: one picture at a time.", tabs_x, top + 700, 2.0, static, 400, name="Hint", **hint)
+        # The GIF: "Frame 3" was demonstrated; Play / Pause was connected.
+        gif_x = cx + 1020
+        gif, gif_h = self.pic("reaction", gif_x, top + 190, 420)
+        h.refresh()
+        frame3 = h.run("interactions.create_button", gif_x, top + 90, "Frame 3", "Frame 3",
+                       size=[200.0, 64.0], font_size=22.0, fill_color=[150, 95, 220])
+        h.run("interactions.demonstrate", frame3)
+        h.run("playback.go_to_frame", 3, [gif])
+        h.run("interactions.finish")
+        play = h.run("interactions.create_button", gif_x + 220, top + 90, "Play / Pause", "Play / Pause",
+                     size=[200.0, 64.0], font_size=22.0, fill_color=[150, 95, 220])
+        h.run("interactions.connect", play, gif, "pause")
+        self.lock(frame3, play)
+        h.refresh()
+        self.text("Frame 3 was demonstrated. Play / Pause was connected.", gif_x, top + 220 + gif_h, 2.0, static, 420,
+                  name="Hint", **hint)
+        h.run("select", clear=True)
+        # Markers sit beside the buttons, never on them: a marker on top would take the click.
+        return [(cx + 28, top + 743), (gif_x + 455, top + 122), (tabs_x - 24, top + 66), (gif_x - 24, top + 66)]
+
     def demo_playback(self, cx: float, top: float, static: str) -> list[tuple[float, float]]:
         self.pic("cat", cx + 440, top + 60, 620)
         return [(cx + 430, top + 50), (cx + 430, top + self.demo_h - 80), (cx + 1090, top + 60)]
@@ -380,6 +525,11 @@ class Board:
             image = QImage(str(SHOT_DIR / f"{card['shot']}.jpg"))
             scale = CARD_W / image.width()
             shot_h = image.height() * scale
+            measured = SHOT_DIR / f"{card['shot']}.json"
+            if measured.is_file():  # callouts that name a widget: where it was in the screenshot
+                rects = json.loads(measured.read_text(encoding="utf-8"))
+                card = {**card, "marks": [(tuple(rects[m[0]]) if isinstance(m[0], str) else m[0], m[1])
+                                          for m in card["marks"]]}
         top = cy + 160
         group = self.group(f"{card['title']} (card)")
         backdrop = self.rect(cx - 60, cy - 50, CARD_W + 120, 10, group, "Card", stroke_color=list(accent),
@@ -436,11 +586,17 @@ class Board:
     # ---- Sections ---------------------------------------------------------------------------
 
     def section(self, title: str, subtitle: str, cards: list[dict], prefix: str, cx0: float, cy0: float,
-                accent: tuple[int, int, int], sandbox: tuple[str, list[str], list[str]]) -> tuple[float, float]:
-        """A banner over a grid of cards; returns the section's right edge and bottom."""
+                accent: tuple[int, int, int], sandbox: tuple[str, list[str], list[str]] | None,
+                icon: bool = False) -> tuple[float, float]:
+        """A banner over a grid of cards (and a "Your turn" card, if any); returns the section's right
+        edge and bottom. ``icon`` puts the warning sign before the heading."""
         band = self.rect(cx0 - 260, cy0 - 120, 10, 10, None, f"{title} band", stroke_color=list(accent), thickness=6,
                          fill_color=list(accent), fill_opacity=0.07, corner_radius=80)
-        heading = self.text(title.upper(), cx0, cy0, 6.0, name=f"{title} heading", bold=True, font_size=32,
+        heading_x = cx0
+        if icon:
+            self.lock(self.picture(self.warning, cx0, cy0 - 20, 300))
+            heading_x = cx0 + 360
+        heading = self.text(title.upper(), heading_x, cy0, 6.0, name=f"{title} heading", bold=True, font_size=32,
                             color=list(accent))
         gap = self.height(heading) + 30
         sub = self.text(subtitle, cx0, cy0 + gap, 3.0, name=f"{title} subtitle", font_size=14, color=[205, 210, 220],
@@ -448,7 +604,7 @@ class Board:
         y = cy0 + gap + self.height(sub) + 140
         row_h = 0.0
         bottom = y
-        count = len(cards) + 1
+        count = len(cards) + (1 if sandbox else 0)
         for i in range(count):
             col = i % COLS
             if col == 0 and i:

@@ -626,7 +626,7 @@ def test_plugin_dependency_cycles_and_bad_manifests_dont_stop_startup():
         plugin.mkdir()
         (plugin / "plugin.toml").write_text(f'id = "{plugin_id}"\nname = "{plugin_id}"\n{extra}\n', encoding="utf-8")
         (plugin / "__init__.py").write_text("def activate(ctx):\n    pass\n", encoding="utf-8")
-    session = Session(builtins=False, plugin_paths=[folder], make_current=False).start()
+    session = Session(builtins=False, trusted_plugin_paths=[folder], make_current=False).start()
     plugins = session.plugins
     assert plugins.get("soft_a").active and plugins.get("soft_b").active
     assert plugins.get("one_dep").active and plugins.get("one_dep").manifest.requires == ["soft_a"]

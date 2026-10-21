@@ -14,6 +14,19 @@ from typing import Any
 from pixelref.plugin_api import CommandError
 
 
+def lock_owners(scene: Any, name: str) -> list[str]:
+    """The node and its ancestors that are locked (innermost first): what keeps ``name``
+    locked on the canvas."""
+    owners = []
+    current: str | None = name
+    while current is not None and scene.has(current):
+        node = scene.get_node(current)
+        if bool(node.attrs.get("locked", 0)):
+            owners.append(current)
+        current = node.parent
+    return owners
+
+
 def activate(ctx: Any) -> None:
     session = ctx.session
     scene = session.scene
@@ -56,6 +69,22 @@ def activate(ctx: Any) -> None:
     def unlock_all() -> None:
         """Unlock every node (Alt+L)."""
         set_all("locked", 0)
+
+    def unlock(nodes: Any = None) -> list[str]:
+        """Unlock the nodes so they can be selected again, and the locked groups holding them.
+        Returns the nodes unlocked."""
+        names = targets(nodes)
+        if not names:
+            raise CommandError("Nothing selected")
+        unlocked: list[str] = []
+        for name in names:
+            for owner in lock_owners(scene, name):
+                if owner not in unlocked:
+                    scene.set_attr(owner, "locked", 0)
+                    unlocked.append(owner)
+        session.events.emit("ui.status", {"text": f"Unlocked {', '.join(unlocked)}" if len(unlocked) <= 3
+                                          else f"{len(unlocked)} item(s) unlocked"})
+        return unlocked
 
     def type_matcher(types: Any) -> tuple[list[str], Any]:
         if types is None:
@@ -131,6 +160,7 @@ def activate(ctx: Any) -> None:
         scene.set_attr(scene.resolve(node), attr, value)
 
     ctx.command("toggle_lock", toggle_lock, alias="toggle_lock", label="Toggle lock")
+    ctx.command("unlock", unlock, label="Unlock")
     ctx.command("toggle_visibility", toggle_visibility, alias="toggle_visibility", label="Toggle visibility")
     ctx.command("show_all", show_all, alias="show_all", label="Show all")
     ctx.command("unlock_all", unlock_all, alias="unlock_all", label="Unlock all")

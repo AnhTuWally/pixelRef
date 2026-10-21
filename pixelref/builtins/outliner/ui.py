@@ -22,8 +22,10 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
-from pixelref.plugin_api.ui import PanelType, icon
+from pixelref.plugin_api.ui import HANDLED, InputHandler, PanelType, PointerEvent, icon, theme
 from pixelref.plugin_api.ui import widgets as w
+
+from . import lock_owners
 
 TYPE_ROLE = Qt.UserRole + 1
 
@@ -681,3 +683,101 @@ def activate_outliner_ui(ui: Any) -> None:
     ui.place_submenu("canvas", "Same Type", group="state", order=4)
     ui.menu("canvas", "outliner.show_all", group="reveal", order=0, when="selection.count == 0")
     ui.menu("canvas", "outliner.unlock_all", group="reveal", order=1, when="selection.count == 0")
+
+    def unlock_menu(menu: Any) -> None:
+        """Puts "Unlock ‹name›" at the top of the menu when what was right-clicked is locked."""
+        owners: list[str] = []
+        for name in ui.session.selection.names:
+            owners += [owner for owner in lock_owners(ui.session.scene, name) if owner not in owners]
+        if not owners:
+            return
+        action = menu.addAction(icon("lock_open"), f"Unlock {owners[0]}" if len(owners) == 1
+                                else f"Unlock {len(owners)} Items")
+        action.triggered.connect(lambda: ui.app.run_command("outliner.unlock"))
+
+    ui.menu("canvas", builder=unlock_menu, group="header", order=1, when="selection.count > 0")
+    badge = LockBadge(ui)
+    ui.input_handler(badge, 800)  # above the interactions plugin (750): a locked button's click runs it
+    ui.overlay(badge.paint, order=95)
+
+
+class LockBadge(InputHandler):
+    """A lock badge in the corner of the locked item under the pointer (Select tool).
+    Clicking it unlocks the item (and the locked groups holding it) and selects it."""
+
+    SIZE = 22.0
+
+    def __init__(self, ui: Any) -> None:
+        self.ui = ui
+        self.hovered: tuple[Any, str] | None = None  # (view, node name)
+        self.over = False  # the pointer is on the badge itself
+
+    def shown_in(self, view: Any) -> bool:
+        tool = self.ui.tools.active
+        return tool is not None and tool.id == "select" and view.display.show_overlays
+
+    def badge_rect(self, view: Any, name: str) -> QRectF | None:
+        item = self.ui.canvas.item(name)
+        if item is None or not item.isVisible() or not item.locked:
+            return None
+        try:
+            rect = view.mapFromScene(item.sceneBoundingRect()).boundingRect().toRectF()
+        except RuntimeError:  # the item was replaced by a refresh
+            return None
+        visible = rect.intersected(QRectF(view.viewport().rect()))
+        if visible.isEmpty():
+            return None
+        size = self.SIZE
+        if visible.width() >= 3 * size and visible.height() >= 3 * size:
+            return QRectF(visible.right() - size - 6.0, visible.top() + 6.0, size, size)
+        return QRectF(visible.right() + 4.0, visible.top(), size, size)  # small items: beside them
+
+    def _badge_at(self, view: Any, pos: QPointF) -> QRectF | None:
+        if self.hovered is None or self.hovered[0] is not view:
+            return None
+        rect = self.badge_rect(view, self.hovered[1])
+        return rect if rect is not None and rect.contains(pos) else None
+
+    def _set_hovered(self, hovered: tuple[Any, str] | None, over: bool) -> None:
+        if hovered == self.hovered and over == self.over:
+            return
+        for view in {entry[0] for entry in (self.hovered, hovered) if entry is not None}:
+            view.viewport().update()
+        self.hovered, self.over = hovered, over
+
+    def hover(self, e: PointerEvent) -> None:
+        if self._badge_at(e.view, e.pos) is not None:
+            self._set_hovered(self.hovered, True)
+            e.set_cursor(Qt.PointingHandCursor)
+            owners = lock_owners(self.ui.session.scene, self.hovered[1])
+            self.ui.status(f"Click to unlock {', '.join(owners) or self.hovered[1]}")
+            return
+        item = e.item if self.shown_in(e.view) else None
+        self._set_hovered((e.view, item.node_name) if item is not None and item.locked else None, False)
+
+    def pointer(self, e: PointerEvent) -> str | None:
+        if e.kind != "press" or e.button != Qt.LeftButton or self._badge_at(e.view, e.pos) is None:
+            return None
+        name = self.hovered[1]
+        self._set_hovered(None, False)
+        self.ui.app.run_command("outliner.unlock", [name])
+        self.ui.app.run_command("select", [name])
+        return HANDLED
+
+    def leave(self, view: Any) -> None:
+        if self.hovered is not None and self.hovered[0] is view:
+            self._set_hovered(None, False)
+
+    def paint(self, view: Any, painter: QPainter) -> None:
+        if self.hovered is None or self.hovered[0] is not view or not self.shown_in(view):
+            return
+        rect = self.badge_rect(view, self.hovered[1])
+        if rect is None:
+            return
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setPen(QColor(0, 0, 0, 120))
+        painter.setBrush(theme.ACCENT if self.over else QColor(20, 22, 27, 215))
+        painter.drawRoundedRect(rect, 5.0, 5.0)
+        icon("lock_open" if self.over else "lock").paint(painter, rect.adjusted(4.0, 4.0, -4.0, -4.0).toRect())
+        painter.restore()

@@ -1,6 +1,24 @@
+# A complete manifest: what pixelRef shows users before they approve the plugin.
+# Top-level keys must come before the first [table]. See docs/plugins.md.
 id = "ellipse"
 name = "Ellipses (example plugin)"
 version = "1.0.0"
 api = 1
 requires = ["brush"]
 description = "Example plugin: an ellipse node type, an Ellipse tool (O) and an Attribute Editor generated from its schema."
+license = "MIT"
+category = "Drawing"
+tags = ["example", "shapes"]
+min_app_version = "1.0.0"
+
+[author]
+name = "The pixelRef contributors"
+
+[source]
+# Where users can check it comes from (required to sign it): your site or repository.
+# homepage = "https://example.com/pixelref-ellipse"
+# repository = "https://github.com/you/pixelref-ellipse"
+
+[permissions]
+# It only draws on boards: nothing to declare. The activity monitor reports
+# anything it does beyond this (writing files, network, programs…).

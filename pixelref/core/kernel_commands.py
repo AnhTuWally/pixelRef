@@ -530,6 +530,120 @@ def register_kernel_commands(session: "Session") -> None:
     reg("unload_plugin", unload_plugin, undoable=False)
     reg("reload_plugin", reload_plugin, undoable=False)
 
+    # ---- Plugin sources, trust and activity ------------------------------------------------------
+
+    def plugin_sources() -> list[dict[str, Any]]:
+        """Where plugins are looked for (in precedence order), with their trust policy and warnings."""
+        return session.plugins.source_info()
+
+    def add_plugin_source(path: str, label: str = "", policy: str = "ask") -> dict[str, Any]:
+        """Look for plugins in another folder too (remembered); its plugins still need approving.
+
+        ``policy="trust_all"`` runs everything in it: only for folders whose code you trust."""
+        source = session.plugins.add_source(session.resolve_path(path), label=label, policy=policy)
+        return source.info()
+
+    def remove_plugin_source(path: str) -> None:
+        """Stop looking for plugins in a folder you added."""
+        session.plugins.remove_source(session.resolve_path(path))
+
+    def set_plugin_source(path: str, enabled: bool | None = None, policy: str | None = None,
+                          label: str | None = None) -> dict[str, Any]:
+        """Switch a source on or off, or change its policy: "ask", "signed_only" or "trust_all"."""
+        return session.plugins.update_source(session.resolve_path(path), enabled=enabled, policy=policy,
+                                             label=label).info()
+
+    def move_plugin_source(path: str, offset: int) -> None:
+        """Move an added source up (-1) or down (1): earlier sources win when two hold the same plugin."""
+        session.plugins.move_source(session.resolve_path(path), int(offset))
+
+    def rescan_plugins() -> list[str]:
+        """Look in every source again; returns the ids of plugins waiting for review."""
+        session.plugins.rescan()
+        return session.plugins.needs_review()
+
+    def plugin_trust(plugin_id: str, enable: bool = True, allow_invalid: bool = False) -> dict[str, Any]:
+        """Approve a third-party plugin's current files and switch it on (``enable=False``: just approve).
+
+        Its code can then do anything you can: only approve plugins from people you trust."""
+        session.plugins.trust_plugin(plugin_id, allow_invalid=allow_invalid)
+        if enable:
+            session.plugins.set_enabled(plugin_id, True)
+        return session.plugins.info(plugin_id)
+
+    def plugin_revoke_trust(plugin_id: str) -> None:
+        """Forget a plugin's approval and switch it off."""
+        session.plugins.revoke_trust(plugin_id)
+
+    def plugin_resolve(plugin_id: str, path: str) -> dict[str, Any]:
+        """Use the copy of a plugin in ``path`` when several sources hold one with that id."""
+        session.plugins.resolve(plugin_id, session.resolve_path(path))
+        return session.plugins.info(plugin_id)
+
+    def plugin_changes(plugin_id: str) -> list[str]:
+        """Files changed since the plugin was approved: "+ added", "- removed", "~ changed"."""
+        return session.plugins.changed_files(plugin_id)
+
+    def plugins_needing_review() -> list[str]:
+        """Third-party plugins that are new or changed and wait for your decision."""
+        return session.plugins.needs_review()
+
+    def trusted_publishers() -> list[dict[str, str]]:
+        """Publishers whose signed plugins load without asking."""
+        return session.plugins.trust.publishers()
+
+    def add_trusted_publisher(public_key: str, name: str = "") -> dict[str, str]:
+        """Trust a publisher's signing key: a ``*.pub.toml`` file or the base64 key itself."""
+        from .plugin_trust import read_public_key
+
+        path = session.resolve_path(public_key) if public_key.endswith(".toml") else None
+        if path is not None:
+            data = read_public_key(path)
+            return session.plugins.add_publisher(name or data["name"], data["public_key"])
+        return session.plugins.add_publisher(name or "Publisher", public_key)
+
+    def remove_trusted_publisher(key_id: str) -> bool:
+        """Stop trusting a publisher's key (its plugins then need approving one by one)."""
+        return session.plugins.remove_publisher(key_id)
+
+    def plugin_activity(plugin_id: str, limit: int = 100, violations_only: bool = False) -> list[dict[str, Any]]:
+        """What the activity monitor noticed a third-party plugin doing, newest last."""
+        entries = session.plugins.monitor.entries(plugin_id)
+        if violations_only:
+            entries = [e for e in entries if e.violation]
+        return [e.to_dict() for e in entries[-int(limit):]] if limit else [e.to_dict() for e in entries]
+
+    def clear_plugin_activity(plugin_id: str | None = None) -> None:
+        """Forget the recorded activity (of one plugin, or all)."""
+        session.plugins.monitor.clear(plugin_id)
+
+    def plugin_monitor(enabled: bool | None = None) -> bool:
+        """Turn the plugin activity monitor on or off (or just say whether it's on)."""
+        if enabled is not None:
+            session.plugins.set_monitor_enabled(bool(enabled))
+        return session.plugins.monitor.enabled
+
+    for name, fn, options in (
+        ("plugin_sources", plugin_sources, {"echo": False}),
+        ("add_plugin_source", add_plugin_source, {}),
+        ("remove_plugin_source", remove_plugin_source, {}),
+        ("set_plugin_source", set_plugin_source, {}),
+        ("move_plugin_source", move_plugin_source, {}),
+        ("rescan_plugins", rescan_plugins, {}),
+        ("plugin_trust", plugin_trust, {}),
+        ("plugin_revoke_trust", plugin_revoke_trust, {}),
+        ("plugin_resolve", plugin_resolve, {}),
+        ("plugin_changes", plugin_changes, {"echo": False}),
+        ("plugins_needing_review", plugins_needing_review, {"echo": False}),
+        ("trusted_publishers", trusted_publishers, {"echo": False}),
+        ("add_trusted_publisher", add_trusted_publisher, {}),
+        ("remove_trusted_publisher", remove_trusted_publisher, {}),
+        ("plugin_activity", plugin_activity, {"echo": False}),
+        ("clear_plugin_activity", clear_plugin_activity, {}),
+        ("plugin_monitor", plugin_monitor, {}),
+    ):
+        reg(name, fn, undoable=False, **options)
+
     # ---- Python packages (pixelRef's managed folder) -------------------------------------------
     #
     # These run pip and wait for it; the Plugins window runs the same jobs in the
@@ -609,7 +723,8 @@ def register_kernel_commands(session: "Session") -> None:
         """Where pixelRef keeps its packages and whether a restart is pending."""
         packages = session.packages
         return {"folder": str(packages.site), "python": packages.tag, "restart_needed": packages.restart_needed,
-                "wheels": str(packages.wheels), "plugin_wheel_folders": [str(p) for p in packages.extra_find_links]}
+                "wheels": str(packages.wheels), "extra_find_links": [str(p) for p in packages.extra_find_links],
+                "plugin_wheel_folders": [str(p) for p in session.plugins.wheel_folders()]}
 
     for name, fn, echo in (
         ("packages.list", packages_list, False),

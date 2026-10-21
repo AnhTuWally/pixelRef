@@ -410,8 +410,23 @@ class DocIndex:
     def _plugins(self) -> Iterable[DocEntry]:
         for info in self.session.plugins.list_plugins():
             facts = [f"- **Version:** {info['version']}", f"- **Status:** {info['status']}"
-                     + ("" if info["enabled"] else " (disabled)"),
+                     + ("" if info["enabled"] or info["status"] == "disabled" else " (disabled)"),
                      "- **Built in**" if info["builtin"] else f"- **Folder:** `{info['path']}`"]
+            if not info["builtin"]:
+                author = info["author"]
+                who = author.get("name", "") + (f" ({author['organization']})" if author.get("organization") else "")
+                facts.append(f"- **Author:** {who or 'not given'}")
+                facts.append(f"- **Trust:** {info['trust_label']}" + (f" — {info['trust_reason']}"
+                                                                     if info["trust_reason"] else ""))
+                facts.append(f"- **Source:** {info['source']}")
+                if info["license"]:
+                    facts.append(f"- **License:** {info['license']}")
+                for key, label in (("homepage", "Homepage"), ("repository", "Repository")):
+                    if info[key]:
+                        facts.append(f"- **{label}:** <{info[key]}>")
+                facts.append("- **Permissions:** " + (", ".join(info["permissions"]) or "none declared"))
+                if info["conflicts"]:
+                    facts.append(f"- **Other copies:** {len(info['conflicts'])} (see Window → Plugins…)")
             if info["requires"]:
                 facts.append("- **Requires:** " + ", ".join(f"[{r}](doc:plugin:{r})" for r in info["requires"]))
             if info["python_requires"]:
@@ -421,11 +436,17 @@ class DocIndex:
             commands = [c.name for c in self.session.commands.commands() if c.plugin == info["id"]]
             if commands:
                 facts += ["", "## Commands", ""] + [f"- [{c}](doc:command:{c})" for c in commands]
+            if not info["builtin"]:
+                readme = self.session.plugins.readme(info["id"])
+                if readme:
+                    facts += ["", "## About", "", _demote_headings(readme)]
             yield DocEntry(kind="plugin", name=info["id"], title=info["name"] or info["id"],
                            summary=info["description"], body="\n".join(facts), plugin=info["id"],
                            usage=f'pxcmd.plugin_info("{info["id"]}")',
                            related=[f"plugin:{r}" for r in info["requires"]],
-                           data={k: info[k] for k in ("version", "status", "enabled", "builtin", "requires")})
+                           keywords=" ".join([info["author"].get("name", ""), info["category"], *info["tags"]]),
+                           data={k: info[k] for k in ("version", "status", "enabled", "builtin", "requires", "trust",
+                                                      "author", "license", "permissions", "source")})
 
     def _guides(self) -> Iterable[DocEntry]:
         sources: list[tuple[Path, str | None]] = []
@@ -446,6 +467,11 @@ class DocIndex:
 
 
 # ---- Helpers --------------------------------------------------------------------------------
+
+
+def _demote_headings(markdown: str) -> str:
+    """A plugin's README inside its entry: its headings go below the entry's own."""
+    return re.sub(r"(?m)^(#{1,5}) ", lambda m: "#" * min(6, len(m.group(1)) + 2) + " ", markdown)
 
 
 def docs_folder() -> Path | None:

@@ -53,7 +53,9 @@ from .errors import PluginError
 MANIFEST_VERSION = 1
 READY_MARKER = ".pixelref-ready"
 # Packages the app itself is built on: a managed copy would shadow or break them.
-PROTECTED = frozenset({"pyside6", "pyside6-essentials", "pyside6-addons", "shiboken6", "pixelref", "pip"})
+# pixelRef's own packages: replacing them (cryptography checks plugin signatures) is never allowed.
+PROTECTED = frozenset({"pyside6", "pyside6-essentials", "pyside6-addons", "shiboken6", "pixelref", "pip",
+                       "cryptography", "cffi", "pycparser"})
 
 _NAME_RE = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*(\[[^\]]*\])?\s*(.*)$")
 _SPEC_RE = re.compile(r"^\s*(~=|==|!=|<=|>=|<|>)\s*([A-Za-z0-9.*+!_-]+)\s*$")
@@ -493,7 +495,10 @@ class PackageManager(PackageStore):
 
     def __init__(self, root: Path | None = None, tag: str | None = None) -> None:
         super().__init__(root, tag)
-        self.extra_find_links: list[Path] = []  # plugin wheels/ folders (offline installs)
+        self.extra_find_links: list[Path] = []  # more --find-links folders for every install
+        # Plugin ids -> their bundled wheels/ folders (offline installs). Set by the plugin
+        # manager; only the plugins a package is installed for are consulted.
+        self.plugin_find_links: Callable[[list[str]], list[Path]] | None = None
         self._listeners: list[Callable[[dict[str, Any]], None]] = []
 
     def watch(self, callback: Callable[[dict[str, Any]], None]) -> Callable[[], None]:
@@ -513,10 +518,12 @@ class PackageManager(PackageStore):
             raise InstallError(f"'{req.name}' is part of pixelRef itself and can't be installed here")
         return req
 
-    def _pip_install_args(self, target: Path, requirements: list[str]) -> list[str]:
+    def _pip_install_args(self, target: Path, requirements: list[str], plugins: list[str] | None = None
+                          ) -> list[str]:
         args = ["install", "--target", str(target), "--only-binary=:all:", "--no-warn-script-location",
                 "--disable-pip-version-check", "--no-input", "--progress-bar", "off"]
-        for folder in [self.wheels, *self.extra_find_links]:
+        plugin_links = self.plugin_find_links(sorted(set(plugins))) if plugins and self.plugin_find_links else []
+        for folder in [self.wheels, *self.extra_find_links, *plugin_links]:
             if folder.is_dir():
                 args += ["--find-links", str(folder)]
         return args + requirements
@@ -539,8 +546,9 @@ class PackageManager(PackageStore):
         # into a fresh scratch folder and move the new packages over afterwards.
         self.root.mkdir(parents=True, exist_ok=True)
         scratch = Path(tempfile.mkdtemp(prefix="install-", dir=self.root))
-        return InstallJob(self, "install", pip_command(self._pip_install_args(scratch, [str(r) for r in reqs])),
-                          scratch, wanted, description=", ".join(str(r) for r in reqs))
+        args = self._pip_install_args(scratch, [str(r) for r in reqs], plugins)
+        return InstallJob(self, "install", pip_command(args), scratch, wanted,
+                          description=", ".join(str(r) for r in reqs))
 
     def plan_install_file(self, wheel: Path, plugins: list[str] | None = None) -> InstallJob:
         """Install a downloaded ``.whl`` file (offline). It is kept in wheels/ for rebuilds."""
@@ -572,7 +580,8 @@ class PackageManager(PackageStore):
         if not requirements:
             command: list[str] = []  # nothing left: the empty folder is the result
         else:
-            command = pip_command(self._pip_install_args(self.staging, requirements))
+            plugins = sorted({p for entry in wanted.values() for p in entry.plugins})
+            command = pip_command(self._pip_install_args(self.staging, requirements, plugins))
         return InstallJob(self, "rebuild", command, self.staging, wanted, description=description)
 
     def plan_remove(self, names: list[str]) -> InstallJob:

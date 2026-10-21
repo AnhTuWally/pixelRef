@@ -23,11 +23,40 @@ from gen_screenshots import Shots, settle  # noqa: E402
 from PySide6.QtCore import QPoint  # noqa: E402
 from PySide6.QtGui import QImage, QImageWriter, QPainter  # noqa: E402
 
-from onboarding_board import ADVANCED, BASIC, BLUE, GREEN, NEWEST, ORANGE, SHOT_DIR, Board  # noqa: E402
+from onboarding_board import (  # noqa: E402
+    ADVANCED,
+    AMBER,
+    BASIC,
+    BLUE,
+    GREEN,
+    NEWEST,
+    ORANGE,
+    RED,
+    SAFETY,
+    SHOT_DIR,
+    Board,
+)
 
 SAMPLE = gs.SCENE
 TARGET = ROOT / "examples" / "scenes" / "onboard.pxref"
-SHOT_NAMES = ("start", "navigate", "command_search", "review", "script_editor", "shortcuts", "paste_attrs", "colour_picker")  # only interface that can't be recreated on the canvas
+SHOT_NAMES = ("start", "navigate", "command_search", "review", "script_editor", "shortcuts", "paste_attrs", "colour_picker",
+              "plugins_safety")  # only interface that can't be recreated on the canvas
+# A made-up plugin "downloaded" for the Plugins window screenshot (build/ is not in git).
+SAFETY_DOWNLOADS = ROOT / "build" / "onboarding" / "Downloads"
+SAFETY_PLUGIN = """id = "palette_sync"
+name = "Palette Sync"
+version = "0.9.2"
+api = 1
+description = "Keeps your board's colours in step with an online palette."
+license = "MIT"
+tags = ["colour", "palette"]
+
+[author]
+name = "Someone Online"
+
+[permissions]
+network = true
+"""
 
 
 class OnboardingShots(Shots):
@@ -109,6 +138,50 @@ class OnboardingShots(Shots):
         dialog.reject()
         settle(0.3)
 
+    def plugins_safety(self) -> None:
+        """The Plugins window with a downloaded plugin waiting for review. The callouts are measured
+        from the widgets and saved next to the shot (plugins_safety.json)."""
+        import json
+        import shutil
+
+        from pixelref.ui.plugin_manager import NOTICE_KEY, PluginManagerDialog
+
+        shutil.rmtree(SAFETY_DOWNLOADS, ignore_errors=True)
+        folder = SAFETY_DOWNLOADS / "palette_sync"
+        folder.mkdir(parents=True)
+        (folder / "plugin.toml").write_text(SAFETY_PLUGIN, encoding="utf-8")
+        (folder / "__init__.py").write_text("def activate(ctx):\n    pass\n", encoding="utf-8")
+        (folder / "README.md").write_text("# Palette Sync\n\nFetches palettes from palettes.example.com.\n",
+                                          encoding="utf-8")
+        session = self.h.session
+        session.settings.remove(NOTICE_KEY)  # a new user sees the first-time notice
+        session.plugins.add_source(SAFETY_DOWNLOADS, label="Downloads")
+        dialog = PluginManagerDialog(self.h.app, self.h.window, show="attention")
+        try:
+            dialog.resize(1400, 860)
+            dialog.show()
+            dialog.select_plugin("palette_sync")
+            settle(1.0)
+
+            def rect(widget, local=None) -> list[int]:  # noqa: ANN001
+                area = local if local is not None else widget.rect()
+                corner = widget.mapTo(dialog, area.topLeft())
+                return [corner.x(), corner.y(), area.width(), area.height()]
+
+            row = dialog.visible_ids().index("palette_sync")
+            cell = dialog.table.visualRect(dialog.proxy.index(row, 4))
+            rects = {"notice": rect(dialog.notice), "banner": rect(dialog.risk_banner),
+                     "attention": rect(dialog.chip_buttons["attention"]), "trust": rect(dialog.table.viewport(), cell),
+                     "details": rect(dialog.details), "approve": rect(dialog.trust_button)}
+            self.save("plugins_safety", dialog.grab().toImage())
+            (SHOT_DIR / "plugins_safety.json").write_text(json.dumps(rects), encoding="utf-8")
+        finally:
+            dialog.reject()
+            session.plugins.remove_source(SAFETY_DOWNLOADS.resolve())
+            session.settings.remove(NOTICE_KEY)
+            shutil.rmtree(SAFETY_DOWNLOADS, ignore_errors=True)
+        settle(0.3)
+
     def shortcuts(self) -> None:
         self.run("select", clear=True)
         self.run("help.show")
@@ -147,14 +220,15 @@ WELCOME_BLOCKS = (
      ]),
     ('Jump around',
      [
-         "•  Ctrl+1 is this welcome, Ctrl+2 the Basic Features, Ctrl+3 the Advanced Features and Ctrl+4 the New Features. The Markers menu in a view's header lists every lesson, and clicking one flies you there.",
+         "•  Ctrl+1 is this welcome, Ctrl+2 Staying Safe, Ctrl+3 the Basic Features, Ctrl+4 the Advanced Features and Ctrl+5 the New Features. The Markers menu in a view's header lists every lesson, and clicking one flies you there.",
          '•  Press Shift+F to see the whole guide at once, then scroll in on the card you want.',
      ]),
     ('Where to start',
      [
+         '•  Adding plugins or running someone else’s scripts?  Read Staying Safe first (Ctrl+2): two short lessons.',
          '•  New here?  Basic Features, lessons B1 to B6, take about ten minutes.',
          '•  Know another reference tool?  Skim Advanced Features: effects, links, redaction, Steps, views, playback and scripts.',
-         '•  Back after an update?  New Features covers copying attributes, editing several items at once, the colour picker and notes on single GIF frames.',
+         '•  Back after an update?  New Features covers copying attributes, editing several items at once, the colour picker, notes on single GIF frames and clickable buttons.',
      ]),
     ('Save and share',
      [
@@ -163,6 +237,7 @@ WELCOME_BLOCKS = (
     ('Come back any time',
      [
          '•  Right-click the canvas and choose Getting Started…, press Ctrl+K and type “getting started”, or click Getting Started on the start panel of an empty board.',
+         '•  The safety guide is in the same right-click menu: Staying Safe with Plugins & Scripts….',
      ]),
 )
 
@@ -176,9 +251,12 @@ def build_board() -> None:
     h.run("canvas_background.set", background=[23, 25, 29], pattern="dots", grid_size=40)
     board = Board(h)
     welcome(board)
+    _safety_right, safety_bottom = board.section(
+        "Staying Safe", "Plugins and scripts can do anything you can. Two lessons on what to check before you "
+        "trust them.", SAFETY, "S", 0, board.welcome_bottom + 450, RED, None, icon=True)
     basic_right, basic_bottom = board.section(
         "Basic Features", "Everything you need on day one: bring pictures in, move around, arrange them and mark them up.",
-        BASIC, "B", 0, board.welcome_bottom + 450, BLUE,
+        BASIC, "B", 0, safety_bottom + 450, BLUE,
         ("the basics", ["Scroll to zoom in on a picture, then press Shift+F to see them all again.",
                         "Click a picture, drag a corner handle to resize it and the round knob to rotate it.",
                         "Press T, click on the board and type a note. Press Esc when you are done.",
@@ -199,12 +277,13 @@ def build_board() -> None:
          ["fennec", "red_poodle", "jumper", "poodle", "leopard", "cat"]))
     board.section(
         "New Features", "Fresh in this version: copy styling between items, edit many items at once, pick colours "
-        "properly and pin notes to single frames of a GIF.",
+        "properly, pin notes to single frames of a GIF and make boards clickable.",
         NEWEST, "N", 0, advanced_bottom + 450, GREEN,
         ("the new tools", ["Select a rectangle, press Ctrl+Alt+Shift+C, select a picture's note and press Ctrl+Alt+Shift+V.",
                            "Shift+click several pictures and look for Shared attributes in the Attribute Editor.",
                            "Press R, drag a box, then click its Stroke swatch to try the colour picker.",
-                           "Click the GIF, press K to pause it, step with . and draw a box on one frame. Press K to play."],
+                           "Click the GIF, press K to pause it, step with . and draw a box on one frame. Press K to play.",
+                           "Select a picture, right-click → Click Action → Make Reveal Button, lock the new button in the Outliner and click it."],
          ["reaction", "fennec", "cat", "jumper"]))
     place_markers(board)
     h.run("select", clear=True)
@@ -230,7 +309,8 @@ def welcome(board: Board) -> None:
     lead = board.text("A reference board for everything you are looking at. This guide is itself a pixelRef board: "
                       "pan, zoom and click around it just like you will your own.", 0, y, 3.0, group, 2600,
                       name="Lead", font_size=14, color=[205, 210, 220])
-    y += board.height(lead) + 120
+    y += board.height(lead) + 90
+    y = safety_panel(board, group, y) + 110
     bottom = y
     for head, bullets in WELCOME_BLOCKS:
         title_node = board.text(head, 0, bottom, 3.0, group, 1550, name=f"{head} heading", bold=True, font_size=18,
@@ -250,20 +330,42 @@ def welcome(board: Board) -> None:
     board.welcome_bottom = height - 50
 
 
+def safety_panel(board: Board, group: str, y: float) -> float:
+    """The warning panel at the top of the welcome card; returns its bottom."""
+    panel = board.rect(-10, y, 2720, 10, group, "Safety panel", stroke_color=list(AMBER), thickness=8,
+                       fill_color=[58, 44, 18], fill_opacity=1.0, corner_radius=30)
+    board.picture(board.warning, 40, y + 40, 300, group)
+    icon_h = 300 * 0.9
+    heading = board.text("Stay safe: plugins and scripts can do anything you can", 400, y + 40, 3.2, group, 2250,
+                         name="Safety heading", bold=True, font_size=18, color=list(AMBER))
+    body_y = y + 40 + board.height(heading) + 24
+    body = board.text(
+        "Third-party plugins, scripts and Python packages run with your permissions: they can read and change your "
+        "files, use the network and start other programs. Only install them from people you trust.\n\n"
+        "pixelRef won't run a new or changed plugin until you approve it in Window → Plugins….  "
+        "Read Staying Safe (Ctrl+2) before you add one, or any time: right-click the canvas → "
+        "Staying Safe with Plugins & Scripts….",
+        400, body_y, 2.6, group, 2250, name="Safety text", font_size=14, color=[240, 232, 214])
+    bottom = max(body_y + board.height(body), y + 40 + icon_h) + 40
+    board.h.run("set_attr", panel, "size", [2720, bottom - y])
+    return bottom
+
+
 def place_markers(board: Board) -> None:
     """View markers: Welcome, the two sections, then one per lesson (Ctrl+1…9 reach the first nine)."""
     h = board.h
     boxes = {name: (x, y, w, hh) for name, x, y, w, hh in board.markers}
-    for band in ("Basic Features band", "Advanced Features band", "New Features band"):
+    for band in ("Staying Safe band", "Basic Features band", "Advanced Features band", "New Features band"):
         node = h.scene.nodes[band]
         x, y = node.attrs["translate"]
         w, hh = node.attrs["size"]
         boxes[band.replace(" band", "")] = (x, y, w, hh)
-    order = ["Welcome", "Basic Features", "Advanced Features", "New Features"] + [n for n, *_ in board.markers if n != "Welcome"]
+    order = (["Welcome", "Staying Safe", "Basic Features", "Advanced Features", "New Features"]
+             + [n for n, *_ in board.markers if n != "Welcome"])
     for name in order:
         x, y, w, hh = boxes[name]
         zoom = round(min(1150 / w, 830 / hh) * 0.92, 4)
-        color = list({"B": BLUE, "A": ORANGE, "N": GREEN}.get(name[0], BLUE) if name != "Welcome" else BLUE)
+        color = list({"B": BLUE, "A": ORANGE, "N": GREEN, "S": RED}.get(name[0], BLUE) if name != "Welcome" else BLUE)
         h.run("create_node", "camera", name, attrs={"translate": [x + w / 2, y + hh / 2],
                                                       "center": [x + w / 2, y + hh / 2], "zoom": zoom, "color": color})
 

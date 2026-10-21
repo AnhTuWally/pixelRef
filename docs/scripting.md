@@ -49,6 +49,18 @@ pxcmd.pen.add_stroke([[0, 0], [50, 20], [100, 0]], color=[255, 64, 64])
 pxcmd.canvas_background.set(background=[255, 255, 255], pattern="dots")
 pxcmd.playback.go_to_frame(12, "dance")      # animated images (desktop app): play, pause, next_frame…
 
+# Click actions (see "Interactive boards" in the user guide)
+btn = pxcmd.interactions.create_button(0, -120, "Answer")
+pxcmd.interactions.connect(btn, "answer_note", "show")    # verbs: show hide frame play pause fly_to click
+pxcmd.interactions.describe(btn)             # ["Show answer_note"]
+pxcmd.interactions.click(btn)                # one undo step; click again puts it back
+pxcmd.interactions.demonstrate(btn)          # …change the board the way it should look after the click…
+pxcmd.interactions.finish()                  # what changed becomes the action; the board goes back
+pxcmd.interactions.make_tabs(["a", "b", "c"])  # also make_reveal, make_before_after, make_set
+pxcmd.interactions.status(btn)               # "ok", "partial", "failed", "broken" or ""
+pxcmd.interactions.check(btn)                # steps that can't run now, and why
+pxcmd.interactions.log(problems_only=True)   # this session's clicks: time, ran, problems…
+
 # Undo
 with pxcmd.undo_chunk("Lay out refs"):       # one undo step for everything inside
     pxcmd.arrange(mode="grid")
@@ -132,7 +144,9 @@ layout like any other view.
 
 At startup the app runs `userSetup.py` from the user script folder and from
 every folder on `$PIXELREF_SCRIPT_PATH`. Use it for helper functions,
-callbacks or custom key bindings:
+callbacks or custom key bindings. It runs with your full permissions and
+isn't checked the way plugins are, so keep these folders writable only by
+you (see [Staying safe with plugins and scripts](security.md)):
 
 ```python
 # userSetup.py
@@ -160,7 +174,7 @@ Run scripts without a window:
 ```bash
 python -m pixelref --batch build_board.py                    # new scene
 python -m pixelref --batch fix.py board.pxref --save fixed.pxref # open, run, save
-python -m pixelref --batch report.py board.pxref --plugin-path my_plugins
+python -m pixelref --batch report.py board.pxref --trust-plugin-path my_plugins
 ```
 
 The script runs with `pxcmd`, `pxnode` and `session` predefined. It sees every

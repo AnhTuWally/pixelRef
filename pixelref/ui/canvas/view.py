@@ -145,6 +145,10 @@ def draw_background(painter: QPainter, rect: QRectF, spec: BackgroundSpec) -> No
 class CanvasView(QGraphicsView):
     MIN_ZOOM = 0.01
     MAX_ZOOM = 64.0
+    # Zooming out may go below MIN_ZOOM until the board fits in this share of the view, but
+    # never below FLOOR_ZOOM, where a 2000 px view already shows the whole scene rect.
+    ZOOM_OUT_FIT = 0.1
+    FLOOR_ZOOM = 0.001
 
     camera_changed = Signal()
 
@@ -190,6 +194,7 @@ class CanvasView(QGraphicsView):
         self._glide_timer.timeout.connect(self._glide_step)
         self._cameras_of: Any = None
         self._cameras: list[str] = []
+        self._content_bounds: QRectF | None = None  # measured lazily, dropped on scene changes
 
         viewport = make_viewport()
         if viewport is not None:  # GPU drawing (see .gpu)
@@ -214,6 +219,7 @@ class CanvasView(QGraphicsView):
         app.canvas.scene.content_changed.connect(self._on_scene_changed)
 
     def _on_scene_changed(self, rects: list[QRectF]) -> None:
+        self._content_bounds = None
         self._invalidate_gray_cache()
         self.tiles.invalidate(rects)
 
@@ -288,6 +294,24 @@ class CanvasView(QGraphicsView):
         t = self.transform()
         return math.hypot(t.m11(), t.m12())
 
+    def min_zoom(self) -> float:
+        """How far zooming out may go: MIN_ZOOM, or further until the board fits in
+        ZOOM_OUT_FIT of the view (so a board spread wide can still be seen whole)."""
+        if self._content_bounds is None:
+            canvas = self.app.canvas
+            self._content_bounds = canvas.scene_bounds(canvas.visible_content_items())
+        bounds = self._content_bounds
+        if bounds.isNull() or bounds.width() <= 0.0 or bounds.height() <= 0.0:
+            return self.MIN_ZOOM
+        size = self.viewport().rect()
+        fit = min(size.width() / bounds.width(), size.height() / bounds.height())
+        return max(self.FLOOR_ZOOM, min(self.MIN_ZOOM, fit * self.ZOOM_OUT_FIT))
+
+    def _clamp_zoom_out(self, target: float, current: float) -> float:
+        """Clamp an interactive zoom; a camera already below the limit (the board shrank)
+        stays where it is rather than jumping in."""
+        return max(min(self.min_zoom(), current), min(self.MAX_ZOOM, target))
+
     def rotation(self) -> float:
         t = self.transform()
         return math.degrees(math.atan2(t.m12(), t.m11()))
@@ -312,7 +336,7 @@ class CanvasView(QGraphicsView):
     def set_camera(self, center: Any = None, zoom: float | None = None, rotation: float | None = None,
                    animate: bool = False, flip_x: bool | None = None, flip_y: bool | None = None) -> None:
         target_center = QPointF(float(center[0]), float(center[1])) if center is not None else self._camera_center
-        target_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, float(zoom))) if zoom is not None else self._camera_zoom
+        target_zoom = max(self.FLOOR_ZOOM, min(self.MAX_ZOOM, float(zoom))) if zoom is not None else self._camera_zoom
         target_rotation = float(rotation) if rotation is not None else self._camera_rotation
         target_flip_x = self._camera_flip_x if flip_x is None else bool(flip_x)
         target_flip_y = self._camera_flip_y if flip_y is None else bool(flip_y)
@@ -351,7 +375,7 @@ class CanvasView(QGraphicsView):
     def _apply_camera(self, center: QPointF, zoom: float, rotation: float,
                       flip_x: bool = False, flip_y: bool = False) -> None:
         self._camera_center = QPointF(center)
-        self._camera_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, float(zoom)))
+        self._camera_zoom = max(self.FLOOR_ZOOM, min(self.MAX_ZOOM, float(zoom)))
         self._camera_rotation = float(rotation)
         self._camera_flip_x = bool(flip_x)
         self._camera_flip_y = bool(flip_y)
@@ -400,7 +424,7 @@ class CanvasView(QGraphicsView):
 
     def zoom_by(self, factor: float, around_cursor: bool = True) -> None:
         current = self.zoom_level() or 1.0
-        target = max(self.MIN_ZOOM, min(self.MAX_ZOOM, current * factor))
+        target = self._clamp_zoom_out(current * factor, current)
         if abs(target - current) < 1e-12:
             return
         self._stop_animation()
@@ -423,7 +447,7 @@ class CanvasView(QGraphicsView):
         if self._animation is not None:
             self._animation.stop()
         start = self._glide_target if self._glide_target is not None else (self.zoom_level() or 1.0)
-        self._glide_target = max(self.MIN_ZOOM, min(self.MAX_ZOOM, start * factor))
+        self._glide_target = self._clamp_zoom_out(start * factor, start)
         self._glide_anchor = QPointF(pos) if pos is not None else QRectF(self.viewport().rect()).center()
         # The scene point to keep under the anchor, fixed for the glide: measuring it
         # again each step would let whole-pixel scrolling round it away.
@@ -472,8 +496,8 @@ class CanvasView(QGraphicsView):
         rotation = self._camera_rotation
         self.fitInView(rect.adjusted(-margin, -margin, margin, margin), Qt.KeepAspectRatio)
         zoom = self.zoom_level()
-        if abs(rotation) > 1e-6 or zoom > self.MAX_ZOOM or zoom < self.MIN_ZOOM:
-            self._apply_camera(rect.center(), max(self.MIN_ZOOM, min(self.MAX_ZOOM, zoom)), rotation,
+        if abs(rotation) > 1e-6 or zoom > self.MAX_ZOOM or zoom < self.FLOOR_ZOOM:
+            self._apply_camera(rect.center(), max(self.FLOOR_ZOOM, min(self.MAX_ZOOM, zoom)), rotation,
                                self._camera_flip_x, self._camera_flip_y)
         self._camera_moved(sync_state=True)
 

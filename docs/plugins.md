@@ -8,21 +8,54 @@ is a commented example to copy.
 
 ## Layout and loading
 
+> Plugins run with the user's full permissions, so pixelRef won't run yours
+> until the user approves it, and asks again whenever its files change. Say
+> who you are, declare what your plugin does, and sign your releases: see
+> [Staying safe with plugins and scripts](security.md) for what users see.
+
 ```text
 my_plugin/
   plugin.toml
   __init__.py      # activate(ctx) and/or activate_ui(ui); may import sibling modules
+  README.md        # optional: the long description on the plugin's page (and in Help)
+  SIGNATURE.toml   # optional: written by `python -m pixelref plugin sign`
+  wheels/          # optional: wheels of the Python packages it needs (offline installs)
 ```
 
 ```toml
-id = "my_plugin"            # snake_case; also the namespace of its commands
+id = "my_plugin"            # snake_case, 2-64 characters; also the namespace of its commands
 name = "My plugin"
 version = "1.0.0"
 api = 1                     # must equal pixelref.plugin_api.API_VERSION
+description = "One line shown in the plugin manager."
 requires = ["brush"]        # plugins that must be active first
 optional = ["image"]        # loaded first if present, not required
-enabled_by_default = true   # false: the user turns it on in Window → Plugins…
-description = "One line shown in the plugin manager."
+enabled_by_default = true   # only for signed plugins from a publisher the user trusts
+license = "MIT"             # SPDX identifier
+readme = "README.md"        # default: README.md if there is one
+category = "Drawing"        # groups and searches in the plugin manager
+tags = ["shapes", "vector"]
+min_app_version = "1.0.0"   # the oldest pixelRef it works with
+overrides = []              # names it takes over from other plugins (see below)
+# replaces = "my_plugin"    # only when it is a drop-in replacement of the built-in plugin with this id
+
+[author]                    # who made it
+name = "Jo Maker"
+email = "jo@example.com"
+organization = "Example Studio"
+
+[source]                    # where it comes from
+homepage = "https://example.com/my-plugin"
+repository = "https://github.com/example/my-plugin"
+issues = "https://github.com/example/my-plugin/issues"
+
+[permissions]               # what it does beyond drawing on boards (all false by default)
+network = false             # connects to other computers
+subprocess = false          # starts other programs
+native_code = false         # uses ctypes / loads native libraries
+write_files = false         # writes, deletes or renames files (pixelRef saving for it doesn't count)
+read_sensitive = false      # reads SSH keys, browser profiles, cloud credentials…
+dynamic_code = false        # exec()/eval()/compile() of strings
 
 [python]                    # Python packages (optional section)
 requires = ["numpy>=1.26"]  # the plugin can't activate without them
@@ -31,27 +64,131 @@ optional = ["scipy"]        # used when installed
 # requires = [{ name = "opencv-python", import = "cv2", version = ">=4.8" }]
 ```
 
-Plugins are found in, in order:
+Top-level keys must come before the first `[table]`: TOML puts everything
+after `[source]` into `[source]`. The plugin manager lists unknown keys as
+warnings on the plugin's page. `author.name`, `license` and
+`source.homepage` (or `source.repository`) are required to sign a plugin.
+
+### Where plugins are found
+
+Plugins are found in *sources*, in this order:
 
 1. `pixelref/builtins/` (the built-ins);
 2. the user plugin folder. On Windows this is
    `%APPDATA%\pixelRef\pixelRef\plugins`; elsewhere, Qt's `AppDataLocation`
    plus `/plugins`. `$PIXELREF_USER_PLUGINS` points it somewhere else;
-3. folders on `$PIXELREF_PLUGIN_PATH` (separated like `PATH`);
-4. `--plugin-path DIR` on the command line (repeatable).
+3. folders the user added in *Window → Plugins… → Sources*
+   (`pxcmd.add_plugin_source(path)`), in the order they set;
+4. folders on `$PIXELREF_PLUGIN_PATH` (separated like `PATH`);
+5. `--plugin-path DIR` and `--trust-plugin-path DIR` on the command line (repeatable).
 
-Only folders with a `plugin.toml` are plugins; loose `.py` files are ignored.
-When two folders hold a plugin with the same id, the first one found wins and
-the other is skipped with a warning.
+A source is a folder of plugin folders, or a single plugin folder. Only
+folders with a `plugin.toml` are plugins; loose `.py` files are ignored.
 
-They activate in dependency order. A plugin that raises during activation, or
-whose requirements are missing or disabled, is switched off and reported in
-*Window → Plugins…*. Everything it registered so far is undone, and the app
-keeps running. Users enable and disable plugins there at runtime (remembered
-between sessions); `pxcmd.load_plugin(id)`, `pxcmd.unload_plugin(id)` and
-`pxcmd.reload_plugin(id)` do the same from scripts. `reload_plugin` re-imports
-the code, which helps while developing. Foundation plugins
-(`foundation = true`) can't be disabled.
+**Same id in two places.** Every copy is kept as a *candidate*. One is used:
+the copy the user picked on the plugin's page (`pxcmd.plugin_resolve(id, path)`),
+else the built-in one, else the first source's. The others are listed on the
+plugin's page with their version, folder and trust. A third-party plugin
+can't use a built-in plugin's id unless its manifest says
+`replaces = "<that id>"` and the user picks it; foundation plugins can't be
+replaced. Ids starting with `pixelref` are reserved.
+
+### Approval and trust
+
+A third-party plugin's code isn't imported until it is trusted:
+
+| Trust | When | Runs? |
+|---|---|---|
+| Verified | signed by a publisher on the user's trusted list, files match | yes (on by default) |
+| Approved | the user approved exactly these files | yes, when switched on |
+| Trusted folder | its source is set to *Trust everything*, or `--trust-plugin-path` | yes (on by default) |
+| Not reviewed | none of the above | no |
+| Changed | approved, but a file changed since | no, until approved again |
+| Invalid signature | `SIGNATURE.toml` doesn't match the files | no (the user must override explicitly) |
+| Blocked | its folder only allows trusted publishers, or its id is taken | no |
+
+The approval is pinned to a SHA-256 hash of every file in the plugin folder
+(`__pycache__`, `*.pyc` and `.git` excluded). pixelRef checks the files
+again right before running `__init__.py`, and runs exactly the bytes it
+checked. Scripts can do the same as the window: `pxcmd.plugin_trust(id)`,
+`pxcmd.plugin_revoke_trust(id)`, `pxcmd.plugins_needing_review()`,
+`pxcmd.plugin_changes(id)`.
+
+**While developing**, start pixelRef with `--trust-plugin-path your/folder`,
+or set your folder's policy to *Trust everything* in the Sources tab, so
+every edit doesn't need approving again.
+
+### Permissions and the activity monitor
+
+`[permissions]` says what your plugin does. Users see it in the approval
+dialog. The *activity monitor* (a Python audit hook) watches third-party
+plugins and lists anything a plugin does that it didn't declare on the
+plugin's page:
+
+- files opened for writing, deleted, renamed or truncated (the temp folder
+  excepted) → `write_files`;
+- files read in places that hold secrets → `read_sensitive`;
+- sockets connecting and host names looked up → `network`;
+- programs started → `subprocess`;
+- native libraries loaded or symbols looked up with ctypes → `native_code`;
+- code compiled or run from a string by your code → `dynamic_code` (the
+  standard library compiling its own code, like `dataclasses`, doesn't count).
+
+Things pixelRef does for you (saving a board through `ctx.run("save_scene")`)
+are recorded as "through pixelRef", not as violations. Declare what you
+actually do: an honest manifest is what makes the monitor useful to your users.
+`pxcmd.plugin_activity(id)` lists what was recorded.
+
+### Names: commands, services and overrides
+
+Commands are namespaced by your plugin id (`my_plugin.do_thing`). Flat
+aliases, extension points and services share one namespace. Registering a
+name that is taken fails, and the error names the owner. Your plugin is then
+switched off and reported. Built-in plugins activate before third-party ones,
+so a built-in name is always taken.
+
+To take over another plugin's command or service on purpose, declare it:
+
+```toml
+overrides = ["command:pen.combine", "service:color_picker"]
+```
+
+Then `ctx.command("pen.combine", fn)` and `ctx.provide_service("color_picker", obj)`
+replace the original while your plugin is active, and the original comes back
+when it is switched off. The plugin's page lists its overrides.
+
+### Signing and publishing
+
+Users trust a publisher by adding its public key once; plugins it signs then
+load without asking.
+
+```text
+python -m pixelref plugin keygen ~/keys/studio.pem --name "Example Studio"   # once; --password encrypts it
+python -m pixelref plugin sign path/to/my_plugin --key ~/keys/studio.pem     # after every change
+python -m pixelref plugin verify path/to/my_plugin --publisher ~/keys/studio.pub.toml
+python -m pixelref plugin hash path/to/my_plugin                             # the hash approvals pin
+```
+
+`keygen` writes the private key (keep it secret, out of version control) and
+`studio.pub.toml`, which you give to users (*Sources → Trusted publishers →
+Add publisher key…*, or `pxcmd.add_trusted_publisher("studio.pub.toml")`).
+`sign` writes `SIGNATURE.toml`: an Ed25519 signature over the plugin's id,
+version and the hash of every file. **Sign last**: any change to any file
+afterwards (a stray `.DS_Store` included) makes the signature invalid, and
+pixelRef refuses to run the plugin.
+
+### Running
+
+They activate in dependency order: foundation plugins first, then the other
+built-in ones, then third-party ones. A plugin that raises during
+activation, or whose requirements are missing or disabled, is switched off
+and reported in *Window → Plugins…*. Everything it registered so far is
+undone, and the app keeps running. Users enable and disable plugins there at
+runtime (remembered between sessions); `pxcmd.load_plugin(id)`,
+`pxcmd.unload_plugin(id)` and `pxcmd.reload_plugin(id)` do the same from
+scripts. `reload_plugin` re-imports the code (after checking the files
+again), which helps while developing. Foundation plugins
+(`foundation = true`, built-in only) can't be disabled.
 
 ### Python packages
 
@@ -77,7 +214,8 @@ install finishes.
 - Versions use the usual operators: `==`, `!=`, `>=`, `<=`, `>`, `<`, `~=`
   and `==1.*`.
 - Ship wheels in a `wheels/` folder next to `plugin.toml`. They install from
-  there without internet (offices behind firewalls).
+  there without internet (offices behind firewalls). They are only used for
+  your plugin's own packages, and only once the user trusts your plugin.
 - Scripts and batch mode: `pxcmd.packages.needed()`,
   `pxcmd.packages.install_missing()`, `pxcmd.packages.install("numpy")`,
   `pxcmd.packages.install_file("numpy-….whl")`, `pxcmd.packages.list()`,
@@ -472,6 +610,8 @@ Extension points declared by the built-ins (contribution types are in
 | `color.pickers` | kernel (UI) | `ColorPickerProvider(id, title, create, order, description)`: a colour picker for every swatch (see below) |
 | `canvas.item_hooks` | kernel (UI) | `fn(item, node)` after every canvas item is built (paint filters) |
 | `image.movie_hooks` | image | `fn(item)` when an animated image's item starts its movie (playback restores paused frames with it) |
+| `interactions.steps` | interactions | `StepKind(command, describe(session, args, kwargs), targets(args, kwargs), icon)`: a command click actions may run, and its sentence. Only these run from a board |
+| `interactions.verbs` | interactions | `ClickVerb(id, label, applies(session, target), build(session, target) -> (steps, back), prepare=None, order)`: what connecting a button to an item offers |
 | `scene.before_save` / `scene.after_new` | kernel | `fn(session, path)` / `fn(session)` |
 | `wm.layouts`, `wm.scratchpad`, `wm.bar_blocks` | kernel (UI) | workspaces, scratchpad tiles, bar widgets |
 | `canvas.overlays`, `canvas.header_widgets`, `canvas.background` | kernel (UI) | painting over views, widgets in canvas tile headers, the background |
@@ -494,7 +634,7 @@ transforms), `ingest`, `gizmo`, `inspector`, `outliner`, `tool_palette`,
 ```python
 from pixelref.core.session import Session
 
-session = Session(plugin_paths=["path/to/plugins"]).start()     # headless
+session = Session(trusted_plugin_paths=["path/to/plugins"]).start()     # headless, trusted for this run
 session.run("my_plugin.do_thing")
 ```
 
