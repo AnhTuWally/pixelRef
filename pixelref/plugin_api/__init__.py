@@ -28,6 +28,7 @@ A plugin package::
 from .. import __version__ as APP_VERSION
 from ..core import perf, xform
 from ..core.attributes import Attr
+from ..core.docs import DocEntry, docs_folder
 from ..core.errors import CommandError, PluginError, SceneError
 from ..core.extensions import Disposable
 from ..core.nodetypes import (
@@ -54,6 +55,7 @@ __all__ = [
     "CAP_ERASABLE",
     "CommandError",
     "Disposable",
+    "DocEntry",
     "NodeType",
     "PluginContext",
     "PluginError",
@@ -66,4 +68,5 @@ __all__ = [
     "SCENE_EXTS",
     "perf",
     "xform",
+    "docs_folder",
 ]

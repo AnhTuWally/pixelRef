@@ -207,3 +207,79 @@ def activate_ui(ui: Any) -> None:
     ui.action("help.about", "help.show_about", "About pixelRef…", keywords="version info credits", category="Window",
               icon="info")
     ui.menu("canvas", "help.about", group="app", order=1)
+
+    # ---- The Help browser (searchable documentation of everything) ----------------------------------
+
+    from pixelref.plugin_api.ui import PanelType
+
+    browsers: list[Any] = []
+
+    def make_browser(_parent: Any = None) -> Any:
+        from .browser import DocsBrowser
+
+        browser = DocsBrowser(ui)
+        browsers.append(browser)
+        return browser
+
+    def dispose_browser(browser: Any) -> None:
+        if browser in browsers:
+            browsers.remove(browser)
+
+    def context_doc() -> str:
+        """What's under the cursor: a widget naming its documentation (its ``doc`` property),
+        a button running an action, else the selection's node type or the active tool."""
+        from PySide6.QtGui import QCursor
+        from PySide6.QtWidgets import QAbstractButton, QApplication, QToolButton
+
+        widget = QApplication.widgetAt(QCursor.pos())
+        while widget is not None:
+            doc = widget.property("doc")
+            if doc:
+                return str(doc)
+            if isinstance(widget, QToolButton) and widget.defaultAction() is not None:
+                key = app.actions.key_of(widget.defaultAction())
+                if key:
+                    return f"tool:{key[5:]}" if key.startswith("tool.") else f"action:{key}"
+            if isinstance(widget, QAbstractButton) or widget.isWindow():
+                break
+            widget = widget.parentWidget()
+        names = ui.session.selection.names
+        if names and ui.session.scene.has(names[0]):
+            return f"node:{ui.session.scene.get_node(names[0]).node_type}"
+        tool = ui.tools.active
+        if tool is not None and tool.id != ui.tools.default_id:
+            return f"tool:{tool.id}"
+        return ""
+
+    def show_docs(doc: str = "", query: str | None = None) -> str:
+        """Open the Help browser: the documentation of ``doc`` (an id such as ``command:pen.combine``
+        or a name such as ``pen.combine``), or of what's under the mouse when empty. ``query`` searches.
+        Returns the id shown."""
+        target = doc or ("" if query else context_doc())
+        visible = [b for b in browsers if b.isVisible() and b.window().objectName() != "panelPopup"]
+        if visible:
+            browser = visible[-1]
+        else:
+            app.run_command("panels.popup", "docs")
+            browser = next((b for b in reversed(browsers) if b.isVisible()), browsers[-1] if browsers else None)
+        if browser is None:
+            return ""
+        if query is not None:
+            browser.search.setText(query)
+        if target:
+            browser.open(target)
+        browser.window().activateWindow()
+        browser.focus_search()
+        return browser.current or ""
+
+    ui.panel(PanelType(id="docs", title="Help", icon="info", color="#e0b341", factory=make_browser,
+                       dispose=dispose_browser, order=90, default_mode="hidden", popup_size=(560, 640),
+                       float_size=(460, 560), stretch=2,
+                       keywords="documentation docs reference manual api python commands search what is this"))
+    ui.command("docs", show_docs, undoable=False, echo=False)
+    ui.action("help.docs", "help.docs", "Help: Search Documentation…",
+              keywords="documentation docs reference manual api python command attribute tool what is this "
+                       "context help explain", category="Window", icon="info",
+              tip="Search every tool, command, attribute and guide; over a button or field, shows its help")
+    ui.bind("Shift+F1", "help.docs")
+    ui.menu("canvas", "help.docs", group="app", order=-0.5)

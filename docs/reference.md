@@ -15,6 +15,11 @@ always current:
 - In the running app: `pxcmd.help("name")`, `pxcmd.list_commands("pen.*")`,
   `pxcmd.attr_info(node, attr)`, `pxcmd.keymap.list()` and
   `pxcmd.list_plugins()`.
+- The documentation index ([documentation.md](documentation.md)): every tool,
+  menu item (with its keys), command, node type, attribute, effect, plugin and
+  guide section. Search it with `pxcmd.docs.search(…)` / `pxcmd.docs.get(…)`,
+  `python -m pixelref docs search …`, or, as an AI agent, through the MCP server
+  `python -m pixelref mcp` (tools `search_docs` and `get_doc`).
 
 **Contents**
 
@@ -46,7 +51,8 @@ always current:
 - Run commands rather than editing the scene graph directly. The UI, macros
   and the Script Editor all do this, and it's what makes changes undoable.
 - Check a command's exact name and arguments in [commands.md](commands.md)
-  before you use it. Don't guess them.
+  before you use it. Don't guess them. With the pixelRef MCP server
+  connected, `search_docs` and `get_doc` answer from the running code.
 - Attribute names and types are listed in [5.2](#52-node-types). In a running
   session, `pxcmd.attrs(node)` and `pxcmd.attr_info(node, attr)` are the
   definitive source.
@@ -877,11 +883,12 @@ These apply to changes to pixelRef itself and to its built-in plugins.
 
 | Path | Holds |
 | --- | --- |
-| `pixelref/core/` | the headless kernel: `session.py`, `scene.py` (the scene graph), `nodetypes.py`, `attributes.py`, `commands.py`, `undo`, `plugins.py`, `scene_file.py`, `xform.py`, `packages.py` |
+| `pixelref/core/` | the headless kernel: `session.py`, `scene.py` (the scene graph), `nodetypes.py`, `attributes.py`, `commands.py`, `undo`, `plugins.py`, `scene_file.py`, `xform.py`, `packages.py`, `docs.py` (the documentation index) |
 | `pixelref/plugin_api/` | the plugin API: `__init__.py` (headless), `ui.py` (Qt) and `contracts.py` (InspectorSection, QuickSection, IngestHandler, EffectType…) |
 | `pixelref/ui/` | the Qt kernel: `app.py` (App, UIContext, actions, menus), `canvas/` (document, views, items, tools, input), `wm/` (window manager), `panels.py`, `widgets.py`, `command_search.py` |
 | `pixelref/builtins/<plugin>/` | one folder per feature. Each has `plugin.toml` and `__init__.py`, and often a `ui.py` |
 | `pixelref/pxcmd.py`, `pxnode.py`, `batch.py` | the scripting API and batch mode |
+| `pixelref/docs_cli.py`, `mcp_server.py` | `python -m pixelref docs` and the MCP server for AI agents |
 | `examples/plugins/ellipse/` | the commented example plugin |
 | `examples/scenes/animals.pxref` | the sample board |
 | `tests/` | headless end-to-end tests (`harness.py`, `run_tests.py`) |
@@ -905,7 +912,7 @@ Which built-in plugin provides each feature:
 | `export`, `file`, `image_storage` | export, scene files, autosave and recovery, embedding and linking |
 | `gizmo`, `select`, `transform`, `order`, `navigation` | selection, the gizmo, transforms, stacking, the camera |
 | `grouping`, `outliner`, `inspector`, `quick_edit`, `tool_palette` | groups and the panels |
-| `help` | `F1` keyboard shortcuts and About |
+| `help` | `F1` keyboard shortcuts, the `Shift+F1` Help browser and About |
 | `image`, `playback`, `image_info` | image nodes, GIF/WebP/movie playback, filmstrip scrubbing, the image info readout |
 | `links` | links |
 | `macros` | the scripts folder, Record Macro and `keymap.toml` macros |

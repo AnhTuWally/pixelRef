@@ -128,6 +128,9 @@ class App:
         self._declare_extension_points()
         color_dialog.attach(self)
         self._register_kernel_ui()
+        from .docs import attach as attach_docs
+
+        self._disposables.append(attach_docs(self))
         self.input.add(ActiveToolHandler(self.tools), 500)
         self.tools.watch(self._on_tool_changed)
         self.tools.watch_registry(self._sync_tool_actions)
@@ -961,6 +964,14 @@ class App:
 
     def build_context_menu(self, parent: QWidget | None = None) -> Any:
         return self.menus.build("canvas", parent or self.main_window())
+
+    def show_help(self, doc: str = "") -> bool:
+        """Show the documentation of ``doc`` (an id or a name; empty: what's under the cursor)
+        in the help browser. False when no plugin provides one (``help.docs``)."""
+        if not self.session.commands.exists("help.docs"):
+            return False
+        self.run_command("help.docs", doc)
+        return True
 
     def show_command_search(self) -> None:
         view = self.active_view()

@@ -11,25 +11,29 @@ the rest also work headless (batch mode, scripts).
 
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
-| `add_attr(node: str, name: Any, type: str = any, default: Any = None, value: Any = None, **spec: Any)` |  | yes | Add a dynamic attribute to one node (saved with the scene); ``name`` may also be an ``Attr``. |
+| `add_attr(node: str, name: Any, type: str = 'any', default: Any = None, value: Any = None, **spec: Any)` |  | yes | Add a dynamic attribute to one node (saved with the scene); ``name`` may also be an ``Attr``. |
 | `attr_info(node: str, attr: str)` |  |  | The specification of one attribute. |
 | `attrs(node: str, computed: bool = True, hidden: bool = True)` |  |  | Attribute names of a node. |
 | `children(node: str, all_descendants: bool = False, type: str \| None = None)` |  |  | The children (or all descendants) of a node, optionally of one type. |
 | `create_node(node_type: str, name: str \| None = None, parent: str \| None = None, attrs: dict[str, Any] \| None = None, index: int \| None = None, **attr_values: Any)` |  | yes | Create a node; taken names get a numbered suffix. Returns the new name. |
 | `delete(nodes: Any = None)` |  | yes | Delete nodes (and everything below them). |
 | `delete_attr(node: str, name: str)` |  | yes | Remove a dynamic attribute. |
+| `docs.export(path: str \| None = None, format: str = 'json', kind: Any = None)` |  |  | Every documentation entry, as ``json`` (a list of dicts) or one ``markdown`` text. |
+| `docs.get(name: str, markdown: bool = True)` |  |  | Everything about one documented thing, by id or by name. |
+| `docs.kinds()` |  |  | The kinds of documentation entries and how many of each there are. |
+| `docs.search(query: str = '', kind: Any = None, limit: int = 20, plugin: str \| None = None)` |  |  | Search the documentation: commands, tools, menu items, node types, attributes, plugins, guides. |
 | `duplicate(nodes: Any = None, offset: tuple[float, float] = (0.0, 0.0))` |  | yes | Copy nodes with their children; copies go on top. ``offset`` moves them (world units). |
 | `exists(node: str)` |  |  | Whether a node with this name (or id) exists. |
 | `get_attr(target: str, attr: str \| None = None)` |  |  | ``get_attr("Node.attr")`` or ``get_attr("Node", "attr")`` (computed attributes too). |
 | `get_transform(nodes: Any = None, world_space: bool = False)` |  |  | The core transform of nodes (one dict, or a list for several nodes). |
-| `help(command: str)` |  |  | One-line description of a command. |
+| `help(command: str)` |  |  | The documentation of a command (or of a tool, node type, attribute… by name), as text. |
 | `import_scene(path: str)` |  | yes | Add the nodes of another scene file to this one; returns the new root names. |
 | `inherits(node: str, base: str)` |  |  | Whether a node (or a node type, by name) is ``base`` or derives from it. |
 | `list_commands(pattern: str \| None = None)` |  |  | Command names, optionally filtered by a glob pattern such as ``pen.*``. |
 | `list_plugins()` |  |  | Every discovered plugin with its status, version and dependencies. |
 | `load_plugin(plugin_id: str)` |  |  | Enable a plugin (remembered between sessions). |
 | `ls(type: str \| list[str] \| None = None, tags: str \| list[str] \| None = None, selection: bool = False, visible: bool \| None = None, pattern: str \| None = None, roots: bool = False)` |  |  | List nodes in scene order, optionally filtered. |
-| `move_nodes(nodes: Any, parent: str \| None = None, anchor: str \| None = None, place: str = end)` |  | yes | Reparent (keeping canvas placement) and position among the new siblings. |
+| `move_nodes(nodes: Any, parent: str \| None = None, anchor: str \| None = None, place: str = 'end')` |  | yes | Reparent (keeping canvas placement) and position among the new siblings. |
 | `new_scene()` |  |  | Clear the document and start a new scene. |
 | `node_id(node: str)` |  |  | A node's permanent unique id (names can change, ids don't). |
 | `node_type(node: str)` |  |  | The type of a node. |
@@ -56,7 +60,7 @@ the rest also work headless (batch mode, scripts).
 | `redo()` |  |  | Redo the last undone change; returns its label. |
 | `reload_plugin(plugin_id: str)` |  |  | Re-import a plugin's code (for plugin development). |
 | `rename(node: str, new_name: str)` |  | yes | Rename a node. Names are unique: renaming to a taken name is an error. |
-| `reorder(nodes: Any = None, mode: str = front)` |  | yes | Change stacking: front, back, forward or backward (within each parent). |
+| `reorder(nodes: Any = None, mode: str = 'front')` |  | yes | Change stacking: front, back, forward or backward (within each parent). |
 | `restack(names: list[str])` |  | yes | Set the order of siblings, back-most first. |
 | `save_scene(path: str \| None = None)` |  |  | Save the scene (to its current file when ``path`` is omitted). |
 | `scene_info()` |  |  | Summary of the open scene. |
@@ -75,14 +79,14 @@ the rest also work headless (batch mode, scripts).
 | --- | --- | --- | --- |
 | `command_search()` |  |  | Open the searchable command menu at the mouse. |
 | `escape()` |  |  | Esc: finish text editing, cancel the tool's operation or mode, then deselect. |
-| `keymap.bind(key: str, target: str, when: str \| None = None, scope: str = window, mode: str \| None = None)` | `bind_key` |  | Bind a key to an action or command for this session (use keymap.toml to keep it). |
+| `keymap.bind(key: str, target: str, when: str \| None = None, scope: str = 'window', mode: str \| None = None)` | `bind_key` |  | Bind a key to an action or command for this session (use keymap.toml to keep it). |
 | `keymap.enter_mode(name: str)` |  |  | Enter a key mode (window, resize): keys run that mode's bindings until Esc. |
 | `keymap.exit_mode()` |  |  | Leave the current key mode. |
 | `keymap.list()` |  |  | Every key binding: key, target, when-condition, scope and mode. |
 | `keymap.reload()` |  |  | Re-read keymap.toml from the user config folder; returns the problems found. |
 | `keymap.reset_shortcut(target: str)` |  |  | Back to the built-in keys of an action or command (in keymap.toml). Returns the keys. |
 | `keymap.set_leader(key: str)` |  |  | Change the window-mode leader key (default Ctrl+W); remembered. |
-| `keymap.set_shortcut(target: str, key: str = , add: bool = False)` | `set_shortcut` |  | Give an action or command a key, kept in keymap.toml (taken over from whatever had |
+| `keymap.set_shortcut(target: str, key: str = '', add: bool = False)` | `set_shortcut` |  | Give an action or command a key, kept in keymap.toml (taken over from whatever had |
 | `keymap.unbind(key: str, mode: str \| None = None, target: str \| None = None)` |  |  | Remove a key binding for this session (only from ``target`` when given). |
 | `tools.activate(tool_id: str, **args: Any)` |  |  | Make a tool active (no toggling); extra arguments go to the tool. |
 | `tools.clear_defaults(tool: str \| None = None)` |  |  | Forget your saved defaults for a tool (the factory defaults apply again). |
@@ -97,10 +101,10 @@ the rest also work headless (batch mode, scripts).
 | `tools.set_option(tool: str, name: str, value: Any)` | `set_tool_option` |  | Set one of a tool's options for this session (``set_tool_option("rect", "thickness", 6)``). |
 | `tools.set_options(tool: str \| None = None, **values: Any)` |  |  | Set several of a tool's options (``set_tool_options("rect", thickness=6, corner_radius=8)``). |
 | `ui.active_view()` | `active_view` |  | The name of the canvas view that commands act on (the focused or last-used one). |
-| `ui.confirm_dialog(message: str, title: str = pixelRef)` | `confirm_dialog` |  | Ask a yes/no question; returns True for yes. |
+| `ui.confirm_dialog(message: str, title: str = 'pixelRef')` | `confirm_dialog` |  | Ask a yes/no question; returns True for yes. |
 | `ui.in_view_message(text: str, color: str \| None = None)` | `in_view_message` |  | Show a short message over the active canvas view. |
 | `ui.plugins()` |  |  | Open the plugin manager. |
-| `ui.prompt_dialog(message: str, title: str = pixelRef, text: str = )` | `prompt_dialog` |  | Ask for a line of text; returns None when cancelled. |
+| `ui.prompt_dialog(message: str, title: str = 'pixelRef', text: str = '')` | `prompt_dialog` |  | Ask for a line of text; returns None when cancelled. |
 | `ui.status(text: str)` | `status` |  | Show a message in the status bar. |
 | `ui.views()` | `views` |  | Names of the canvas views (tiles). |
 | `wm.apply_workspace_template(template: str, ref: Any = None)` |  |  | Replace a workspace's layout and views with a template's (keeps its number and title). |
@@ -134,7 +138,7 @@ the rest also work headless (batch mode, scripts).
 | `wm.rename_workspace(ref: Any, title: str)` |  |  | Give a workspace a new title (saved with the scene). |
 | `wm.rename_workspace_dialog()` |  |  | Ask for a new name for the current workspace. |
 | `wm.reset_layout()` |  |  | Back to the built-in workspaces. |
-| `wm.resize(tile: str \| None = None, dimension: str = width, delta: float = 40)` |  |  | Grow (positive delta, pixels) or shrink the view's width or height. |
+| `wm.resize(tile: str \| None = None, dimension: str = 'width', delta: float = 40)` |  |  | Grow (positive delta, pixels) or shrink the view's width or height. |
 | `wm.rotate_split(target: str \| None = None)` |  |  | Turn a split between side by side and stacked (target: a view or a split; default the focused view). |
 | `wm.save_layout(name: str)` |  |  | Remember the current layout under a name. |
 | `wm.save_workspace_template(name: str \| None = None, ref: Any = None)` |  |  | Save a workspace's layout, views and window style as a template (for every scene). |
@@ -146,8 +150,8 @@ the rest also work headless (batch mode, scripts).
 | `wm.set_placement(mode: str)` |  |  | manual (i3: split the focused view the chosen way) or auto (alternate, spiral). |
 | `wm.set_rule(view_type: str, placement: str \| None)` |  |  | Where new views of a type open: split, h, v, tabbed, stacked, floating, scratchpad (None = default). |
 | `wm.set_view_type(view_type: str, tile: str \| None = None)` |  |  | Change what a tile shows. |
-| `wm.split(orientation: str = h)` |  |  | Where the next view opens: h (side by side) or v (stacked). |
-| `wm.split_view(direction: str = right, tile: str \| None = None, ratio: float = 0.5, view_type: str \| None = None)` |  |  | Split a view: a copy of it (or a new view of view_type) opens to its right, left, down or up, |
+| `wm.split(orientation: str = 'h')` |  |  | Where the next view opens: h (side by side) or v (stacked). |
+| `wm.split_view(direction: str = 'right', tile: str \| None = None, ratio: float = 0.5, view_type: str \| None = None)` |  |  | Split a view: a copy of it (or a new view of view_type) opens to its right, left, down or up, |
 | `wm.swap_split(split: str)` |  |  | Reverse the order of a split's views (swap left/right or top/bottom). |
 | `wm.tear_off(tile: str \| None = None)` |  |  | Move a view into a window of its own (a new output). |
 | `wm.tree()` |  |  | The layout as nested plain data. |
@@ -158,16 +162,16 @@ the rest also work headless (batch mode, scripts).
 
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
-| `arrange.align(edge: str = left, nodes: Any = None)` | `align` | yes | Align edges or centres: left, right, top, bottom, hcenter, vcenter. |
-| `arrange.arrange(mode: str = optimal, nodes: Any = None, gap: float = 8.0)` | `arrange` | yes | Lay items out: optimal (pack), horizontal (row), vertical (column) or grid. |
+| `arrange.align(edge: str = 'left', nodes: Any = None)` | `align` | yes | Align edges or centres: left, right, top, bottom, hcenter, vcenter. |
+| `arrange.arrange(mode: str = 'optimal', nodes: Any = None, gap: float = 8.0)` | `arrange` | yes | Lay items out: optimal (pack), horizontal (row), vertical (column) or grid. |
 | `arrange.arrange_ui(mode: str)` |  |  | Arrange the selection (or everything) and frame the result in the active view. |
-| `arrange.normalize(mode: str = size, nodes: Any = None)` | `normalize` | yes | Make items the same height, width or size (area), about their centres. |
+| `arrange.normalize(mode: str = 'size', nodes: Any = None)` | `normalize` | yes | Make items the same height, width or size (area), about their centres. |
 
 ## arrow
 
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
-| `arrow.create(x1: float, y1: float, x2: float, y2: float, name: str = Arrow, arrow: int = 1, arrow_start: int = 0, **attrs: Any)` | `create_arrow` | yes | Create a line from (x1, y1) to (x2, y2); an arrowhead at the end by default. |
+| `arrow.create(x1: float, y1: float, x2: float, y2: float, name: str = 'Arrow', arrow: int = 1, arrow_start: int = 0, **attrs: Any)` | `create_arrow` | yes | Create a line from (x1, y1) to (x2, y2); an arrowhead at the end by default. |
 
 ## attr_transfer
 
@@ -180,6 +184,23 @@ the rest also work headless (batch mode, scripts).
 | `attr_transfer.paste_dialog()` |  |  | Choose which copied attributes to paste onto the selected items. |
 | `attr_transfer.paste_style()` |  |  | Paste every style attribute without asking. |
 | `attr_transfer.set_values(values: dict[str, Any], nodes: Any = None)` |  | yes | Set attribute values on every node that has them (default: the selection). |
+
+## backdrops
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `backdrops.adopt(host: str, nodes: Any = None)` |  | yes | Put nodes onto a backdrop (whatever the rules say), keeping them in place. |
+| `backdrops.contents(host: str)` |  |  | What sits on a backdrop, front-most first. |
+| `backdrops.create(x: float, y: float, width: float, height: float, title: str = 'Backdrop', base_name: str = 'Backdrop', margin: float = 0.0, **attrs: Any)` |  | yes | Draw a backdrop over a world rectangle; everything inside it joins (and it joins a larger one). |
+| `backdrops.get_mode()` |  |  | The current hosting mode. |
+| `backdrops.make(title: str \| None = None)` |  |  | K: put a backdrop around the selection (asking for its title), or start the Backdrop tool. |
+| `backdrops.release(nodes: Any = None)` |  | yes | Take nodes off the backdrop they are on, keeping them in place. |
+| `backdrops.set_mode(mode: str = 'strict')` |  |  | Hosting mode: ``strict`` (backdrops and nodes switched on) or ``free`` (rectangles and images too). |
+| `backdrops.settle(nodes: Any = None, margin: float = 0.0)` |  | yes | Re-evaluate which backdrop each node belongs on (default: the selection). |
+| `backdrops.toggle(nodes: Any = None, mode: str = 'inside', on: bool \| None = None)` |  | yes | Turn nodes (default: the selection) into backdrops, or back into plain nodes. |
+| `backdrops.toggle_free()` |  |  |  |
+| `backdrops.toggle_mode()` |  |  | Switch between strict and free hosting; returns the new mode. |
+| `backdrops.wrap(nodes: Any = None, padding: float = 24.0, title: str = 'Backdrop', base_name: str = 'Backdrop', **attrs: Any)` |  | yes | Create a backdrop around nodes (default: the selection) and put them on it. |
 
 ## brush
 
@@ -213,8 +234,15 @@ the rest also work headless (batch mode, scripts).
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
 | `color_picker.apply_color(color: Any, nodes: Any = None)` | `apply_color` | yes | Recolor text, shapes, strokes and drawings ([r, g, b] or "#rrggbb"). |
-| `color_picker.copy_color(fmt: str = hex)` |  |  | Copy the picked colour as "hex" (#RRGGBB), "rgb" (rgb(r, g, b)) or "hsv" (hsv(h, s%, v%)). |
+| `color_picker.copy_color(fmt: str = 'hex')` |  |  | Copy the picked colour as "hex" (#RRGGBB), "rgb" (rgb(r, g, b)) or "hsv" (hsv(h, s%, v%)). |
 | `color_picker.pick_screen()` | `pick_screen_color` |  | Pick a colour anywhere on the screen, outside pixelRef too (Ctrl+Alt+I); Esc cancels. |
+
+## color_popover
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `color_popover.choose_picker()` |  |  | Choose which colour picker the swatches open. |
+| `color_popover.use_picker(picker: str)` |  |  | Use a colour picker for every swatch: its id (see ``colors list``), or "default". |
 
 ## console
 
@@ -278,31 +306,44 @@ the rest also work headless (batch mode, scripts).
 
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
-| `file.clear_recent()` |  |  | Forget the recent files list. |
 | `file.check_external()` |  |  | Look at the open file on disk now; returns "changed", "missing" or None. |
+| `file.clear_recent()` |  |  | Forget the recent files list. |
 | `file.copy_folder()` |  |  | Copy the path of the folder holding the open scene file to the clipboard. |
 | `file.copy_path()` |  |  | Copy the open scene file's full path to the clipboard. |
 | `file.new()` |  |  | New, empty scene (asks about unsaved changes). |
 | `file.open()` |  |  | Choose a scene file to open (asks about unsaved changes first). |
 | `file.open_folder()` |  |  | Open the folder holding the open scene file in the system file browser. |
 | `file.open_path(path: str, confirm: bool = True)` |  |  | Open a scene file (asks about unsaved changes unless confirm=False). |
-| `file.resume_last_session()` |  |  | Bring back the Untitled draft kept from the last time pixelRef closed. |
 | `file.reload()` |  |  | Reload the open scene from disk (asks before discarding unsaved changes). |
+| `file.resume_last_session()` |  |  | Bring back the Untitled draft kept from the last time pixelRef closed. |
 | `file.save()` |  |  | Save the scene to its file (asks for a name the first time). |
 | `file.save_as()` |  |  | Save the scene under a new file name (dialog). |
-| `file.set_watch_mode(mode: str)` |  |  | When the open file changes on disk: "reload" automatically, "notify" with a Reload button, or "off" (manual only). |
 | `file.save_to(path: str)` |  |  | Save the scene to ``path``. |
 | `file.set_resume_enabled(value: bool)` |  |  | Turn Session Resume on or off (the start panel's checkbox). |
+| `file.set_watch_mode(mode: str)` |  |  | When the open file changes on disk: "reload" automatically, "notify" with a Reload |
 | `file.thumbnail(path: str \| None = None, save_to: str \| None = None)` |  |  | A scene file's thumbnail (default: the open scene's file): its size and date, |
 | `file.toggle_resume()` |  |  | Switch Session Resume (reopen your last board automatically on launch) on or off. |
+
+## frames
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `frames.clear_link_frame(links: Any = None, end: str \| None = None)` |  | yes | Send link ends back to the whole element (both ends unless ``end`` is given). |
+| `frames.copy_dialog()` |  |  | Ask for frames and copy the selection onto them. |
+| `frames.copy_to(frames: Any, nodes: Any = None)` | `copy_to_frames` | yes | Copy annotations onto other frames: ``3``, ``"3-6"`` or ``"2,5,7-9"``. |
+| `frames.link_frame(link: str, end: str = 'target', frame: int \| None = None)` | `link_to_frame` | yes | Anchor one end of a link to a frame (default: the one on show) of the animation it is attached to. |
+| `frames.of(node: Any = None)` | `annotated_frames` |  | The frames of an animation that carry annotations, with how many each. |
+| `frames.pin(nodes: Any = None, frame: int \| None = None)` | `pin_to_frame` | yes | Pin annotations to a frame (default: the one on show) of the animation they sit on. |
+| `frames.set_ghost(frames: int, nodes: Any = None)` | `set_ghost` | yes | Ghost mode of animations: show pinned annotations faded this many frames either side (0 = off). |
+| `frames.unpin(nodes: Any = None)` | `unpin_from_frame` | yes | Show annotations on every frame again. |
 
 ## grouping
 
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
-| `grouping.add_group(name: str = Group, pick_members: bool = True)` | `add_group` | yes | Create an empty group (by default a folder whose members are picked directly). |
+| `grouping.add_group(name: str = 'Group', pick_members: bool = True)` | `add_group` | yes | Create an empty group (by default a folder whose members are picked directly). |
 | `grouping.add_group_dialog()` |  |  | Ask for a name and add an empty group. |
-| `grouping.group(nodes: Any = None, name: str = Group)` | `group` | yes | Put nodes in a new group, in place on the canvas. Returns the group. |
+| `grouping.group(nodes: Any = None, name: str = 'Group')` | `group` | yes | Put nodes in a new group, in place on the canvas. Returns the group. |
 | `grouping.ungroup(nodes: Any = None)` | `ungroup` | yes | Dissolve groups (and other ungroupable nodes); children stay in place. |
 | `grouping.ungroup_ui()` |  |  | Ungroup the selection and report what happened (Ctrl+Shift+G). |
 
@@ -311,7 +352,9 @@ the rest also work headless (batch mode, scripts).
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
 | `help.about()` |  |  | The pixelRef, Python and Qt versions. |
-| `help.show(search: str = )` |  |  | Show Keyboard Shortcuts (F1): every action's keys, editable, and the mouse reference. |
+| `help.docs(doc: str = '', query: str \| None = None)` |  |  | Open the Help browser: the documentation of ``doc`` (an id such as ``command:pen.combine`` |
+| `help.getting_started(confirm: bool = True)` |  |  | Open the Getting Started board: a tour of the basic and advanced features, with screenshots. |
+| `help.show(search: str = '')` |  |  | Show Keyboard Shortcuts (F1): every action's keys, editable, and the mouse reference. |
 | `help.show_about()` |  |  | Show the About pixelRef dialog (version information). |
 | `help.text()` |  |  | The keyboard shortcut reference as HTML (built from every action and binding). |
 
@@ -357,7 +400,7 @@ the rest also work headless (batch mode, scripts).
 | --- | --- | --- | --- |
 | `links.add_waypoint(link: str, x: float, y: float, index: int \| None = None)` |  | yes | Pin the path through (x, y) in the link's space; returns the waypoint's index. |
 | `links.clear_waypoints(nodes: Any = None)` |  | yes | Remove every waypoint: the path goes straight (or curves) from end to end again. |
-| `links.connect(source: Any, target: Any, name: str = Link, **attrs: Any)` | `connect` | yes | Link two ends. Each is an element (name or id) or a free point [x, y] on the |
+| `links.connect(source: Any, target: Any, name: str = 'Link', **attrs: Any)` | `connect` | yes | Link two ends. Each is an element (name or id) or a free point [x, y] on the |
 | `links.connect_selection(**attrs: Any)` | `connect_selection` | yes | Link the selected elements in the order they were selected (a → b → c). |
 | `links.connected(nodes: Any = None)` |  |  | Elements linked to these (default: the selection). |
 | `links.ends(link: str)` |  |  | The names of the elements a link's ends are attached to (None: a free end). |
@@ -365,7 +408,7 @@ the rest also work headless (batch mode, scripts).
 | `links.remove_waypoint(link: str, index: int)` |  | yes | Unpin one waypoint. |
 | `links.reverse(nodes: Any = None)` |  | yes | Swap a link's ends (with their anchors and caps), keeping the path. |
 | `links.select_connected(nodes: Any = None)` | `select_connected` |  | Select the elements linked to the selection. |
-| `links.set_end(link: str, end: str = target, node: Any = None, anchor: str \| None = None, spot: Any = None)` |  | yes | Attach a link's end ("source" or "target") to an element, or free it at a |
+| `links.set_end(link: str, end: str = 'target', node: Any = None, anchor: str \| None = None, spot: Any = None)` |  | yes | Attach a link's end ("source" or "target") to an element, or free it at a |
 
 ## macros
 
@@ -378,7 +421,7 @@ the rest also work headless (batch mode, scripts).
 | `macros.record(name: str \| None = None)` | `record_macro` |  | Start recording a macro, or stop and save it as a script (asks for a name). |
 | `macros.reload()` | `reload_scripts` |  | Find the scripts in the scripts folders again; returns their action keys. |
 | `macros.remove_last()` |  |  | Take the last step out of the macro being recorded; returns it. |
-| `macros.run(commands: list[str] \| None = None, python: str \| None = None, script: str \| None = None, label: str = Macro)` | `run_macro` | yes | Run a macro as one undo step: action/command names in order, Python code or a script file. |
+| `macros.run(commands: list[str] \| None = None, python: str \| None = None, script: str \| None = None, label: str = 'Macro')` | `run_macro` | yes | Run a macro as one undo step: action/command names in order, Python code or a script file. |
 | `macros.run_script(path: str)` | `run_user_script` | yes | Run a script file from the scripts folder (or a full path) as one undo step. |
 
 ## minimap
@@ -415,7 +458,7 @@ the rest also work headless (batch mode, scripts).
 
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
-| `order.selection(mode: str = front)` | `restack_selection` | yes | front / forward / backward / back for the selected items (within each parent). |
+| `order.selection(mode: str = 'front')` | `restack_selection` | yes | front / forward / backward / back for the selected items (within each parent). |
 
 ## outliner
 
@@ -425,7 +468,7 @@ the rest also work headless (batch mode, scripts).
 | `outliner.rename_selected()` |  |  | Rename the selected node (in the outliner, or with a prompt). |
 | `outliner.select_types(types: Any = None)` |  |  | Select every node of these types. |
 | `outliner.set_flag(node: str, attr: str, value: int)` |  | yes | Set a node's visibility or locked flag (the outliner's eye and lock columns). |
-| `outliner.set_type_flag(types: Any = None, attr: str = visibility, value: int = 0)` |  | yes | Set ``visibility`` or ``locked`` on every node of these types. Returns how many changed. |
+| `outliner.set_type_flag(types: Any = None, attr: str = 'visibility', value: int = 0)` |  | yes | Set ``visibility`` or ``locked`` on every node of these types. Returns how many changed. |
 | `outliner.show_all()` | `show_all` | yes | Make every node visible (Alt+H). |
 | `outliner.toggle_lock(nodes: Any = None)` | `toggle_lock` | yes | Lock the nodes (or unlock them if all are locked). |
 | `outliner.toggle_visibility(nodes: Any = None)` | `toggle_visibility` | yes | Hide the nodes (or show them if all are hidden). |
@@ -479,15 +522,15 @@ the rest also work headless (batch mode, scripts).
 
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
-| `rect.create(x: float, y: float, width: float, height: float, name: str = Rect, **attrs: Any)` | `create_rect` | yes | Create a rectangle; extra keyword arguments are attributes (stroke_color, thickness…). |
-| `rect.create_ellipse(x: float, y: float, width: float, height: float, name: str = Ellipse, **attrs: Any)` | `create_ellipse` | yes | Create an ellipse in the box at (x, y); extra keyword arguments are attributes. |
+| `rect.create(x: float, y: float, width: float, height: float, name: str = 'Rect', **attrs: Any)` | `create_rect` | yes | Create a rectangle; extra keyword arguments are attributes (stroke_color, thickness…). |
+| `rect.create_ellipse(x: float, y: float, width: float, height: float, name: str = 'Ellipse', **attrs: Any)` | `create_ellipse` | yes | Create an ellipse in the box at (x, y); extra keyword arguments are attributes. |
 
 ## redact
 
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
-| `redact.blur(x: float, y: float, width: float, height: float, name: str = Blur, **attrs: Any)` | `create_blur` | yes | Create a blur region; extra keyword arguments are attributes (radius…). |
-| `redact.pixelate(x: float, y: float, width: float, height: float, name: str = Pixelate, **attrs: Any)` | `create_pixelate` | yes | Create a pixelate region; extra keyword arguments are attributes (cell_size…). |
+| `redact.blur(x: float, y: float, width: float, height: float, name: str = 'Blur', **attrs: Any)` | `create_blur` | yes | Create a blur region; extra keyword arguments are attributes (radius…). |
+| `redact.pixelate(x: float, y: float, width: float, height: float, name: str = 'Pixelate', **attrs: Any)` | `create_pixelate` | yes | Create a pixelate region; extra keyword arguments are attributes (cell_size…). |
 
 ## select
 
@@ -500,7 +543,7 @@ the rest also work headless (batch mode, scripts).
 
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
-| `steps.create(x: float, y: float, number: int \| None = None, name: str = Step, **attrs: Any)` | `create_step` | yes | Place a step marker centred on (x, y); ``number`` defaults to the next one. |
+| `steps.create(x: float, y: float, number: int \| None = None, name: str = 'Step', **attrs: Any)` | `create_step` | yes | Place a step marker centred on (x, y); ``number`` defaults to the next one. |
 | `steps.next_number()` |  |  | The number the next step gets: one past the highest on the board. |
 | `steps.renumber(names: list[str] \| None = None, start: int = 1)` |  | yes | Number the steps (``names``, or all) start, start + 1… in their current order; returns how many. |
 
@@ -508,20 +551,20 @@ the rest also work headless (batch mode, scripts).
 
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
-| `text.add(text: str = Text)` |  |  | Create a note at the mouse and start editing it; with one image selected |
+| `text.add(text: str = 'Text')` |  |  | Create a note at the mouse and start editing it; with one image selected |
 | `text.apply_preset(preset: str, nodes: Any = None)` |  | yes | Apply a style preset (Plain, Title, Label, Sticky note, Callout, Highlighter). |
 | `text.clear_default_style()` |  |  | New notes go back to the plain style. |
 | `text.clear_formatting(nodes: Any = None)` |  | yes | Remove character formatting from text notes (keeps the text). |
 | `text.commit(name: str, text: str, runs: list[dict[str, Any]] \| None = None)` |  | yes | Store text (and per-character formatting runs) edited on the canvas. |
 | `text.copy_style()` | `copy_text_style` |  | Copy the text style: at the cursor while typing, else the selected note's look (Ctrl+Shift+C). |
-| `text.create(text: str = Text, translate: Any = None, parent: str \| None = None)` | `create_note` | yes | Create a text note at ``translate`` (world units if no parent). |
+| `text.create(text: str = 'Text', translate: Any = None, parent: str \| None = None)` | `create_note` | yes | Create a text note at ``translate`` (world units if no parent). |
 | `text.default_style()` |  |  | Your style for new notes (saved values that no longer fit are skipped). |
 | `text.link_dialog()` |  |  | Link the selected text (while typing, Ctrl+K) or the selected notes to a web address or file. |
 | `text.link_file_dialog()` |  |  | Link the selected text or notes to a file: a scene or PureRef board opens here, others in their app. |
 | `text.open_link(href: str)` |  |  | Open a link: web pages in the browser, scenes and PureRef boards here, other files in their app. |
 | `text.paste_style()` | `paste_text_style` |  | Paste the copied text style onto the selected text (while typing) or the selected notes (Ctrl+Shift+V). |
 | `text.save_default_style(node: str \| None = None)` |  |  | Use a note's style (font, colours, box…) for every new note; kept across restarts. |
-| `text.set_attrs(updates: dict[str, Any], nodes: Any = None, strip: tuple[str, ...] \| list[str] = (), label: str = Edit text)` |  | yes | Set note attributes on the selected notes; ``strip`` removes those styles |
+| `text.set_attrs(updates: dict[str, Any], nodes: Any = None, strip: tuple[str, ...] \| list[str] = (), label: str = 'Edit text')` |  | yes | Set note attributes on the selected notes; ``strip`` removes those styles |
 | `text.set_link(href: str, nodes: Any = None)` | `set_note_link` | yes | Link the whole text of the selected notes to a web address or file ("" removes links). |
 | `text.toggle_check(name: str, line: int)` |  | yes | Tick or untick the checklist box that starts line ``line`` of a note; returns the new state. |
 | `text.toggle_checklist(nodes: Any = None)` | `toggle_checklist` | yes | Turn the lines of the selected notes into a checklist (☐ boxes), or back to plain lines. |
@@ -530,7 +573,7 @@ the rest also work headless (batch mode, scripts).
 
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
-| `tool_palette.add(key: str, section: str = tools, index: int = -1)` |  |  | Put any action on the palette (or move it there, shown). |
+| `tool_palette.add(key: str, section: str = 'tools', index: int = -1)` |  |  | Put any action on the palette (or move it there, shown). |
 | `tool_palette.add_section(title: str, index: int = -1)` |  |  | A new (empty) section; returns its id. |
 | `tool_palette.customize()` |  |  | Open Customize Palette: order, sections, hidden buttons and keys. |
 | `tool_palette.hide(key: str)` |  |  | Hide a button (it keeps its place; ``show`` brings it back). |
@@ -547,7 +590,7 @@ the rest also work headless (batch mode, scripts).
 
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
-| `transform.flip(axis: str = h, nodes: Any = None)` | `flip` | yes | Mirror the selection in place: axis "h" (horizontal) or "v". |
+| `transform.flip(axis: str = 'h', nodes: Any = None)` | `flip` | yes | Mirror the selection in place: axis "h" (horizontal) or "v". |
 | `transform.move(dx: float, dy: float, nodes: Any = None)` | `move` | yes | Move the selection by (dx, dy) world units. |
 | `transform.nudge(dx: float, dy: float)` |  |  | Move the selection a little (arrow keys); rapid nudges are one undo step. |
 | `transform.reset(nodes: Any = None)` | `reset_transform` | yes | Back to scale 1, no rotation, no flips (keeping each item's centre). |
@@ -560,9 +603,9 @@ the rest also work headless (batch mode, scripts).
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
 | `views.bookmark(number: int, view: str \| None = None)` |  |  | Look through the n-th view marker (Ctrl+1 to Ctrl+9). |
-| `views.create_camera(name: str = View marker, view: str \| None = None, color: Any = None)` | `create_camera` | yes | Save where a view looks as a new view marker (next unused colour), now the view's current one. |
-| `views.create_display_preset(name: str = Preset, **settings: Any)` | `create_display_preset` | yes | Save display settings as a preset node (usable from every view). |
-| `views.frame_guide(kind: str = 16:9, view: str \| None = None)` | `frame_guide` |  | Overlay a framing guide: none, 16:9, 2.39:1, 1:1, 4:3, 3:2. |
+| `views.create_camera(name: str = 'View marker', view: str \| None = None, color: Any = None)` | `create_camera` | yes | Save where a view looks as a new view marker (next unused colour), now the view's current one. |
+| `views.create_display_preset(name: str = 'Preset', **settings: Any)` | `create_display_preset` | yes | Save display settings as a preset node (usable from every view). |
+| `views.frame_guide(kind: str = '16:9', view: str \| None = None)` | `frame_guide` |  | Overlay a framing guide: none, 16:9, 2.39:1, 1:1, 4:3, 3:2. |
 | `views.isolate(nodes: Any = None, view: str \| None = None)` | `isolate` |  | Show only these nodes (default: the selection) in a view; again (or ``[]``) to show everything. |
 | `views.link(a: str, b: str, *more: str)` | `link_views` |  | Link views' cameras: they all show what ``a`` shows from now on. |
 | `views.link_workspace(view: str \| None = None)` |  |  | Link every canvas view in a view's workspace to it. |

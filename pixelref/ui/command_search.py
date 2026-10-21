@@ -4,12 +4,13 @@ Typing filters every action in the menu — including those nested in
 submenus — plus any extra commands supplied by the window, matching on the
 command name, where it lives ("View › Background"), its tooltip and a list
 of synonyms. Results reuse the original QAction objects, so they keep their
-shortcuts, checked state and enabled state.
+shortcuts, checked state and enabled state. F1 shows the documentation of the
+highlighted entry (``help_handler``).
 """
 
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Callable, Iterable
 
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer
 from PySide6.QtGui import QAction
@@ -23,6 +24,9 @@ def _clean(text: str) -> str:
 
 
 class CommandSearchMenu(QMenu):
+    # Called with the highlighted action when F1 is pressed; True if it showed its documentation.
+    help_handler: Callable[[QAction], bool] | None = None
+
     def __init__(self, parent: QWidget | None = None, extra_actions: Iterable[QAction] = ()) -> None:
         super().__init__(parent)
         self.setObjectName("commandMenu")
@@ -37,7 +41,7 @@ class CommandSearchMenu(QMenu):
         layout.setContentsMargins(6, 6, 6, 4)
         self.field = QLineEdit(holder)
         self.field.setObjectName("commandSearch")
-        self.field.setPlaceholderText("Search commands…   (Ctrl+K)")
+        self.field.setPlaceholderText("Search commands…   (Ctrl+K · F1 help)")
         self.field.setClearButtonEnabled(True)
         self.field.setMinimumWidth(260)
         self.field.textChanged.connect(self.search)
@@ -178,6 +182,12 @@ class CommandSearchMenu(QMenu):
             if key == Qt.Key_Escape and self.field.text():
                 self.field.clear()
                 return True
+            if key == Qt.Key_F1:
+                self.show_help()
+                return True
+        if obj is self.field and event.type() == QEvent.ShortcutOverride and event.key() == Qt.Key_F1:
+            event.accept()  # F1 is ours here (not the Keyboard Shortcuts window's)
+            return True
         return super().eventFilter(obj, event)
 
     def _move(self, step: int) -> None:
@@ -187,6 +197,16 @@ class CommandSearchMenu(QMenu):
         current = self.activeAction()
         index = candidates.index(current) if current in candidates else (-1 if step > 0 else 0)
         self.setActiveAction(candidates[(index + step) % len(candidates)])
+
+    def show_help(self) -> None:
+        """Show the documentation of the highlighted entry (or the first result)."""
+        action = self.activeAction()
+        if action is None or action is self._search_action:
+            action = next(iter(self._results), None)
+        if action is None or self.help_handler is None:
+            return
+        self.close()
+        self.help_handler(action)
 
     def trigger_active(self) -> None:
         action = self.activeAction()

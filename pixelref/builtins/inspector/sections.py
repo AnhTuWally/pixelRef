@@ -67,6 +67,13 @@ class TransformSection(w.InspectorSection):
         self.form.addRow(scrub("Rotation", self.rotation_spin, 0.5),
                          w.hrow(body, self.rotation_spin, None, self.rotate_ccw_btn, self.rotate_cw_btn,
                                 self.reset_xform_btn))
+        for widget, doc in ((self.pos_x_spin, "canvas_node.translate"), (self.pos_y_spin, "canvas_node.translate"),
+                            (self.scale_pct_spin, "canvas_node.scale"), (self.rotation_spin, "canvas_node.rotate"),
+                            (self.flip_h_btn, "action:transform.flip_h"), (self.flip_v_btn, "action:transform.flip_v"),
+                            (self.rotate_ccw_btn, "action:transform.rotate_ccw"),
+                            (self.rotate_cw_btn, "action:transform.rotate_cw"),
+                            (self.reset_xform_btn, "action:transform.reset")):
+            widget.setProperty("doc", doc)  # context help (the help browser)
         for each in (self.pos_x_spin, self.pos_y_spin, self.rotation_spin):
             each.editingFinished.connect(self.apply)
         self.width_spin.editingFinished.connect(lambda: self._on_size_edited("w"))
@@ -213,7 +220,10 @@ class AppearanceSection(w.InspectorSection):
         layout.setSpacing(6)
         layout.addWidget(self.opacity_slider, 1)
         layout.addWidget(self.opacity_spin)
-        self.form.addRow(w.ScrubLabel("Opacity", self.opacity_spin, 0.5, body), row)
+        opacity_label = w.ScrubLabel("Opacity", self.opacity_spin, 0.5, body)
+        for widget in (opacity_label, row, self.opacity_spin, self.opacity_slider):
+            widget.setProperty("doc", "canvas_node.opacity")  # context help (the help browser)
+        self.form.addRow(opacity_label, row)
         self.opacity_slider.valueChanged.connect(self._on_slider_moved)
         self.opacity_slider.sliderReleased.connect(self.apply)
         self.opacity_spin.editingFinished.connect(self.apply)

@@ -24,15 +24,9 @@ QStandardPaths.setTestModeEnabled(True)
 QSettings.setDefaultFormat(QSettings.IniFormat)
 
 
-def signature(fn) -> str:  # noqa: ANN001
-    try:
-        text = str(inspect.signature(fn))
-    except (TypeError, ValueError):
-        return "(...)"
-    return text.split(" -> ")[0].replace("'", "")
-
-
 def main() -> int:
+    from pixelref.core.docs import command_signature as signature
+
     from pixelref.ui import create_app
 
     app = create_app([], persist_layout=False, load_user_files=False)

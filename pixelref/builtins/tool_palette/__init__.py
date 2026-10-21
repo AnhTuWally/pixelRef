@@ -161,6 +161,7 @@ class ToolPalette(QWidget):
         button.setCheckable(action.isCheckable())
         button.setProperty("baseTip", tip)
         button.setProperty("tipShowsKey", tool is None)  # a tool's key is on its button only
+        button.setProperty("doc", f"tool:{tool.id}" if tool is not None else f"action:{key}")  # context help
         self._set_tip(key, button)
         button.clicked.connect(lambda _checked=False, k=key: self._clicked(k))
         button.setContextMenuPolicy(Qt.CustomContextMenu)

@@ -345,7 +345,11 @@ def attr_label(session: Any, spec: Any, editor: QWidget, node_type: str = "", re
     from pixelref.core.attr_symbols import EXTENSION_POINT, symbol_for
 
     tables = list(reversed(session.extensions.contributions(EXTENSION_POINT))) if session is not None else []
-    return AttrLabel(spec, editor, symbol_for(spec, node_type, tables), reserve, parent)
+    label = AttrLabel(spec, editor, symbol_for(spec, node_type, tables), reserve, parent)
+    doc = f"{node_type}.{spec.name}" if node_type else spec.name  # context help (the help browser)
+    label.setProperty("doc", doc)
+    editor.setProperty("doc", doc)
+    return label
 
 
 def attr_symbol(session: Any, spec: Any, node_type: str = "") -> str:

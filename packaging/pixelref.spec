@@ -77,6 +77,9 @@ datas = (
     + collect_data_files("pip")  # certificates (cacert.pem) and vendored data
     # the Getting Started board (builtins/help looks for it under _internal/examples/scenes)
     + [(str(ROOT / "examples" / "scenes" / "onboard.pxref"), "examples/scenes")]
+    # the guides the Help browser and `pixelref-cli docs` / `mcp` search (core.docs looks under _internal/docs)
+    + [(str(path), "docs") for path in sorted((ROOT / "docs").glob("*.md"))]
+    + [(str(path), "docs/images") for path in sorted((ROOT / "docs" / "images").glob("*.webp"))]
 )
 
 a = Analysis(  # noqa: F821

@@ -45,6 +45,8 @@ python -m pixelref examples/scenes/animals.pxref
 
 Two keys are worth learning first. `Ctrl+K` (or right-click, then type)
 searches every command, and `F1` lists every shortcut and lets you change it.
+`Shift+F1` opens the Help browser: search every tool, command and attribute,
+or point at something and press it to see what it does.
 
 ### 1. Move around
 

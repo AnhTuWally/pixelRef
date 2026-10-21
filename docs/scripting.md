@@ -4,7 +4,9 @@ Everything in pixelRef is a command, and the UI runs the same commands you
 can call from Python. So anything you can do with the mouse, a script can do.
 The full list is in the generated [command reference](commands.md);
 `pxcmd.help("name")` describes one command and `pxcmd.list_commands("pen.*")`
-finds them.
+finds them. `pxcmd.docs.search("blur")` and `pxcmd.docs.get("pen.combine")`
+search all the documentation: tools, menu items, node types and attributes too
+(see [Help and documentation](documentation.md)).
 
 ## `pixelref.pxcmd`
 

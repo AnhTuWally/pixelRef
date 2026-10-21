@@ -566,6 +566,15 @@ The layout is kept in your settings; keys go to `keymap.toml` like every other
 shortcut. Scripts can do the same: `pxcmd.tool_palette.move("tool.pen", "tools", 0)`,
 `pxcmd.set_shortcut("tool.pen", "B")`.
 
+## Help and documentation
+
+`Shift+F1` opens the Help browser. It searches every tool, menu item,
+command, node type, attribute and section of these guides as you type, and
+Enter runs what you found. Point at a tool button or an Attribute Editor row
+and press `Shift+F1` to see what it does. In the command search (`Ctrl+K`),
+`F1` explains the highlighted entry. Scripts, the terminal and AI agents can
+search the same documentation. See [documentation.md](documentation.md).
+
 ## Keyboard shortcuts and macros
 
 `F1` edits every shortcut. Any `.py` in the scripts folder becomes a command in

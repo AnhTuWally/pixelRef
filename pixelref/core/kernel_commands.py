@@ -631,9 +631,59 @@ def register_kernel_commands(session: "Session") -> None:
         return [n for n in names if not pattern or fnmatch.fnmatchcase(n, pattern)]
 
     def help_cmd(command: str) -> str:
-        """One-line description of a command."""
-        found = session.commands.resolve(command)
-        return f"pxcmd.{found.display_name} — {found.doc or 'no description'}"
+        """The documentation of a command (or of a tool, node type, attribute… by name), as text."""
+        entry = session.docs.get(command)
+        if entry is None:
+            found = session.commands.resolve(command)
+            return f"pxcmd.{found.display_name} — {found.doc or 'no description'}"
+        return session.docs.markdown(entry)
+
+    def docs_search(query: str = "", kind: Any = None, limit: int = 20, plugin: str | None = None
+                    ) -> list[dict[str, Any]]:
+        """Search the documentation: commands, tools, menu items, node types, attributes, plugins, guides.
+
+        Every word of ``query`` must match. ``kind`` limits the results to one kind (or a list of
+        kinds, see ``docs.kinds()``); ``kind:tool`` or ``plugin:pen`` in the query work too. Returns
+        ``{id, kind, name, title, summary, keys?, usage?}`` dicts, best match first.
+        """
+        return [entry.brief() for entry in session.docs.search(query, kind, limit or None, plugin)]
+
+    def docs_get(name: str, markdown: bool = True) -> dict[str, Any]:
+        """Everything about one documented thing, by id or by name.
+
+        ``name`` is an id (``command:pen.combine``) or a name (``pen.combine``, ``group``,
+        ``image.opacity``). ``markdown`` adds the page as Markdown."""
+        entry = session.docs.get(name)
+        if entry is None:
+            hits = session.docs.search(name, limit=5)
+            hint = f" (did you mean: {', '.join(e.id for e in hits)})" if hits else ""
+            raise CommandError(f"No documentation for '{name}'{hint}")
+        out = entry.to_dict()
+        if markdown:
+            out["markdown"] = session.docs.markdown(entry)
+        return out
+
+    def docs_kinds() -> dict[str, int]:
+        """The kinds of documentation entries and how many of each there are."""
+        return session.docs.kinds()
+
+    def docs_export(path: str | None = None, format: str = "json", kind: Any = None) -> Any:  # noqa: A002
+        """Every documentation entry, as ``json`` (a list of dicts) or one ``markdown`` text.
+
+        Written to ``path`` when given (returns the path), otherwise returned."""
+        import json
+
+        entries = session.docs.search("", kind, None)
+        if format == "json":
+            text = json.dumps([e.to_dict() for e in entries], indent=1, ensure_ascii=False, default=str)
+        elif format in ("markdown", "md"):
+            text = "\n\n---\n\n".join(session.docs.markdown(e) for e in entries)
+        else:
+            raise CommandError(f"Unknown format '{format}' (json or markdown)")
+        if path is None:
+            return json.loads(text) if format == "json" else text
+        Path(path).write_text(text, encoding="utf-8")
+        return str(path)
 
     def node_types(include_abstract: bool = False) -> list[str]:
         """Registered node type names."""
@@ -641,4 +691,8 @@ def register_kernel_commands(session: "Session") -> None:
 
     reg("list_commands", list_commands, undoable=False, echo=False)
     reg("help", help_cmd, undoable=False, echo=False)
+    reg("docs.search", docs_search, undoable=False, echo=False)
+    reg("docs.get", docs_get, undoable=False, echo=False)
+    reg("docs.kinds", docs_kinds, undoable=False, echo=False)
+    reg("docs.export", docs_export, undoable=False, echo=False)
     reg("node_types", node_types, undoable=False, echo=False)

@@ -1,5 +1,8 @@
 """``python -m pixelref`` starts the app; ``python -m pixelref --batch script.py`` runs a script headless.
 
+``python -m pixelref docs …`` searches the documentation and ``python -m pixelref mcp`` serves it
+to AI agents (Model Context Protocol over stdio).
+
 ``--run-pip …`` runs the bundled pip (the package manager uses it in the
 standalone executable, which has no ``python -m pip``).
 """
@@ -18,6 +21,14 @@ def main() -> None:
         from .pip_runner import run_pip
 
         raise SystemExit(run_pip(sys.argv[2:]))
+    if sys.argv[1:2] == ["docs"]:  # search the documentation (docs_cli)
+        from .docs_cli import main as docs_main
+
+        raise SystemExit(docs_main(sys.argv[2:]))
+    if sys.argv[1:2] == ["mcp"]:  # the documentation as an MCP server for AI agents
+        from .mcp_server import main as mcp_main
+
+        raise SystemExit(mcp_main(sys.argv[2:]))
     if "--batch" in sys.argv[1:]:
         from .batch import run_batch
 

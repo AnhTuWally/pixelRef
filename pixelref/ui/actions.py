@@ -109,6 +109,10 @@ class ActionRegistry:
 
         return Disposable(remove)
 
+    def key_of(self, action: QAction) -> str | None:
+        """The key an action was defined with."""
+        return next((key for key, value in self.actions.items() if value is action), None)
+
     def get(self, key: str) -> QAction | None:
         return self.actions.get(key)
 
@@ -763,7 +767,14 @@ class MenuRegistry:
         items = [item for item in self.items if item.menu == menu_id and self._visible(item)]
         self._fill(menu, menu_id, (), items)
         menu.finish()
+        menu.help_handler = self._show_help
         return menu
+
+    def _show_help(self, action: QAction) -> bool:
+        key = self.app.actions.key_of(action)
+        if key is None:
+            return False
+        return self.app.show_help(f"tool:{key[5:]}" if key.startswith("tool.") else f"action:{key}")
 
     def _visible(self, item: MenuItem) -> bool:
         return self.app.keymap.condition_holds(item.when)

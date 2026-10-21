@@ -36,7 +36,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from pixelref.plugin_api import Attr, CommandError, SceneError, fast_copy
+from pixelref.plugin_api import Attr, CommandError, DocEntry, SceneError, fast_copy
 from pixelref.plugin_api.contracts import COST_CHEAP, COST_HEAVY, EffectType
 
 __all__ = ["BUILTIN_TYPES", "COST_CHEAP", "COST_HEAVY", "EffectType", "EffectsApi"]
@@ -247,6 +247,31 @@ def activate(ctx: Any) -> None:
     ))
     ctx.provide_service("effects", api)
     scene = session.scene
+
+    def document() -> list[DocEntry]:
+        """Every effect type (plugins' too) for the documentation index."""
+        entries = []
+        for effect_type in api.types().values():
+            rows = [f"- **Category:** {effect_type.category}",
+                    f"- **Cost:** {effect_type.cost}" + (" (runs in the background, cached)"
+                                                         if effect_type.cost == COST_HEAVY else "")]
+            if effect_type.params:
+                rows += ["", "## Settings", "", "| Setting | Type | Default | Description |", "| --- | --- | --- | --- |"]
+                rows += [f"| {p.name} | {p.type} | `{p.default!r}` | {' '.join((p.doc or p.label).split())} |"
+                         for p in effect_type.params]
+            example = ", ".join(f"{p.name}={p.default!r}" for p in effect_type.params[:2])
+            entries.append(DocEntry(
+                kind="effect", name=effect_type.name, title=effect_type.nice_name,
+                summary=effect_type.doc or f"The {effect_type.nice_name} effect", body="\n".join(rows),
+                plugin=effect_type.plugin, keywords=f"effect filter {effect_type.category}",
+                usage=f'pxcmd.effects.add("{effect_type.name}"{", " + example if example else ""})',
+                related=["command:effects.add", "plugin:effects"],
+                data={"category": effect_type.category, "cost": effect_type.cost,
+                      "params": {p.name: p.default for p in effect_type.params}}))
+        return entries
+
+    ctx.contribute("docs.providers", document)
+    ctx.track(session.extensions.watch("effects.types", session.docs.invalidate))
 
     def write(name: str, stack: list[dict[str, Any]]) -> None:
         scene.set_attr(name, "effects", stack)

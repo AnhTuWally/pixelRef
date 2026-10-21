@@ -2,4 +2,4 @@ id = "help"
 name = "Help"
 version = "1.0.0"
 api = 1
-description = "Keyboard Shortcuts (F1), generated from every plugin's actions and keybindings, and About pixelRef (version info)."
+description = "Keyboard Shortcuts (F1), generated from every plugin's actions and keybindings; the Help browser (Shift+F1), which searches every tool, command, attribute and guide; and About pixelRef (version info)."

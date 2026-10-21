@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMenu,
+    QScrollArea,
     QSplitter,
     QToolButton,
     QVBoxLayout,
@@ -426,7 +427,8 @@ class PanelTab(QAbstractButton):
 
 
 class PanelRail(QFrame):
-    """The column of panel tabs on the window edge, beside the sidebar."""
+    """The column of panel tabs on the window edge, beside the sidebar. The tabs scroll (mouse
+    wheel) when the window is too short for them all, so they never set its minimum height."""
 
     def __init__(self, manager: "PanelManager") -> None:
         super().__init__(None)
@@ -435,7 +437,18 @@ class PanelRail(QFrame):
         self.setFixedWidth(PanelTab.WIDTH + 1)
         self.side = manager.side
         self.setProperty("side", self.side)
-        self._layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.scroll = QScrollArea(self)
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setStyleSheet("background: transparent;")
+        outer.addWidget(self.scroll)
+        content = QWidget()
+        self.scroll.setWidget(content)
+        self._layout = QVBoxLayout(content)
         self._layout.setContentsMargins(0, 4, 0, 4)
         self._layout.setSpacing(2)
         self.tabs: dict[str, PanelTab] = {}

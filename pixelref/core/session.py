@@ -107,8 +107,10 @@ class Session:
         self.extensions.declare("scene.after_new", owner="kernel",
                                 doc="Callables (session) run after a new, empty scene is created")
 
+        from .docs import DocIndex
         from .kernel_commands import register_kernel_commands
 
+        self.docs = DocIndex(self)
         register_kernel_commands(self)
         if make_current:
             set_current_session(self)
