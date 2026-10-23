@@ -730,7 +730,7 @@ class LockBadge(InputHandler):
         size = self.SIZE
         if visible.width() >= 3 * size and visible.height() >= 3 * size:
             return QRectF(visible.right() - size - 6.0, visible.top() + 6.0, size, size)
-        return QRectF(visible.right() + 4.0, visible.top(), size, size)  # small items: beside them
+        return None  # too small on screen: no badge (it would jump out of the item's bounds)
 
     def _badge_at(self, view: Any, pos: QPointF) -> QRectF | None:
         if self.hovered is None or self.hovered[0] is not view:

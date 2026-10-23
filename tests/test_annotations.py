@@ -77,6 +77,20 @@ def test_text_paste_and_drop_ingest():
         h.close()
 
 
+def test_copy_text_puts_note_text_on_clipboard():
+    h = make()
+    try:
+        note = _make_note(h, "hello world")
+        h.run("text.copy_text")
+        assert QApplication.clipboard().text() == "hello world", QApplication.clipboard().text()
+        # The on-note copy badge targets the hovered note directly, even when unselected.
+        h.select([])
+        h.run("text.copy_text", [note])
+        assert QApplication.clipboard().text() == "hello world"
+    finally:
+        h.close()
+
+
 def test_text_whole_note_styles_from_inspector():
     h = make()
     try:

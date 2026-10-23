@@ -6,13 +6,13 @@ import os
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QPointF, QTimer, QUrl, Qt
-from PySide6.QtGui import QColor, QDesktopServices, QFont, QTransform
-from PySide6.QtWidgets import QColorDialog, QComboBox, QFileDialog, QFontComboBox, QInputDialog, QLabel
+from PySide6.QtCore import QPointF, QRectF, QTimer, QUrl, Qt
+from PySide6.QtGui import QColor, QDesktopServices, QFont, QPainter, QTransform
+from PySide6.QtWidgets import QApplication, QColorDialog, QComboBox, QFileDialog, QFontComboBox, QInputDialog, QLabel
 
 from pixelref.plugin_api import CommandError, fast_copy
 from pixelref.plugin_api.contracts import IngestHandler, InspectorSection, PaletteButton, SelectionInfo
-from pixelref.plugin_api.ui import HANDLED, InputHandler, PointerEvent
+from pixelref.plugin_api.ui import HANDLED, InputHandler, PointerEvent, icon, theme
 from pixelref.plugin_api.ui import widgets as w
 
 from . import DEFAULT_STYLE_KEYS, NO_HIGHLIGHT, TEXT_PRESETS, TEXT_STYLE_KEYS
@@ -727,19 +727,40 @@ def activate_note_extras(ui: Any, service: TextService) -> None:
     ui.command("copy_style", copy_style, alias="copy_text_style", undoable=False, echo=False)
     ui.command("paste_style", paste_style, alias="paste_text_style", undoable=False, echo=False)
 
+    # ---- Copy note text ------------------------------------------------------------------------
+
+    def copy_text(names: list[str] | None = None) -> str:
+        """Copy the selected note's plain text to the clipboard (Ctrl+Alt+T).
+        ``names`` lets the on-note copy badge target the hovered note directly."""
+        names = names or selected_notes(ui)
+        if not names:
+            raise CommandError("Select a text note to copy its text")
+        texts = [str(ui.canvas.nodes[n]["attrs"].get("text", "")) for n in names
+                 if ui.canvas.nodes.get(n, {}).get("type") == "annotation_text"]
+        text = "\n\n".join(texts)
+        QApplication.clipboard().setText(text)
+        ui.status(f"Copied {len(text)} character(s) to clipboard")
+        return text
+
+    ui.command("copy_text", copy_text, alias="copy_note_text", undoable=False, echo=False)
+
     a = ui.action
     a("text.link", "text.link_dialog", "Link…", keywords="hyperlink url web address file open note", category="Text")
     a("text.link_file", "text.link_file_dialog", "Link to File…", keywords="hyperlink file board scene pur note",
       category="Text")
     a("text.checklist", "text.toggle_checklist", "Checklist", keywords="todo check box tick list note",
       category="Text")
+    a("text.copy_text", "text.copy_text", "Copy Text", keywords="clipboard copy text note snippet url",
+      category="Text")
     a("text.copy_style", "text.copy_style", "Copy Text Style", keywords="format formatting font", category="Text")
     a("text.paste_style", "text.paste_style", "Paste Text Style", keywords="format formatting font", category="Text")
     ui.bind("Ctrl+Shift+C", "text.copy_style")
     ui.bind("Ctrl+Shift+V", "text.paste_style")
+    ui.bind("Ctrl+Alt+T", "text.copy_text")
+    ui.bind("Ctrl+C", "text.copy_text", when="text.selected")
     ui.context_key("text.selected", lambda: bool(selected_notes(ui)))
-    for order, key in enumerate(("text.link", "text.link_file", "text.checklist", "text.copy_style",
-                                 "text.paste_style")):
+    for order, key in enumerate(("text.link", "text.link_file", "text.checklist", "text.copy_text",
+                                 "text.copy_style", "text.paste_style")):
         ui.menu("canvas", key, path="Text", group="text.extras", order=order, when="text.selected")
     ui.place_submenu("canvas", "Text", "transform", 2, icon="text", when="text.selected")
 
@@ -802,3 +823,91 @@ def activate_note_extras(ui: Any, service: TextService) -> None:
             return None
 
     ui.input_handler(NoteClicks(), 520)
+
+    # ---- Copy badge: one click on the note copies its text --------------------------------------
+
+    class CopyBadge(InputHandler):
+        """A copy badge in the corner of the text note under the pointer (Select tool).
+        Clicking it copies the note's plain text to the clipboard."""
+
+        SIZE = 22.0
+
+        def __init__(self) -> None:
+            self.hovered: tuple[Any, str] | None = None  # (view, node name)
+            self.over = False  # the pointer is on the badge itself
+
+        def shown_in(self, view: Any) -> bool:
+            return app.tools.active_id == "select" and view.display.show_overlays
+
+        def badge_rect(self, view: Any, name: str) -> QRectF | None:
+            item = ui.canvas.item(name)
+            if item is None or not item.isVisible() or item.editing:
+                return None
+            try:
+                rect = view.mapFromScene(item.sceneBoundingRect()).boundingRect().toRectF()
+            except RuntimeError:  # the item was replaced by a refresh
+                return None
+            visible = rect.intersected(QRectF(view.viewport().rect()))
+            if visible.isEmpty():
+                return None
+            size = self.SIZE
+            if visible.width() >= 3 * size and visible.height() >= 3 * size:
+                # When the note is locked the lock badge occupies the top-right
+                # corner, so sit the copy badge just to its left.
+                offset = 2 * size + 12.0 if item.locked else size + 6.0
+                return QRectF(visible.right() - offset, visible.top() + 6.0, size, size)
+            return None  # too small on screen: no badge
+
+        def _badge_at(self, view: Any, pos: QPointF) -> QRectF | None:
+            if self.hovered is None or self.hovered[0] is not view:
+                return None
+            rect = self.badge_rect(view, self.hovered[1])
+            return rect if rect is not None and rect.contains(pos) else None
+
+        def _set_hovered(self, hovered: tuple[Any, str] | None, over: bool) -> None:
+            if hovered == self.hovered and over == self.over:
+                return
+            for entry in (self.hovered, hovered):
+                if entry is not None:
+                    entry[0].viewport().update()
+            self.hovered, self.over = hovered, over
+
+        def hover(self, e: PointerEvent) -> None:
+            if self._badge_at(e.view, e.pos) is not None:
+                self._set_hovered(self.hovered, True)
+                e.set_cursor(Qt.PointingHandCursor)
+                ui.status("Click to copy the note's text")
+                return
+            item = e.item if self.shown_in(e.view) else None
+            self._set_hovered((e.view, item.node_name) if isinstance(item, TextItem) and not item.editing
+                              else None, False)
+
+        def pointer(self, e: PointerEvent) -> str | None:
+            if e.kind != "press" or e.button != Qt.LeftButton or self._badge_at(e.view, e.pos) is None:
+                return None
+            name = self.hovered[1]
+            self._set_hovered(None, False)
+            app.run_command("text.copy_text", [name])
+            return HANDLED
+
+        def leave(self, view: Any) -> None:
+            if self.hovered is not None and self.hovered[0] is view:
+                self._set_hovered(None, False)
+
+        def paint(self, view: Any, painter: QPainter) -> None:
+            if self.hovered is None or self.hovered[0] is not view or not self.shown_in(view):
+                return
+            rect = self.badge_rect(view, self.hovered[1])
+            if rect is None:
+                return
+            painter.save()
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setPen(QColor(0, 0, 0, 120))
+            painter.setBrush(theme.ACCENT if self.over else QColor(20, 22, 27, 215))
+            painter.drawRoundedRect(rect, 5.0, 5.0)
+            icon("copy").paint(painter, rect.adjusted(4.0, 4.0, -4.0, -4.0).toRect())
+            painter.restore()
+
+    badge = CopyBadge()
+    ui.input_handler(badge, 810)  # above the lock badge (800) and NoteClicks (520)
+    ui.overlay(badge.paint, order=96)
