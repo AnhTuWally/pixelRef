@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import (QCoreApplication, QEvent, QLineF, QMimeData, QPoint, QPointF, QRect, QRectF, QSize, Qt,
                             QTimer, QVariantAnimation, Signal)
-from PySide6.QtGui import QColor, QCursor, QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
+from PySide6.QtGui import QColor, QCursor, QGuiApplication, QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsScene, QGraphicsView, QWidget
 
 from ...core import perf
@@ -33,6 +33,24 @@ if TYPE_CHECKING:
     from ..app import App
 
 PATTERNS = ("lines", "dots", "crosses", "checker", "none")
+
+_FRAME_INTERVAL_MS: int | None = None
+
+
+def frame_interval_ms() -> int:
+    """Timer interval (ms) that paces one step per display frame.
+
+    Derived from the primary screen's refresh rate (60 Hz -> 17 ms,
+    120 Hz -> 8 ms) with an 8 ms floor for timer overhead. Falls back to
+    16 ms when no screen is available (offscreen/headless). Cached: the
+    refresh rate does not change mid-session.
+    """
+    global _FRAME_INTERVAL_MS
+    if _FRAME_INTERVAL_MS is None:
+        screen = QGuiApplication.primaryScreen()
+        rate = screen.refreshRate() if screen is not None else 0.0
+        _FRAME_INTERVAL_MS = max(8, round(1000.0 / rate)) if rate > 0 else 16
+    return _FRAME_INTERVAL_MS
 
 
 class CanvasScene(QGraphicsScene):
@@ -189,7 +207,10 @@ class CanvasView(QGraphicsView):
         self._glide_scene = QPointF()
         self._glide_clock = 0.0
         self._glide_timer = QTimer(self)
-        self._glide_timer.setInterval(8)  # each step paints a frame; vsync paces them
+        # Pace the glide to the display's refresh rate: one step per frame, so
+        # every step can produce a visible one (vsync paces the display, not the
+        # work). The easing below is time-based, so the glide feel is unchanged.
+        self._glide_timer.setInterval(frame_interval_ms())
         self._glide_timer.setTimerType(Qt.PreciseTimer)
         self._glide_timer.timeout.connect(self._glide_step)
         self._cameras_of: Any = None

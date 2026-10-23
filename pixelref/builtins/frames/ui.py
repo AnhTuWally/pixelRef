@@ -64,6 +64,8 @@ class FramesService:
 
     def link_ends(self, link: str) -> list[tuple[str, str | None, int]]:
         """``(end, element name or None, frame)`` for a link's two ends."""
+        if not self.scene.has(link):
+            return []
         attrs = self.scene.get_node(link).attrs
         return [(end, self.scene.name_of_id(str(attrs.get(end) or "")), int(attrs.get(f"{end}_frame", 0) or 0))
                 for end in ENDS]
@@ -115,7 +117,7 @@ class FramesService:
         """Paint filter: a link whose end points at a frame that isn't showing fades out towards that end."""
         alphas = self.link_alphas(item.node_name)
         points = item.route_points()
-        if min(alphas) >= 1.0 or not points:
+        if not alphas or min(alphas) >= 1.0 or not points:
             draw(painter)
             return
         t = painter.worldTransform()
