@@ -761,6 +761,85 @@ def test_export_originals_sanitises_names_dedupes_and_includes_group_children():
         h.close()
 
 
+def test_fun_name_is_adjective_noun_and_respects_the_toggle():
+    """New scenes get a random "Adjective-Noun" name, or plain "scene" when fun names are off."""
+    from pixelref.builtins.file import ADJECTIVES, NOUNS, fun_name
+
+    h = make()
+    try:
+        settings = h.app.settings.scoped("plugins/file")
+        settings.setValue("fun_names", True)
+        name = fun_name(settings)
+        adjective, _, noun = name.partition("-")
+        assert adjective in ADJECTIVES and noun in NOUNS, name
+        assert all(part.isalpha() for part in name.split("-")), "filesystem-safe words only"
+        assert fun_name(settings) != name or len(ADJECTIVES) * len(NOUNS) == 1, "randomised each call"
+        settings.setValue("fun_names", False)
+        assert fun_name(settings) == "scene"
+    finally:
+        h.app.settings.remove("plugins/file/fun_names")
+        h.close()
+
+
+def test_save_dir_defaults_to_documents_and_honours_the_setting():
+    """New scenes save to Documents/pixelRef by default, or the user's file/save_dir."""
+    from PySide6.QtCore import QStandardPaths
+
+    from pixelref.builtins.file import save_dir
+
+    h = make()
+    try:
+        settings = h.app.settings.scoped("plugins/file")
+        base = tmp_dir()
+        original = QStandardPaths.writableLocation
+        QStandardPaths.writableLocation = staticmethod(lambda _standard: str(base))
+        try:
+            settings.remove("save_dir")
+            default = save_dir(settings)
+            assert default == base / "pixelRef" and default.is_dir(), default
+            custom = base / "my scenes"
+            assert h.run("file.set_save_dir", str(custom)) == str(custom)
+            assert save_dir(settings) == custom and custom.is_dir()
+            settings.setValue("save_dir", "")
+            assert save_dir(settings) == default, "clearing the setting goes back to the default"
+        finally:
+            QStandardPaths.writableLocation = original
+            settings.remove("save_dir")
+    finally:
+        h.close()
+
+
+def test_save_as_defaults_to_the_save_dir_with_a_fun_name():
+    """The Save As dialog opens in the save folder pre-filled with a fun name."""
+    from PySide6.QtCore import QStandardPaths
+    from PySide6.QtWidgets import QFileDialog
+
+    from pixelref.builtins.file import SCENE_EXT
+
+    h = make()
+    base = tmp_dir()
+    captured: dict[str, str] = {}
+    original = QFileDialog.getSaveFileName
+    QFileDialog.getSaveFileName = staticmethod(
+        lambda *args, **kwargs: (captured.update(default=str(args[2] if len(args) > 2 else kwargs.get("directory", "")))
+                                or (str(base / "picked.pxref"), ""))
+    )
+    original_paths = QStandardPaths.writableLocation
+    QStandardPaths.writableLocation = staticmethod(lambda _standard: str(base))
+    try:
+        h.app.settings.scoped("plugins/file").setValue("fun_names", True)
+        assert h.run("file.save_as")
+        default = captured["default"]
+        assert default.endswith(SCENE_EXT) and Path(default).name != f"scene{SCENE_EXT}", default
+        assert Path(default).parent.name == "pixelRef", default
+        assert Path(default).stem.split("-")[0].isalpha()
+    finally:
+        QFileDialog.getSaveFileName = original
+        QStandardPaths.writableLocation = original_paths
+        h.app.settings.remove("plugins/file/fun_names")
+        h.close()
+
+
 def test_copy_path_and_open_containing_folder():
     """Copy File Path / Copy Folder Path / Open Containing Folder act on the saved scene file."""
     from PySide6.QtGui import QDesktopServices

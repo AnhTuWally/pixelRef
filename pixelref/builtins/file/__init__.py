@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import random
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -16,7 +17,7 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from pixelref.plugin_api import SCENE_EXT, SCENE_EXTS, perf
-from pixelref.plugin_api.contracts import IngestHandler
+from pixelref.plugin_api.contracts import EmptyPanel, IngestHandler
 
 from .watch import MODES as WATCH_MODES
 from .watch import FileWatcher
@@ -27,6 +28,54 @@ AUTOSAVE_INTERVAL_MS = 60_000
 RESUME_SETTING = "session_resume"
 RESUME_STATE_SETTING = "session_resume_state"
 LAST_SESSION_HAD_CONTENT_SETTING = "last_session_had_content"
+SAVE_DIR_SETTING = "save_dir"
+FUN_NAMES_SETTING = "fun_names"
+
+# Fun names: "Adjective-Noun" (e.g. Brave-Tiger). Curated, filesystem-safe.
+ADJECTIVES = (
+    "Amber", "Bold", "Brave", "Bright", "Calm", "Clever", "Cosmic", "Crisp", "Curly", "Daring",
+    "Dawn", "Deep", "Dreamy", "Electric", "Fancy", "Feral", "Flickering", "Foggy", "Golden", "Gentle",
+    "Gigantic", "Glossy", "Grumpy", "Hazy", "Hidden", "Humble", "Jolly", "Jumpy", "Lucky", "Mellow",
+    "Mighty", "Misty", "Molten", "Neon", "Nimble", "Noisy", "Peachy", "Pixel", "Plucky", "Proud",
+    "Quiet", "Rapid", "Radiant", "Retro", "Rustic", "Sassy", "Silent", "Sneaky", "Sparkly", "Sunny",
+    "Swift", "Tiny", "Twinkly", "Velvet", "Vivid", "Wandering", "Whimsical", "Wild", "Wobbly", "Zesty",
+)
+NOUNS = (
+    "Acorn", "Anchor", "Badger", "Basil", "Beacon", "Biscuit", "Blossom", "Boulder", "Breeze", "Bubble",
+    "Cactus", "Candle", "Canyon", "Caramel", "Cedar", "Circuit", "Comet", "Copper", "Coral", "Crumbs",
+    "Daisy", "Dune", "Ember", "Falcon", "Ferry", "Fiddle", "Flint", "Fog", "Garden", "Gizmo",
+    "Glider", "Harbor", "Honey", "Island", "Jungle", "Kettle", "Lantern", "Lighthouse", "Lollipop", "Maple",
+    "Meadow", "Meteor", "Muffin", "Nebula", "Noodle", "Orchid", "Otter", "Pebble", "Pinecone", "Pirate",
+    "Puddle", "Quartz", "Raccoon", "Rocket", "Saffron", "Saddle", "Spiral", "Sprocket", "Tangerine", "Tumbleweed",
+    "Voyage", "Walnut", "Willow", "Waffle", "Wren", "Yard", "Zephyr", "Zigzag",
+)
+
+
+def fun_name(settings: Any) -> str:
+    """A random "Adjective-Noun" name for a new scene (e.g. ``Brave-Tiger``).
+
+    Falls back to ``scene`` when fun names are switched off (``fun_names`` setting).
+    """
+    if not settings.value(FUN_NAMES_SETTING, True, type=bool):
+        return "scene"
+    return f"{random.choice(ADJECTIVES)}-{random.choice(NOUNS)}"
+
+
+def save_dir(settings: Any) -> Path:
+    """Where new scenes are saved: the user's folder (``save_dir`` setting), else
+    ``Documents/pixelRef`` (created on demand). Never raises: falls back to cwd.
+    """
+    try:
+        custom = str(settings.value(SAVE_DIR_SETTING, "") or "").strip()
+        if custom:
+            path = Path(custom).expanduser()
+        else:
+            base = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation) or str(Path.home() / "Documents")
+            path = Path(base) / "pixelRef"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+    except OSError:
+        return Path.cwd()
 
 
 class _AutosaveSignals(QObject):
@@ -433,7 +482,10 @@ def activate_ui(ui: Any) -> None:
 
     def save_as() -> bool:
         """Save the scene under a new file name (dialog)."""
-        default = str(session.scene_path or (Path.cwd() / f"scene{SCENE_EXT}"))
+        if session.scene_path is not None:
+            default = str(session.scene_path)
+        else:
+            default = str(save_dir(ui.settings) / f"{fun_name(ui.settings)}{SCENE_EXT}")
         path_str, _ = QFileDialog.getSaveFileName(app.main_window(), "Save Scene As", default, SCENE_FILTER)
         if not path_str:
             return False
@@ -597,6 +649,43 @@ def activate_ui(ui: Any) -> None:
         return "handled"
 
     ui.contribute("ingest.handlers", IngestHandler("file.scene", 0, lambda m: bool(scene_files(m)), describe, ingest))
+
+    # ---- Save location & fun names ------------------------------------------------------------
+
+    def set_save_dir(path: str) -> str:
+        """Set the folder new scenes are saved to ("" = the default Documents/pixelRef)."""
+        path = str(path or "").strip()
+        if path:
+            Path(path).expanduser().mkdir(parents=True, exist_ok=True)
+        ui.settings.setValue(SAVE_DIR_SETTING, path)
+        return path
+
+    def set_fun_names(enabled: bool) -> bool:
+        """Give new scenes a random fun name (e.g. Brave-Tiger) instead of scene.pxref."""
+        ui.settings.setValue(FUN_NAMES_SETTING, bool(enabled))
+        return bool(enabled)
+
+    ui.command("set_save_dir", set_save_dir, undoable=False, echo=False)
+    ui.command("set_fun_names", set_fun_names, undoable=False, echo=False)
+
+    def pick_save_dir() -> None:
+        """Choose the folder new scenes are saved to."""
+        current = str(ui.settings.value(SAVE_DIR_SETTING, "") or "") or str(save_dir(ui.settings))
+        folder = QFileDialog.getExistingDirectory(app.main_window(), "Save New Scenes To", current)
+        if folder:
+            set_save_dir(folder)
+
+    ui.command("pick_save_dir", pick_save_dir, undoable=False, echo=False)
+    a("file.save_dir", "file.pick_save_dir", "Save Location…", keywords="folder location directory where scenes save",
+      category="File")
+    ui.menu("canvas", "file.save_dir", path="File", group="file.location", order=3)
+
+    from .ui import FilesPanel
+
+    def make_files_panel(parent: Any, _inspector: Any) -> Any:
+        return FilesPanel(ui, parent)
+
+    ui.contribute("inspector.empty_panels", EmptyPanel("files", 10, make_files_panel))
 
     def on_close() -> bool:
         # Anything edited (even deleted back down to nothing) still counts as content:

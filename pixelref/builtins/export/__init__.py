@@ -75,7 +75,12 @@ def activate_ui(ui: Any) -> None:
             return
         is_selection = bool(canvas.outline_items())
         title = "Export Selected as Image" if is_selection else "Export as Image"
-        default = session.scene_path.with_suffix(".png") if session.scene_path else Path.cwd() / "export.png"
+        if session.scene_path is not None:
+            default = session.scene_path.with_suffix(".png")
+        else:
+            from ..file import save_dir
+
+            default = save_dir(ui.app.settings.scoped("plugins/file")) / "export.png"
         path_str, selected_filter = QFileDialog.getSaveFileName(app.main_window(), title, str(default),
                                                   "PNG (*.png);;JPEG (*.jpg *.jpeg)")
         if not path_str:
