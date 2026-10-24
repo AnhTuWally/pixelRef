@@ -360,6 +360,13 @@ def _draw(name: str, painter: QPainter, color: QColor) -> None:
     elif name == "folder":
         painter.drawPolygon(QPolygonF([QPointF(1.5, 3.5), QPointF(6, 3.5), QPointF(7.5, 5.5),
                                        QPointF(14.5, 5.5), QPointF(14.5, 13), QPointF(1.5, 13)]))
+    elif name == "files":  # a document with a folded corner and text lines
+        painter.drawPolygon(QPolygonF([QPointF(3, 1.5), QPointF(10.5, 1.5), QPointF(13, 4),
+                                       QPointF(13, 14.5), QPointF(3, 14.5)]))
+        painter.drawPolyline(QPolygonF([QPointF(10.5, 1.5), QPointF(10.5, 4), QPointF(13, 4)]))
+        painter.drawLine(QPointF(5, 7), QPointF(11, 7))
+        painter.drawLine(QPointF(5, 9.5), QPointF(11, 9.5))
+        painter.drawLine(QPointF(5, 12), QPointF(9, 12))
     elif name == "save":  # a floppy disk
         painter.drawPolygon(QPolygonF([QPointF(2.5, 2.5), QPointF(11.5, 2.5), QPointF(13.5, 4.5),
                                        QPointF(13.5, 13.5), QPointF(2.5, 13.5)]))

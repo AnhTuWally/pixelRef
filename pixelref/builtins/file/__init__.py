@@ -14,7 +14,8 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QStandardPaths, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
+from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QDialogButtonBox, QFileDialog,
+                               QLabel, QMessageBox, QVBoxLayout)
 
 from pixelref.plugin_api import SCENE_EXT, SCENE_EXTS, perf
 from pixelref.plugin_api.contracts import EmptyPanel, IngestHandler
@@ -361,6 +362,17 @@ def activate_ui(ui: Any) -> None:
 
     ui.on("revision.changed", on_revision)
 
+    # Every successful open registers the file in this window's open-files list,
+    # regardless of which code path opened it (plugin open_path, startup arg,
+    # session resume). Registered before the panel activates so the panel's own
+    # scene.opened refresh sees the updated registry.
+    def on_opened(event: Any) -> None:
+        path = event.payload.get("path")
+        if path:
+            _register_open(Path(path))
+
+    ui.on("scene.opened", on_opened)
+
     def on_replaced(_event: Any) -> None:
         # New / Open restart the revision count at 0: a stale autosaved revision would
         # otherwise skip autosaving the new document once its edits reach that number.
@@ -386,6 +398,107 @@ def activate_ui(ui: Any) -> None:
         """Forget the recent files list."""
         ui.settings.setValue("recent_files", [])
 
+    # ---- Open files (per-window registry, Notepad++-style) ------------------------------------
+
+    class OpenFile:
+        """One deliberately-open file in this window, with captured state for resuming."""
+
+        __slots__ = ("path", "text", "camera", "unsaved")
+
+        def __init__(self, path: str) -> None:
+            self.path = path  # resolved absolute path
+            self.text: str | None = None  # captured scene text (for resuming)
+            self.camera: dict[str, Any] | None = None  # captured camera state
+            self.unsaved = False  # whether it had unsaved changes when captured
+
+    open_files: list[OpenFile] = []  # insertion order is fixed; user can reorder
+
+    def _find_entry(path: Path) -> OpenFile | None:
+        resolved = str(path.resolve())
+        for entry in open_files:
+            if entry.path == resolved:
+                return entry
+        return None
+
+    def _register_open(path: Path) -> None:
+        """Add a file to the open-files registry if not already present."""
+        resolved = str(path.resolve())
+        if not any(e.path == resolved for e in open_files):
+            open_files.append(OpenFile(resolved))
+
+    def _capture_state() -> None:
+        """Capture the current file's state (text + camera) into its registry entry."""
+        path = session.scene_path
+        if path is None:
+            return
+        entry = _find_entry(Path(path))
+        if entry is None:
+            entry = OpenFile(str(Path(path).resolve()))
+            open_files.append(entry)
+        entry.text = session.serialize()
+        view = app.active_view()
+        entry.camera = view.camera() if view is not None else None
+        entry.unsaved = session.unsaved
+
+    def _restore_state(entry: OpenFile) -> None:
+        """Restore a registry entry's captured state into the session."""
+        session.load_text(entry.text, Path(entry.path))
+        session.revision = session.saved_revision = 0
+        if entry.unsaved:
+            session.mark_unsaved()
+        cache = session.services.get("image_cache")
+        if cache is not None:
+            cache.clear()
+            ui.canvas.request_full_refresh()
+        if entry.camera is not None:
+            cam = entry.camera
+            QTimer.singleShot(0, lambda: _restore_camera(cam))
+
+    def _restore_camera(cam: dict[str, Any]) -> None:
+        view = app.active_view()
+        if view is not None:
+            view.set_camera(cam["center"], cam["zoom"], cam["rotation"],
+                            flip_x=cam["flip_x"], flip_y=cam["flip_y"])
+
+    def switch_to(path: str) -> bool:
+        """Switch to an open file (no prompt; captures the current state first)."""
+        target = Path(path).resolve()
+        current = session.scene_path
+        if current is not None and Path(current).resolve() == target:
+            return True  # already the current file
+
+        # Capture the current file's state (no prompt)
+        if current is not None:
+            _capture_state()
+
+        # Check if the target is in the registry with captured state
+        entry = _find_entry(target)
+        if entry is not None and entry.text is not None:
+            _restore_state(entry)
+            ui.status(f"Switched to: {target.name}")
+        else:
+            # Load from disk (new open)
+            if not open_path(str(target), confirm=False):
+                return False
+        return True
+
+    def reorder_open_files(from_path: str, to_path: str) -> None:
+        """Reorder the open-files registry (drag-and-drop)."""
+        from_idx = next((i for i, e in enumerate(open_files) if e.path == from_path), None)
+        to_idx = next((i for i, e in enumerate(open_files) if e.path == to_path), None)
+        if from_idx is None or to_idx is None:
+            return
+        entry = open_files.pop(from_idx)
+        open_files.insert(to_idx, entry)
+
+    def open_files_list() -> list[str]:
+        """The open files in registry order (for the panel and cycling)."""
+        return [e.path for e in open_files]
+
+    def open_files_state() -> list[tuple[str, bool]]:
+        """(path, unsaved) pairs in registry order, for the panel's border sync."""
+        return [(e.path, e.unsaved) for e in open_files]
+
     # ---- Confirmations ------------------------------------------------------------------------
 
     def confirm_discard() -> bool:
@@ -401,6 +514,86 @@ def activate_ui(ui: Any) -> None:
     def may_discard() -> bool:
         ui.canvas.flush_pending()
         return not session.unsaved or confirm_discard()
+
+    def confirm_close_all() -> bool:
+        """Ask about every open file with unsaved changes (checkboxes, default checked).
+
+        Returns True to proceed with closing (after saving/discarding as chosen),
+        False if the user cancelled.
+        """
+        ui.canvas.flush_pending()
+        # Collect files with unsaved changes: the current session plus captured entries.
+        dirty: list[tuple[str, str | None, OpenFile | None]] = []  # (display, text, entry)
+        current = session.scene_path
+        if session.unsaved:
+            name = Path(current).name if current else "Untitled"
+            dirty.append((name, None, None))  # None text = save via the normal save() path
+        for entry in open_files:
+            if entry.unsaved and entry.text is not None:
+                if current is not None and Path(current).resolve() == Path(entry.path):
+                    continue  # already listed above
+                dirty.append((Path(entry.path).name, entry.text, entry))
+        if not dirty:
+            return True
+        if len(dirty) == 1:
+            # Single file: the classic Save/Discard/Cancel prompt (also what tests
+            # mock via QMessageBox.question).
+            name, text, entry = dirty[0]
+            reply = QMessageBox.question(
+                app.main_window(), "Unsaved Changes",
+                f"Save changes to {name}?",
+                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+                QMessageBox.Save,
+            )
+            if reply == QMessageBox.Cancel:
+                return False
+            if reply == QMessageBox.Save:
+                if entry is None:
+                    if not save():
+                        return False  # save_as was cancelled: don't lose the choice
+                else:
+                    try:
+                        session.format.write_text(entry.path, text)
+                        entry.unsaved = False
+                    except Exception as exc:  # noqa: BLE001
+                        QMessageBox.critical(app.main_window(), "Save failed", f"{name}\n\n{exc}")
+                        return False
+            return True
+
+        dialog = QDialog(app.main_window())
+        dialog.setWindowTitle("Unsaved Changes")
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("The following files have unsaved changes.\n"
+                                "Tick the ones you want to save before closing:"))
+        boxes: list[QCheckBox] = []
+        for name, _text, _entry in dirty:
+            box = QCheckBox(name)
+            box.setChecked(True)
+            boxes.append(box)
+            layout.addWidget(box)
+        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Discard
+                                   | QDialogButtonBox.Cancel, dialog)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        reply = dialog.exec()
+        if reply == QDialog.Rejected:
+            return False
+        if reply == QDialog.Accepted:  # Save
+            for (name, text, entry), box in zip(dirty, boxes):
+                if not box.isChecked():
+                    continue
+                if entry is None:
+                    if not save():
+                        return False  # save_as was cancelled: don't lose the choice
+                else:
+                    try:
+                        session.format.write_text(entry.path, text)
+                        entry.unsaved = False
+                    except Exception as exc:  # noqa: BLE001
+                        QMessageBox.critical(app.main_window(), "Save failed", f"{name}\n\n{exc}")
+                        return False
+        return True
 
     # ---- Commands -----------------------------------------------------------------------------
 
@@ -557,12 +750,18 @@ def activate_ui(ui: Any) -> None:
                      ("save_as", save_as), ("save_to", save_to), ("clear_recent", clear_recent),
                      ("copy_path", copy_path), ("copy_folder", copy_folder), ("open_folder", open_folder),
                      ("resume_last_session", resume_last_session), ("reload", reload),
-                     ("set_watch_mode", set_watch_mode), ("check_external", check_external)):
+                     ("set_watch_mode", set_watch_mode), ("check_external", check_external),
+                     ("switch_to", switch_to), ("reorder_open_files", reorder_open_files)):
         ui.command(name, fn, undoable=False)
     ui.provide_service("files", type("Files", (), {
         "open_path": staticmethod(open_path), "save_to": staticmethod(save_to),
         "recent_files": staticmethod(recent_files), "may_discard": staticmethod(may_discard),
         "reload": staticmethod(reload),
+        "open_files_list": staticmethod(open_files_list),
+        "open_files_state": staticmethod(open_files_state),
+        "switch_to": staticmethod(switch_to),
+        "reorder_open_files": staticmethod(reorder_open_files),
+        "capture_state": staticmethod(_capture_state),
     })())
 
     a = ui.action
@@ -702,7 +901,7 @@ def activate_ui(ui: Any) -> None:
             recovery.suspend()
             recovery.timer.stop()
             return True
-        if not may_discard():
+        if not confirm_close_all():
             return False
         recovery.timer.stop()
         if session.scene_path is None and session.unsaved:
@@ -719,3 +918,7 @@ def activate_ui(ui: Any) -> None:
     from .start import activate_start_ui
 
     activate_start_ui(ui)
+
+    from .panel import activate_files_panel_ui
+
+    activate_files_panel_ui(ui)

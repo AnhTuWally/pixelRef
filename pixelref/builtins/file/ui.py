@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QCheckBox, QFormLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
 
 from pixelref.plugin_api.ui import widgets as w
 
 from . import FUN_NAMES_SETTING, SAVE_DIR_SETTING, fun_name, save_dir
+from .panel import OPEN_PREF_SETTING, open_preference, set_open_preference
 
 
 class FilesPanel(QWidget):
@@ -35,15 +37,31 @@ class FilesPanel(QWidget):
         self.fun_names.toggled.connect(self._on_fun_names)
         form.addRow("", self.fun_names)
         layout.addLayout(form)
-        hint = QLabel("New scenes save here with a random name — you can still rename in the dialog", self)
-        hint.setObjectName("pathLabel")
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
+        opening = w.section_header(self, "File Opening")
+        layout.addWidget(opening)
+        self.pref_current = QPushButton("Current Window", self)
+        self.pref_new = QPushButton("New Window", self)
+        for button in (self.pref_current, self.pref_new):
+            button.setCheckable(True)
+            button.setFocusPolicy(Qt.NoFocus)
+        self.pref_current.clicked.connect(lambda: self._on_pref("current"))
+        self.pref_new.clicked.connect(lambda: self._on_pref("new"))
+        layout.addWidget(w.hrow(self, self.pref_current, self.pref_new))
+        pref_hint = QLabel("Double-clicking a file opens it here or in a new window — "
+                           "Shift+double-click always opens a new window", self)
+        pref_hint.setObjectName("pathLabel")
+        pref_hint.setWordWrap(True)
+        layout.addWidget(pref_hint)
         self.refresh()
 
     def _on_fun_names(self, checked: bool) -> None:
         if not self._updating:
             self.ui.app.run_command("file.set_fun_names", bool(checked))
+
+    def _on_pref(self, value: str) -> None:
+        if not self._updating:
+            self.ui.app.run_command("file.set_open_pref", value)
+            self.refresh()
 
     def refresh(self) -> None:
         settings = self.ui.settings
@@ -52,5 +70,8 @@ class FilesPanel(QWidget):
             custom = str(settings.value(SAVE_DIR_SETTING, "") or "").strip()
             self.dir_edit.setText(custom or str(save_dir(settings)))
             self.fun_names.setChecked(bool(settings.value(FUN_NAMES_SETTING, True, type=bool)))
+            pref = open_preference(settings)
+            self.pref_current.setChecked(pref == "current")
+            self.pref_new.setChecked(pref == "new")
         finally:
             self._updating = False

@@ -603,6 +603,10 @@ Exports wait for every effect result, so what you save is complete.
   Session* card with that thumbnail lets you jump straight back to it.
 - **About pixelRef…** in the canvas context menu shows the app, Python and Qt
   versions.
+- **Several open scenes.** The design for switching between open scenes,
+  detaching them into their own windows and the double-click preference is in
+  [design-multi-file.md](design-multi-file.md) (Files panel tab on the right
+  edge; breadcrumb drawer as the alternative).
 
 ## Window modes
 

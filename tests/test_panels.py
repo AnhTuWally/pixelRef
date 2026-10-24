@@ -344,13 +344,13 @@ def test_panels_live_outside_the_tiling_layout():
         wm, panels = h.app.wm, h.app.panels
         assert wm.doc.tiles(wm.doc.tiling_root(wm.focused_workspace())) == ["Main"], "Board is just the canvas"
         assert not any(wm.doc.attr(t, "view_type") in panels.types for t in wm.doc.tiles())
-        assert [p["id"] for p in h.run("panels.list")] == ["tool_palette", "outliner", "inspector", "docs"]
+        assert [p["id"] for p in h.run("panels.list")] == ["tool_palette", "outliner", "inspector", "files", "docs"]
         sidebar = panels.sidebar
         assert sidebar.isVisible() and sidebar.parentWidget() is h.window.body
         assert h.window.body.indexOf(sidebar) > h.window.body.indexOf(h.window.area), "right of the tiles"
         assert h.inspector.isVisible() and h.outliner.isVisible() and h.palette.isVisible()
         rail = panels.rail
-        assert rail.isVisible() and list(rail.tabs) == ["tool_palette", "outliner", "inspector", "docs"]
+        assert rail.isVisible() and list(rail.tabs) == ["tool_palette", "outliner", "inspector", "files", "docs"]
         assert rail.minimumSizeHint().height() < 100, "the tabs scroll: they never keep the window tall"
         row = h.window.middle.layout()
         assert row.indexOf(rail) == row.count() - 1, "the tabs sit on the outer edge, beyond the sidebar"

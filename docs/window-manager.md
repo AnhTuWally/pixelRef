@@ -231,6 +231,10 @@ start. Scene files keep their workspaces (see [Workspaces](#workspaces)).
 `pxcmd.wm.save_layout("Paint-over")` and `pxcmd.wm.load_layout("Paint-over")`
 keep named snapshots of the whole layout, windows included.
 
+Managing **several open scenes** at once — the Files panel tab on the right
+edge, detaching a scene into its own window and the double-click
+preference — is designed in [design-multi-file.md](design-multi-file.md).
+
 ## Scripting the layout
 
 The layout is itself a small node graph with node types `wm_output` (a
