@@ -561,6 +561,12 @@ edges and centres (including horizontal/vertical centers, which have no
 default shortcut). With fewer than two items selected, arranging works on
 everything.
 
+*Distribute Horizontally / Vertically* (3+ items, no default shortcut) evens out the
+empty space between neighbouring edges. Unlike *Arrange*, the outermost items stay
+where they are, the middle ones slide between them, and the other axis is untouched
+(`pxcmd.distribute("horizontal")`). It never falls back to everything, and
+overlapping items get equal negative gaps.
+
 ## Export
 
 - `Ctrl+E` renders the selection (or the whole board) to PNG or JPEG at 1:1.

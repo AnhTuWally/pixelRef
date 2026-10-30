@@ -182,6 +182,7 @@ the rest also work headless (batch mode, scripts).
 | `arrange.align(edge: str = 'left', nodes: Any = None)` | `align` | yes | Align edges or centres: left, right, top, bottom, hcenter, vcenter. |
 | `arrange.arrange(mode: str = 'optimal', nodes: Any = None, gap: float = 8.0)` | `arrange` | yes | Lay items out: optimal (pack), horizontal (row), vertical (column) or grid. |
 | `arrange.arrange_ui(mode: str)` |  |  | Arrange the selection (or everything) and frame the result in the active view. |
+| `arrange.distribute(mode: str = 'horizontal', nodes: Any = None)` | `distribute` | yes | Equalize the gaps between 3+ items, horizontally or vertically; the outer edges stay put. |
 | `arrange.normalize(mode: str = 'size', nodes: Any = None)` | `normalize` | yes | Make items the same height, width or size (area), about their centres. |
 
 ## arrow

@@ -16,6 +16,10 @@ ARRANGE_KINDS = {
     "vertical": layout.arrange_column,
     "grid": layout.arrange_grid,
 }
+DISTRIBUTE_KINDS = {
+    "horizontal": layout.distribute_horizontal,
+    "vertical": layout.distribute_vertical,
+}
 EDGES = ("left", "right", "top", "bottom", "hcenter", "vcenter")
 
 
@@ -112,9 +116,27 @@ def activate(ctx: Any) -> None:
             api.apply_world(name, xform.Matrix.translation(dx, dy))
         return names
 
+    def distribute(mode: str = "horizontal", nodes: Any = None) -> list[str]:
+        """Equalize the gaps between 3+ items, horizontally or vertically; the outer edges stay put."""
+        if mode not in DISTRIBUTE_KINDS:
+            raise CommandError(f"mode must be one of {', '.join(DISTRIBUTE_KINDS)}")
+        api = transform_api()
+        pairs = [(n, session.world_bounds(n)) for n in api.targets(nodes, minimum=3)]
+        pairs = [(n, r) for n, r in pairs if r is not None]  # nothing to measure (an empty drawing)
+        if len(pairs) < 3:
+            raise CommandError("Select at least 3 item(s) with a size")
+        positions = DISTRIBUTE_KINDS[mode]([tuple(r) for _n, r in pairs])
+        for (name, rect), (x, y) in zip(pairs, positions):
+            dx, dy = x - rect[0], y - rect[1]
+            if abs(dx) > 1e-9 or abs(dy) > 1e-9:
+                api.apply_world(name, xform.Matrix.translation(dx, dy))
+        return [n for n, _r in pairs]
+
     ctx.command("arrange", arrange, alias="arrange", label=lambda mode="optimal", *a, **k: f"Arrange {mode}")
     ctx.command("normalize", normalize, alias="normalize", label=lambda mode="size", *a, **k: f"Normalize {mode}")
     ctx.command("align", align, alias="align", label=lambda edge="left", *a, **k: f"Align {edge}")
+    ctx.command("distribute", distribute, alias="distribute",
+                label=lambda mode="horizontal", *a, **k: f"Distribute {mode}")
 
 
 def activate_ui(ui: Any) -> None:
@@ -151,6 +173,9 @@ def activate_ui(ui: Any) -> None:
         a(f"arrange.align_{key}", "arrange.align", text, args=(key,), category="Arrange")
         if key in ALIGN_SHORTCUTS:
             ui.bind(ALIGN_SHORTCUTS[key], f"arrange.align_{key}")
+    for key in DISTRIBUTE_KINDS:
+        a(f"arrange.distribute_{key}", "arrange.distribute", f"Distribute {key.capitalize()}ly", args=(key,),
+          keywords="distribute spacing equal gaps evenly space " + key, category="Arrange")
     # Laying out works on the selection or (with nothing selected) everything; matching sizes
     # and aligning need two or more selected items. With one item selected the sub-menu hides.
     order = 0
@@ -158,7 +183,8 @@ def activate_ui(ui: Any) -> None:
                               ("a2", ("normalize_height", "normalize_width", "normalize_size"),
                                "selection.count >= 2"),
                               ("a3", ("align_left", "align_hcenter", "align_right", "align_top", "align_vcenter",
-                                      "align_bottom"), "selection.count >= 2")):
+                                      "align_bottom"), "selection.count >= 2"),
+                              ("a4", ("distribute_horizontal", "distribute_vertical"), "selection.count >= 3")):
         for key in keys:
             ui.menu("canvas", f"arrange.{key}", path="Arrange", group=group, order=order, when=when)
             order += 1
@@ -184,6 +210,13 @@ def activate_ui(ui: Any) -> None:
                 button.clicked.connect(lambda _c=False, k=key: app.trigger(f"arrange.{k}"))
                 self._arrange_buttons.append(button)
             self.form.addRow("Align", w.hrow(self.body, *self._align_buttons))
+            self._distribute_buttons = []
+            for key, glyph, tip in (("horizontal", "⇹", "Distribute horizontally (equal gaps, 3+ items)"),
+                                    ("vertical", "⇳", "Distribute vertically (equal gaps, 3+ items)")):
+                button = w.make_tool_button(glyph, tip, width=28, parent=self.body)
+                button.clicked.connect(lambda _c=False, k=key: app.trigger(f"arrange.distribute_{k}"))
+                self._distribute_buttons.append(button)
+            self.form.addRow("Distribute", w.hrow(self.body, *self._distribute_buttons))
             self.form.addRow("Arrange", w.hrow(self.body, *self._arrange_buttons))
 
         def refresh(self, info: SelectionInfo) -> None:

@@ -122,6 +122,25 @@ def test_inspector_multi_selection_summary_and_align():
         h.close()
 
 
+def test_distribute_actions_and_inspector_buttons():
+    h = make()
+    try:
+        for name, x in (("A", 0), ("B", 20), ("C", 300)):
+            h.add_image(name, x, 0, w=100, h=50)
+        h.select(["A", "B", "C"])
+        menu = next(a.menu() for a in h.app.menus.build("canvas").actions() if a.text() == "Arrange")
+        assert {"Distribute Horizontally", "Distribute Vertically"} <= {a.text() for a in menu.actions()}
+        assert h.section("arrange")._distribute_buttons
+        before = h.item("A").scene_content_rect().left(), h.item("C").scene_content_rect().right()
+        QTest.mouseClick(h.section("arrange")._distribute_buttons[0], Qt.LeftButton)
+        a, b, c = (h.item(n).scene_content_rect() for n in "ABC")
+        assert abs((b.left() - a.right()) - (c.left() - b.right())) < 0.01
+        assert (a.left(), c.right()) == before
+        assert h.app.actions.get("arrange.distribute_vertical") is not None
+    finally:
+        h.close()
+
+
 def test_attribute_editor_is_generated_from_the_schema():
     from pixelref.plugin_api import Attr
 
@@ -926,6 +945,7 @@ def test_canvas_context_menu_is_organised_by_what_was_clicked():
         assert "Arrange" in layout(two)
         arrange = next(a.menu() for a in two.actions() if a.text() == "Arrange")
         assert "Align Left" in layout(arrange)
+        assert "Distribute Horizontally" not in layout(arrange), "distributing needs three items"
     finally:
         h.close()
 
