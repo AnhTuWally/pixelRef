@@ -1,4 +1,9 @@
-"""Export: render to an image file, copy a flattened image to the clipboard, or copy the original image files out."""
+"""Export: render to an image file, copy a flattened image to the clipboard, or copy the original image files out.
+
+PNG exports also carry the exported part of the board as an embedded scene (see
+``core.scene_embed``) unless the ``embed_scene_metadata`` setting is off, so
+dropping the PNG back onto a board gives the editable content again.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +12,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+
+EMBED_SETTING = "embed_scene_metadata"  # plugins/export/embed_scene_metadata, on by default
 
 MIME_EXTENSIONS = {
     "image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp", "image/bmp": ".bmp",
@@ -55,8 +62,38 @@ def activate_ui(ui: Any) -> None:
     def copy_image_text() -> str:
         return "Copy Selected as Image" if canvas.outline_items() else "Copy as Image"
 
-    def render(path: str, nodes: Any = None, opaque: bool | None = None) -> list[int]:
-        """Render nodes (default: the selection, else everything) to PNG/JPEG at 1:1. Returns [w, h]."""
+    def embed_enabled() -> bool:
+        return bool(ui.settings.value(EMBED_SETTING, True, type=bool))
+
+    def write_editable_png(path: str, image: Any, nodes: Any) -> None:
+        """Write the PNG with the exported scene embedded; never falls back to a flat file."""
+        from PySide6.QtCore import QBuffer, QIODevice
+
+        from pixelref.core import png_meta, scene_embed
+        from pixelref.core.scene_merge import extract_subset
+
+        if nodes is None and not canvas.outline_items():
+            names = None  # the whole board, hidden items included
+        else:
+            names = [i.node_name for i in items_for(nodes)]
+        try:
+            subset, warnings = extract_subset(session.scene, names, session.resolve_path)
+            buffer = QBuffer()
+            buffer.open(QIODevice.WriteOnly)
+            if not image.save(buffer, "PNG"):
+                raise CommandError(f"Could not write {path}")
+            png_meta.write_atomic(path, scene_embed.embed_in_png(bytes(buffer.data()), subset))
+        except (scene_embed.EmbedError, OSError) as exc:
+            raise CommandError(f"Could not export {Path(path).name} with its scene: {exc}") from exc
+        if warnings:
+            ui.status(f"Exported; {len(warnings)} image(s) could not be embedded ({warnings[0]})")
+
+    def render(path: str, nodes: Any = None, opaque: bool | None = None, embed_scene: bool | None = None) -> list[int]:
+        """Render nodes (default: the selection, else everything) to PNG/JPEG at 1:1. Returns [w, h].
+
+        PNGs carry the exported scene (editable on drop) when ``embed_scene`` is true; by default the
+        ``embed_scene_metadata`` setting decides. JPEGs never do.
+        """
         canvas.flush_pending()
         items = items_for(nodes)
         if not items:
@@ -64,9 +101,22 @@ def activate_ui(ui: Any) -> None:
         if opaque is None:
             opaque = Path(path).suffix.lower() in (".jpg", ".jpeg")
         image = canvas.render_items(items, opaque=opaque)
-        if image is None or not image.save(str(path)):
+        if image is None:
+            raise CommandError(f"Could not write {path}")
+        if Path(path).suffix.lower() == ".png" and (embed_enabled() if embed_scene is None else embed_scene):
+            write_editable_png(path, image, nodes)
+        elif not image.save(str(path)):
             raise CommandError(f"Could not write {path}")
         return [image.width(), image.height()]
+
+    def set_embed_scene_metadata(enabled: bool) -> bool:
+        """Turn embedding the scene in exported PNGs on or off (a saved preference)."""
+        ui.settings.setValue(EMBED_SETTING, bool(enabled))
+        app.actions.refresh_states()
+        return bool(enabled)
+
+    def toggle_embed_scene_metadata() -> None:
+        set_embed_scene_metadata(not embed_enabled())
 
     def export_dialog() -> None:
         """Ask where to save, then render the selection (or the whole board) to PNG/JPEG."""
@@ -166,6 +216,8 @@ def activate_ui(ui: Any) -> None:
             ui.status(f"Exported {copied} image file(s) to {folder}")
 
     ui.command("render", render, alias="render_image", undoable=False)
+    ui.command("set_embed_scene_metadata", set_embed_scene_metadata, undoable=False)
+    ui.command("toggle_embed_scene_metadata", toggle_embed_scene_metadata, undoable=False, echo=False)
     ui.command("originals", export_originals, alias="export_original_images", undoable=False)
     ui.command("dialog", export_dialog, undoable=False, echo=False)
     ui.command("originals_dialog", export_originals_dialog, undoable=False, echo=False)
@@ -177,11 +229,15 @@ def activate_ui(ui: Any) -> None:
               keywords="extract originals files folder", category="File")
     ui.action("export.copy_image", "export.copy_image_ui", "Copy as Image", dynamic_text=copy_image_text,
               keywords="clipboard flatten merge copy png screenshot picture selected", category="Edit", icon="copy")
+    ui.action("export.embed_scene", "export.toggle_embed_scene_metadata", "Embed Editable Scene in PNG Exports",
+              keywords="png metadata editable scene embed drag back reimport size", category="File",
+              checked=embed_enabled)
     ui.bind("Ctrl+E", "export.image")
     ui.bind("Ctrl+Shift+E", "export.originals")
     ui.bind("Ctrl+Alt+C", "export.copy_image")
     ui.menu("canvas", "export.image", path="File", group="file.export", order=0)
     ui.menu("canvas", "export.originals", path="File", group="file.export", order=1)
     ui.menu("canvas", "export.copy_image", path="File", group="file.export", order=2)
+    ui.menu("canvas", "export.embed_scene", path="File", group="file.export", order=3)
     ui.menu("canvas", "export.image", group="focus", order=20, when="selection.count > 0")
     ui.menu("canvas", "export.copy_image", group="focus", order=21, when="selection.count > 0")

@@ -4,6 +4,18 @@ All notable changes to pixelRef are documented here.
 
 ## [Unreleased]
 
+### Added — Editable PNG exports
+
+- PNG exports embed the exported part of the board (a `.pxref` document, linked
+  images included) in a private `pxRF` chunk, so dropping the PNG onto a board
+  rebuilds the editable objects at the drop point as one undo step. `Shift`+drop
+  imports the flat picture; ordinary PNGs are unaffected. Embedded images can make
+  exports much larger: *File → Embed Editable Scene in PNG Exports* (setting
+  `embed_scene_metadata`, on by default) turns it off, which gives the
+  existing flattened export. `export.render` gained `embed_scene`.
+- `import_scene` and the new merge code keep links, image references and click
+  actions pointing at the copies when ids collide.
+
 ### Added — Snap to grid
 
 - **Snap to grid** (`snap` plugin) — `Alt+'`, *View → Background → Snap to

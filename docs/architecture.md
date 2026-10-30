@@ -207,6 +207,27 @@ Scenes are readable JSON `.pxref` files (schema 1) with embedded images,
 written and read by `core/scene_file.py` (`SceneParser`). `.json` files open as
 scenes too. See [file-format.md](file-format.md).
 
+**Editable PNGs.** An exported PNG can carry a `.pxref` document (the same
+format, no second schema) in a private `pxRF` chunk, zlib-compressed:
+
+- `core/png_meta.py` reads and writes one chunk in a PNG and knows nothing about
+  scenes (it seeks past pixel data and stops at the first `IDAT`);
+- `core/scene_merge.py` cuts a part of a `SceneGraph` out as a `SceneGraph`
+  (`extract_subset`: world-space roots, linked images embedded, outside
+  references cleared) and adds one scene to another (`merge_scene`: unique
+  names, remapped ids, asset hashes and click-action ids). `import_scene` uses it too;
+- `core/scene_embed.py` joins them with `SceneParser`: `encode`/`embed_in_png`,
+  and `read_png_scene` which inflates under size limits, parses into a scratch
+  scene, enforces node/depth/asset limits and drops node types this install does
+  not provide;
+- `export.render` embeds when the `embed_scene_metadata` setting
+  (`plugins/export/`, default on) or its `embed_scene` argument says so, and
+  writes atomically; a failed embed is an error, never a flat fallback;
+- the clipboard plugin's `ingest.handlers` entry `clipboard.scene_png` (order 5)
+  claims dropped PNGs with a `pxRF` chunk (unless `Shift` is held) and runs
+  `clipboard.import_png_scene`, one undo step that merges with
+  `strip_paths=True`. Scene-level `plugins`/sections in the payload are ignored.
+
 ## Environment variables
 
 | Variable | Effect |

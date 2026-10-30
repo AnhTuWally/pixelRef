@@ -66,6 +66,14 @@ wrong, the open scene stays as it was and the error is reported (a
 - a file with a `schema` newer than 1: *saved by a newer pixelRef*;
 - a parent cycle, invalid attributes or a malformed `nodes` list.
 
+## Embedded in PNG exports
+
+An exported PNG can hold a `.pxref` document (schema 1, with its `assets`) of the
+exported nodes in a private ancillary chunk `pxRF`: the 4 bytes `PXR1`, then the
+zlib-compressed JSON text. Roots are in world space and linked images are embedded.
+Readers cap the inflated size (768 MB), nodes (50,000), nesting (64) and images.
+See [architecture.md](architecture.md#files).
+
 ## Undo snapshots
 
 Undo stores the same JSON without `assets`, in compact form. Embedded image

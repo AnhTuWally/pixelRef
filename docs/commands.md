@@ -244,6 +244,7 @@ the rest also work headless (batch mode, scripts).
 | `clipboard.cut()` | `cut` |  | Copy the selection to the clipboard, then delete it. |
 | `clipboard.delete(nodes: Any = None)` | `delete_selected` | yes | Delete the selected nodes (with their children). |
 | `clipboard.duplicate(nodes: Any = None)` | `duplicate_selected` | yes | Duplicate the selection, offset a little, and select the copies. |
+| `clipboard.import_png_scene(path: str, position: Any)` |  | yes | Add the editable scene embedded in an exported PNG, centred on ``position`` (one undo step). |
 | `clipboard.paste()` | `paste` |  | Paste nodes copied in pixelRef, or images/text from other apps. |
 | `clipboard.paste_nodes(payload: dict[str, Any], position: Any)` |  | yes | Add copied nodes (a clipboard payload) centred on ``position``; returns the new root names. |
 
@@ -318,7 +319,9 @@ the rest also work headless (batch mode, scripts).
 | `export.dialog()` |  |  | Ask where to save, then render the selection (or the whole board) to PNG/JPEG. |
 | `export.originals(folder: str, nodes: Any = None)` | `export_original_images` |  | Copy the selected (or all) images' original files into a folder. |
 | `export.originals_dialog()` |  |  | Ask for a folder, then write the original image files of the selection (or of every image). |
-| `export.render(path: str, nodes: Any = None, opaque: bool \| None = None)` | `render_image` |  | Render nodes (default: the selection, else everything) to PNG/JPEG at 1:1. Returns [w, h]. |
+| `export.render(path: str, nodes: Any = None, opaque: bool \| None = None, embed_scene: bool \| None = None)` | `render_image` |  | Render nodes (default: the selection, else everything) to PNG/JPEG at 1:1. Returns [w, h]. |
+| `export.set_embed_scene_metadata(enabled: bool)` |  |  | Turn embedding the scene in exported PNGs on or off (a saved preference). |
+| `export.toggle_embed_scene_metadata()` |  |  |  |
 
 ## file
 

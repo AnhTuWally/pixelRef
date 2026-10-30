@@ -70,24 +70,11 @@ def register_kernel_commands(session: "Session") -> None:
     def import_scene(path: str) -> list[str]:
         """Add the nodes of another scene file to this one; returns the new root names."""
         from .scene import SceneGraph
+        from .scene_merge import merge_scene
 
         other = SceneGraph(session.types)
         session.format.load_into_scene(other, session.format.read_text(path))
-        renamed: dict[str, str] = {}
-        roots: list[str] = []
-        for asset_id, asset in other.assets.items():
-            scene.assets.setdefault(asset_id, asset)
-        for node in other.iter_nodes():
-            new_name = scene.unique_name(node.name)
-            renamed[node.name] = new_name
-            parent = renamed.get(node.parent) if node.parent else None
-            # Keep the ids (node_ref attributes point at them) unless already in use.
-            node_id = node.id if node.id and node.id not in scene.by_id else None
-            scene.create_node(node.node_type, new_name, parent=parent, attrs=fast_copy(node.attrs),
-                              node_id=node_id, strict=False, dynamic=dict(node.dynamic))
-            if parent is None:
-                roots.append(new_name)
-        return roots
+        return merge_scene(scene, other)
 
     def scene_info() -> dict[str, Any]:
         """Summary of the open scene."""

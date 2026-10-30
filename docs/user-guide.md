@@ -577,6 +577,29 @@ overlapping items get equal negative gaps.
 
 Exports wait for every effect result, so what you save is complete.
 
+### Editable PNGs
+
+PNG exports also carry the exported objects inside the file (*File → Embed
+Editable Scene in PNG Exports*, on by default). Drag such a PNG back onto a board
+and the original, editable objects appear where you drop them: images, notes,
+shapes, groups, links, effects and their transforms, as one undo step. Hold
+`Shift` while dropping to add the flat picture instead. PNGs without embedded
+data, and every other image, import as before.
+
+- Exporting the selection embeds just the selection; with nothing selected the
+  whole board is embedded.
+- Images are embedded in full, linked files included, so the PNG works without the
+  original files. **This can make exported PNGs much larger than the picture
+  they show**; turn the setting off for a plain, small PNG (JPEGs never carry
+  a scene).
+- Other programs show the PNG normally. Re-saving it in an image editor
+  usually drops the embedded scene.
+- Not carried: scene-level settings (canvas background, saved workspaces) and
+  linked movies (a movie needs its file on the importing machine). Linked
+  file paths are never imported.
+- A PNG whose embedded data is damaged, from a newer version, or over the size
+  limits is imported as a flat image instead, and the status bar says why.
+
 ## Files, autosave and recovery
 
 - Scenes are `.pxref` files (readable JSON; `.json` files open too). See
