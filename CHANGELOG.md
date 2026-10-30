@@ -4,6 +4,30 @@ All notable changes to pixelRef are documented here.
 
 ## [Unreleased]
 
+### Added — Finding the other end of a link
+
+- Off-screen linked elements of the selection get a **chip on the view's edge**
+  pointing at them. Click it to glide there.
+- **Double-click a link** to go to its far end, or a selected link's end handle
+  to go to the other end.
+- **Linked To** sub-menu in the canvas menu, a **Links** section in the
+  Attribute Editor, and a **link-count badge** on selected and hovered elements.
+  Each lists the elements at the other ends; pick one to go there.
+- **Hover highlight** (Select tool): hovering an element outlines its links and
+  what they lead to. Toggle it with *View → Highlight Links on Hover*.
+- Jumps are remembered per view: **`Alt+Left` / `Alt+Right`** (*View → Go
+  Back / Go Forward*) restore the camera and the selection.
+- Commands: `links.go_to`, `links.follow`, `links.back`, `links.forward`,
+  `links.set_hover_highlight`; context key `links.connected`.
+
+### Added — Extract Color Palette
+
+- **Extract Color Palette** (`color_palette` plugin; *Image* menu, `Ctrl+K`,
+  `color_palette.extract(image=None, count=None)`) turns an image's dominant colors into
+  a backdrop of rectangle swatches linked to the image. Extracting again updates the
+  palette linked to that image; a palette whose link was deleted is ignored and a new one
+  is made. Runs only on request, one undo step, works headless. See the user guide.
+
 ### Added — Editable PNG exports
 
 - PNG exports embed the exported part of the board (a `.pxref` document, linked

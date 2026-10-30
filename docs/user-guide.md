@@ -290,6 +290,29 @@ and hollow dots for free ones.
   thickness, dash, a cap at each end (arrow, triangle, circle, diamond, bar),
   cap size and a label.
 
+**Finding the other end.** Jumping along a link glides the view to the element
+there (the zoom stays unless the element is too big to fit) and selects it.
+`Alt+Left` goes back to where you were, with the same selection, and `Alt+Right`
+goes forward again (*View → Go Back / Go Forward*).
+
+- **Edge chips:** when a selected element (or link) is linked to something
+  off-screen, a chip with its name sits on the edge of the view, its arrow
+  pointing the way. Click the chip to go there.
+- **Double-click a link** to go to its far end (the end away from where you
+  clicked). Double-click a selected link's end handle to go to the other end.
+- **Linked To** in the right-click menu lists everything the selection is
+  linked to (`→` the link points to it, `←` it points here). Pick one to go
+  there.
+- **Count badge:** a selected or hovered element with links shows how many it
+  has in its corner (just outside it when it's small on screen). Click the
+  badge for the same list.
+- **Hover:** with the Select tool, hovering an element outlines its links and
+  the elements they lead to. Off-screen ones get faded chips. Turn this off with
+  *View → Highlight Links on Hover*.
+- The **Links** section of the Attribute Editor lists the selected element's
+  links: click a name to go there, or the link button to select the link
+  itself. For a selected link it lists its *from* and *to* elements.
+
 ## Groups, the Outliner and the Attribute Editor
 
 **Groups.** `G` groups the selection. A group acts as one item: a click
@@ -427,6 +450,34 @@ Workspaces are saved with the scene. The built-in ones are **Board**,
 canvas).
 
 All of this is covered in [window-manager.md](window-manager.md).
+
+## Color palettes
+
+Select an image, or a group or backdrop holding images (or an image with other images
+under it), and choose **Image → Extract Color Palette** (or search for it with
+`Ctrl+K`). pixelRef reads the image's dominant colors and puts them on the board as ordinary
+objects: a backdrop titled *Color Palette* holding five filled rectangles, joined to the image
+by a normal link. Everything can be moved, recolored, restyled and undone like any other node.
+
+- With a group, the colors come from every visible image inside it, recursively, each
+  contributing equally. The palette links to the selected group; unreadable images are skipped.
+  Select one node (the group), not several.
+- **Extract again on the same image or group** updates that palette in place (same backdrop, link and
+  swatches; only the generated swatch colors change, and any other rectangles you added to
+  the backdrop are left alone). It is one undo step.
+- **Delete the link** and the palette becomes independent canvas content. The next extraction
+  ignores it and makes a new palette.
+- Palettes never update on their own: editing, cropping or applying effects to the image
+  changes nothing until you extract again.
+- Colors come from the image's own pixels inside its crop; effects are not applied. A flat
+  image gives fewer than five swatches.
+- If an image feeds several palettes, extraction refuses to guess: delete the extra links.
+- A locked palette can't be updated; unlock it first.
+
+From a script: `pxcmd.color_palette.extract("Photo", count=6)` returns
+`{"backdrop", "created", "colors"}`. The link is marked with a hidden `palette_role`
+attribute and each generated swatch with `palette_swatch` (its position), which is how a
+palette is recognised. A new link you draw yourself is never taken for a palette link.
 
 ## Animated images
 

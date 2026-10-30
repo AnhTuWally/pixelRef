@@ -248,6 +248,12 @@ the rest also work headless (batch mode, scripts).
 | `clipboard.paste()` | `paste` |  | Paste nodes copied in pixelRef, or images/text from other apps. |
 | `clipboard.paste_nodes(payload: dict[str, Any], position: Any)` |  | yes | Add copied nodes (a clipboard payload) centred on ``position``; returns the new root names. |
 
+## color_palette
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `color_palette.extract(image: Any = None, count: int \| None = None)` | `extract_palette` | yes | Extract the dominant colors of an image, or of a group/backdrop and every image inside it |
+
 ## color_picker
 
 | Command | Alias | Undo | Description |
@@ -460,16 +466,22 @@ the rest also work headless (batch mode, scripts).
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
 | `links.add_waypoint(link: str, x: float, y: float, index: int \| None = None)` |  | yes | Pin the path through (x, y) in the link's space; returns the waypoint's index. |
+| `links.back(view: str \| None = None)` | `link_back` |  | Go back to where the view was before the last jump along a link. |
 | `links.clear_waypoints(nodes: Any = None)` |  | yes | Remove every waypoint: the path goes straight (or curves) from end to end again. |
 | `links.connect(source: Any, target: Any, name: str = 'Link', **attrs: Any)` | `connect` | yes | Link two ends. Each is an element (name or id) or a free point [x, y] on the |
 | `links.connect_selection(**attrs: Any)` | `connect_selection` | yes | Link the selected elements in the order they were selected (a → b → c). |
 | `links.connected(nodes: Any = None)` |  |  | Elements linked to these (default: the selection). |
 | `links.ends(link: str)` |  |  | The names of the elements a link's ends are attached to (None: a free end). |
+| `links.follow(link: str, end: str \| None = None, view: str \| None = None)` | `follow_link` |  | Go to one end ("source" / "target") of a link; by default the one farther from |
+| `links.forward(view: str \| None = None)` | `link_forward` |  | Redo a jump undone with back. |
+| `links.go_to(node: Any, view: str \| None = None)` | `go_to_linked` |  | Glide a view to an element (name or id) or a point [x, y] and select the element. |
 | `links.links_of(node)` |  |  |  |
 | `links.remove_waypoint(link: str, index: int)` |  | yes | Unpin one waypoint. |
 | `links.reverse(nodes: Any = None)` |  | yes | Swap a link's ends (with their anchors and caps), keeping the path. |
 | `links.select_connected(nodes: Any = None)` | `select_connected` |  | Select the elements linked to the selection. |
 | `links.set_end(link: str, end: str = 'target', node: Any = None, anchor: str \| None = None, spot: Any = None)` |  | yes | Attach a link's end ("source" or "target") to an element, or free it at a |
+| `links.set_hover_highlight(on: bool)` |  |  | Whether hovering an element outlines its links and what they lead to; remembered. |
+| `links.toggle_hover_highlight()` |  |  | Switch the hover highlight of links on or off. |
 
 ## macros
 

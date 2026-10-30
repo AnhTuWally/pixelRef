@@ -23,7 +23,8 @@ link labels its ends' elements "from" and "to".
 Every link end has a handle: hover near one (the link needn't be selected) and
 drag it. Selected link: drag a white square (waypoint) to move it, double-click it to
 remove it; drag the line, or the small circle halfway along a segment, to add
-one; drag an end to re-attach or free it.
+one; drag an end to re-attach or free it. Double-click a link (or one of its
+ends) to go to the other end; ``nav.py`` has the rest of finding linked elements.
 """
 
 from __future__ import annotations
@@ -936,6 +937,11 @@ class LinkHandles:
             item = g["targets"][0]
             self.ui.app.run_command("links.remove_waypoint", item.node_name, int(handle.split(":")[1]))
             return True
+        if handle in ("src", "dst"):  # go to the other end
+            item = g["targets"][0]
+            self.ui.app.run_command("links.follow", item.node_name, "target" if handle == "src" else "source",
+                                    view=view.view_name)
+            return True
         return False
 
     def paint(self, gizmo: Any, view: Any, painter: QPainter, g: dict[str, Any]) -> bool:
@@ -1256,8 +1262,19 @@ def activate_links_ui(ui: Any) -> None:
                  for end in ("source", "target")]
         return [f"{names[0]} → {names[1]}"]
 
+    def double_click(view: Any, item: Any, scene_pos: QPointF) -> bool:
+        """Double-clicking a link goes to its end farther from the click."""
+        points = item.route_points()
+        if not points:
+            return False
+        st = item.sceneTransform()
+        source, target = st.map(points[0]), st.map(points[-1])
+        end = "target" if _distance(scene_pos, target) >= _distance(scene_pos, source) else "source"
+        ui.app.run_command("links.follow", item.node_name, end, view=view.view_name)
+        return True
+
     ui.node_ui(LINK, factory=factory, label="Link", icon="link", badge=("#6ebeff", "↝"),
-               post_sync=post_sync, describe=describe)
+               post_sync=post_sync, describe=describe, double_click=double_click)
     ui.register_tool(LinkTool(ui, feedback))
     ui.contribute("gizmo.handles", LinkHandles(ui, feedback))
     ui.overlay(feedback.paint, order=45)
@@ -1265,6 +1282,9 @@ def activate_links_ui(ui: Any) -> None:
     ui.input_handler(grabber, 610)  # before the gizmo, which only knows the selected link
     ui.overlay(grabber.paint, order=46)
     ui.provide_service("links", feedback)
+    from .nav import activate_nav_ui
+
+    activate_nav_ui(ui, feedback)
 
     def follow(_regions: Any = None) -> None:
         """Links follow their ends live (drags, nudges, animations). Re-routing only

@@ -1,0 +1,6 @@
+id = "color_palette"
+name = "Color Palette"
+version = "1.0.0"
+api = 1
+requires = ["image", "rect", "backdrops", "links"]
+description = "Extract Color Palette: on demand, turn an image's dominant colors into a backdrop of swatches linked to the image. Extracting again updates the linked palette; an unlinked palette is left alone."
