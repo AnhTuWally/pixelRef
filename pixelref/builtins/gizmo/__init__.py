@@ -269,6 +269,9 @@ class GizmoService:
         handle = op["handle"]
         about_center = bool(modifiers & Qt.AltModifier)
         free = bool(modifiers & Qt.ShiftModifier)
+        snap = self.ui.service("snap")
+        if snap is not None and not snap.active(bool(modifiers & Qt.ControlModifier)):
+            snap = None
         if op["single"]:
             item, s0, l0, _parent_inv, _rotation = op["targets"][0]
             points = local_handle_points(item.content_rect())
@@ -284,6 +287,8 @@ class GizmoService:
                 if handle not in ("ml", "mr") and abs(h.y() - a.y()) > 1e-9:
                     fy = (m_local.y() - a.y()) / (h.y() - a.y())
             fx, fy = max(0.02, fx), max(0.02, fy)
+            if snap is not None:
+                fx, fy = _snap_factors(snap, op["view"], s0, a, h, fx, fy, uniform=handle in CORNERS and not free)
             item.set_local_transform(_scaled_about_local(a, fx, fy) * l0)
             self.ui.status(f"Scale {fx * 100:.0f}% × {fy * 100:.0f}%")
         else:
@@ -292,6 +297,8 @@ class GizmoService:
             h = corners[index]
             a = op["center_scene"] if about_center else corners[(index + 2) % 4]
             f = max(0.02, projection(m, a, h))
+            if snap is not None:
+                f = _snap_uniform(snap, op["view"], (a.x(), a.y()), (h.x() - a.x(), h.y() - a.y()), f)
             delta = scaled_about(a, f, f)
             for item, s0, _l0, parent_inv, _rotation in op["targets"]:
                 item.set_local_transform(s0 * delta * parent_inv)
@@ -344,6 +351,39 @@ class GizmoService:
 
 def _scaled_about_local(point: QPointF, fx: float, fy: float) -> QTransform:
     return scaled_about(point, fx, fy)
+
+
+def _snap_uniform(snap: Any, view: Any, anchor: tuple[float, float], offset: tuple[float, float],
+                  f: float) -> float:
+    """Of the factors that put the handle (``anchor + offset * f`` in the scene) on a grid line
+    in x or in y, the one that moves it least."""
+    candidates = [snap.factor(anchor[axis], offset[axis], f, view) for axis in (0, 1) if abs(offset[axis]) > 1e-9]
+    return min(candidates, key=lambda c: abs(c - f), default=f)
+
+
+def _snap_factors(snap: Any, view: Any, s0: QTransform, a: QPointF, h: QPointF, fx: float, fy: float,
+                  uniform: bool) -> tuple[float, float]:
+    """Snap a single item's scale so the dragged handle lands on the grid. Only items whose
+    sides are axis-aligned in the scene snap their free/edge scaling (a local axis maps to one scene axis)."""
+    anchor = s0.map(a)
+    anchor_xy = (anchor.x(), anchor.y())
+    ux, uy = h.x() - a.x(), h.y() - a.y()
+    # Scene offset of the handle from the anchor per unit of fx and of fy.
+    col_x = (s0.m11() * ux, s0.m12() * ux)
+    col_y = (s0.m21() * uy, s0.m22() * uy)
+    if uniform:
+        f = _snap_uniform(snap, view, anchor_xy, (col_x[0] + col_y[0], col_x[1] + col_y[1]), fx)
+        return f, f
+    for col in (col_x, col_y):
+        if min(abs(col[0]), abs(col[1])) > 1e-6 * max(abs(col[0]), abs(col[1]), 1e-9):
+            return fx, fy  # rotated: the handle can't sit on a grid line in both axes
+    if abs(ux) > 1e-9:
+        axis = 0 if abs(col_x[0]) >= abs(col_x[1]) else 1
+        fx = snap.factor(anchor_xy[axis], col_x[axis], fx, view)
+    if abs(uy) > 1e-9:
+        axis = 0 if abs(col_y[0]) >= abs(col_y[1]) else 1
+        fy = snap.factor(anchor_xy[axis], col_y[axis], fy, view)
+    return fx, fy
 
 
 class GizmoHandler(InputHandler):

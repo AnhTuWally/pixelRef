@@ -327,17 +327,26 @@ the rest also work headless (batch mode, scripts).
 | `file.clear_recent()` |  |  | Forget the recent files list. |
 | `file.copy_folder()` |  |  | Copy the path of the folder holding the open scene file to the clipboard. |
 | `file.copy_path()` |  |  | Copy the open scene file's full path to the clipboard. |
+| `file.cycle(direction: int = 1)` |  |  | Cycle to the next/previous open file (current window). |
+| `file.jump(n: int)` |  |  | Jump to the n-th open file (1-based). |
 | `file.new()` |  |  | New, empty scene (asks about unsaved changes). |
 | `file.open()` |  |  | Choose a scene file to open (asks about unsaved changes first). |
 | `file.open_folder()` |  |  | Open the folder holding the open scene file in the system file browser. |
+| `file.open_in_new_window(path: str \| None = None)` |  |  | Open a scene file in its own window (a new pixelRef process). |
 | `file.open_path(path: str, confirm: bool = True)` |  |  | Open a scene file (asks about unsaved changes unless confirm=False). |
+| `file.pick_save_dir()` |  |  | Choose the folder new scenes are saved to. |
 | `file.reload()` |  |  | Reload the open scene from disk (asks before discarding unsaved changes). |
+| `file.reorder_open_files(from_path: str, to_path: str)` |  |  | Reorder the open-files registry (drag-and-drop). |
 | `file.resume_last_session()` |  |  | Bring back the Untitled draft kept from the last time pixelRef closed. |
 | `file.save()` |  |  | Save the scene to its file (asks for a name the first time). |
 | `file.save_as()` |  |  | Save the scene under a new file name (dialog). |
 | `file.save_to(path: str)` |  |  | Save the scene to ``path``. |
+| `file.set_fun_names(enabled: bool)` |  |  | Give new scenes a random fun name (e.g. Brave-Tiger) instead of scene.pxref. |
+| `file.set_open_pref(value: str)` |  |  | Set the *Open files on double-click* preference ("current" or "new"). |
 | `file.set_resume_enabled(value: bool)` |  |  | Turn Session Resume on or off (the start panel's checkbox). |
+| `file.set_save_dir(path: str)` |  |  | Set the folder new scenes are saved to ("" = the default Documents/pixelRef). |
 | `file.set_watch_mode(mode: str)` |  |  | When the open file changes on disk: "reload" automatically, "notify" with a Reload |
+| `file.switch_to(path: str)` |  |  | Switch to an open file (no prompt; captures the current state first). |
 | `file.thumbnail(path: str \| None = None, save_to: str \| None = None)` |  |  | A scene file's thumbnail (default: the open scene's file): its size and date, |
 | `file.toggle_resume()` |  |  | Switch Session Resume (reopen your last board automatically on launch) on or off. |
 
@@ -595,6 +604,16 @@ the rest also work headless (batch mode, scripts).
 | `select.all()` | `select_all` |  | Select every visible, unlocked item. |
 | `select.invert()` | `invert_selection` |  | Select every selectable item that isn't selected, and deselect the rest. |
 
+## snap
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `snap.enabled()` |  |  | Whether drags snap to the grid. |
+| `snap.set_enabled(on: bool = True)` |  |  | Turn snapping to the grid on or off (a preference: it isn't saved with the scene). |
+| `snap.to_grid(nodes: Any = None)` | `snap_to_grid` | yes | Move each item so its nearest edges sit on grid lines. |
+| `snap.toggle()` | `toggle_snap` |  | Turn snapping to the grid on or off. |
+| `snap.toggle_ui()` |  |  | Turn snapping to the grid on or off, and say so. |
+
 ## steps
 
 | Command | Alias | Undo | Description |
@@ -613,6 +632,7 @@ the rest also work headless (batch mode, scripts).
 | `text.clear_formatting(nodes: Any = None)` |  | yes | Remove character formatting from text notes (keeps the text). |
 | `text.commit(name: str, text: str, runs: list[dict[str, Any]] \| None = None)` |  | yes | Store text (and per-character formatting runs) edited on the canvas. |
 | `text.copy_style()` | `copy_text_style` |  | Copy the text style: at the cursor while typing, else the selected note's look (Ctrl+Shift+C). |
+| `text.copy_text(names: list[str] \| None = None)` | `copy_note_text` |  | Copy the selected note's plain text to the clipboard (Ctrl+Alt+T). |
 | `text.create(text: str = 'Text', translate: Any = None, parent: str \| None = None)` | `create_note` | yes | Create a text note at ``translate`` (world units if no parent). |
 | `text.default_style()` |  |  | Your style for new notes (saved values that no longer fit are skipped). |
 | `text.link_dialog()` |  |  | Link the selected text (while typing, Ctrl+K) or the selected notes to a web address or file. |

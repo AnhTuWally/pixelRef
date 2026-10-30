@@ -1,0 +1,6 @@
+id = "snap"
+name = "Snap to grid"
+version = "1.0.0"
+api = 1
+requires = ["transform"]
+description = "Snap moves and scales to the background grid (Ctrl while dragging flips it), and line items up on the grid."

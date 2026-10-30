@@ -5,8 +5,8 @@ from __future__ import annotations
 import inspect
 from typing import Any
 
-from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF, QTransform
 from PySide6.QtWidgets import QGraphicsItem
 
 from pixelref.plugin_api.ui import DEFAULT, HANDLED, PointerEvent, Tool, theme
@@ -56,7 +56,7 @@ class SelectTool(Tool):
                     self.ui.app.run_command("select", [item.node_name], toggle=True)
                     return HANDLED
                 canvas.begin_interaction()
-                self.op = {"kind": "move", "view": e.view}
+                self.op = {"kind": "move", "view": e.view, "press": e.scene_pos}
                 return DEFAULT
             additive = bool(e.modifiers & (Qt.ControlModifier | Qt.ShiftModifier))
             initial = set(canvas.selected_canvas_items()) if additive else set()
@@ -69,7 +69,14 @@ class SelectTool(Tool):
             if op is None:
                 return None
             if op["kind"] == "move":
-                return DEFAULT
+                snap = self.ui.service("snap")
+                if "snap" not in op:  # decided on the first move; without snapping Qt moves the items
+                    op["snap"] = self._start_snap_move() if snap is not None and snap.active(e.ctrl) else None
+                if op["snap"] is None:
+                    return DEFAULT
+                self._snap_move(op, e.scene_pos - op["press"], snap is not None and snap.active(e.ctrl))
+                e.view.viewport().update()
+                return HANDLED
             rect = QRectF(op["origin"], e.pos).normalized()
             op["rect"] = rect
             canvas.select_items(e.view.content_items_in(rect) | op["initial"])
@@ -81,6 +88,8 @@ class SelectTool(Tool):
             self.op = None
             if op["kind"] == "move":
                 canvas.end_interaction("Move")
+                if op.get("snap") is not None:
+                    e.view.viewport().update()
                 return DEFAULT
             e.view.viewport().update()
             return HANDLED
@@ -105,6 +114,44 @@ class SelectTool(Tool):
             return None
         return None
 
+    # ---- Snapped moves (the snap plugin) -------------------------------------------------
+
+    def _start_snap_move(self) -> dict[str, Any] | None:
+        """Move the selection ourselves (not Qt) so the whole selection snaps as one."""
+        targets = self.ui.canvas.transform_targets()
+        if not targets:
+            return None
+        bounds = QRectF()
+        moving = []
+        for item in targets:
+            bounds = bounds.united(item.scene_content_rect())
+            parent = item.parentItem()
+            parent_inv = parent.sceneTransform().inverted()[0] if parent is not None else QTransform()
+            moving.append((item, item.sceneTransform(), parent_inv))
+        return {"targets": moving, "bounds": bounds, "guides": ([], [])}
+
+    def _snap_move(self, op: dict[str, Any], delta: QPointF, snapping: bool) -> None:
+        state = op["snap"]
+        snap = self.ui.service("snap")
+        b = state["bounds"]
+        dx, dy = delta.x(), delta.y()
+        guides: tuple[list[float], list[float]] = ([], [])
+        if snapping and snap is not None:
+            view = op["view"]  # snap to the grid lines this view draws
+            dx, dy = snap.delta((b.left(), b.top(), b.width(), b.height()), dx, dy, view)
+            guides = ([x for x in (b.left() + dx, b.right() + dx) if snap.on_grid(x, view)],
+                      [y for y in (b.top() + dy, b.bottom() + dy) if snap.on_grid(y, view)])
+        state["guides"] = guides
+        shift = QTransform.fromTranslate(dx, dy)
+        for item, s0, parent_inv in state["targets"]:
+            try:
+                item.set_local_transform(s0 * shift * parent_inv)
+            except RuntimeError:  # the item was replaced by a refresh
+                pass
+        x, y = b.left() + dx, b.top() + dy
+        snapped = " · snapped to grid" if snapping else ""
+        self.ui.status(f"Move to {x:.0f}, {y:.0f}{snapped} · Ctrl flips snapping")
+
     def hover(self, e: PointerEvent) -> None:
         hovered = e.item
         if hovered is not self.hover_item:
@@ -123,6 +170,9 @@ class SelectTool(Tool):
             painter.setBrush(theme.RUBBER_FILL)
             painter.drawRect(op["rect"].adjusted(0.5, 0.5, -0.5, -0.5))
             return
+        if op is not None and op.get("snap"):
+            self._paint_guides(view, painter, op["snap"]["guides"])
+            return
         hovered = self.hover_item
         if hovered is None or op is not None or not view.display.show_overlays:
             return
@@ -136,6 +186,21 @@ class SelectTool(Tool):
         painter.setPen(QPen(QColor(61, 142, 240, 140), 1.0, Qt.DashLine))
         painter.setBrush(Qt.NoBrush)
         painter.drawPolygon(polygon)
+
+
+    def _paint_guides(self, view: Any, painter: QPainter, guides: tuple[list[float], list[float]]) -> None:
+        """The grid lines the moving selection snapped to, across the view."""
+        xs, ys = guides
+        if not xs and not ys:
+            return
+        size = view.viewport().rect()
+        painter.setPen(QPen(theme.ACCENT, 1.0, Qt.DashLine))
+        for x in xs:
+            vx = view.to_viewport(QPointF(x, 0.0)).x()
+            painter.drawLine(QPointF(vx, 0.0), QPointF(vx, size.height()))
+        for y in ys:
+            vy = view.to_viewport(QPointF(0.0, y)).y()
+            painter.drawLine(QPointF(0.0, vy), QPointF(size.width(), vy))
 
 
 def paint_outlines(ui: Any, view: Any, painter: QPainter) -> None:

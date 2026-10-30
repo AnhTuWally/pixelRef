@@ -108,17 +108,26 @@ def pattern_color(spec: BackgroundSpec) -> QColor:
     return QColor(mix(bg.red()), mix(bg.green()), mix(bg.blue()))
 
 
+def grid_step(spec: BackgroundSpec, zoom: float) -> float:
+    """Scene distance between the pattern's grid lines at *zoom*: the grid size, made coarser
+    (×4, or ×2 for the checkerboard) until the lines are at least ~16px (8px) apart on screen.
+    Snapping uses this too, so items land on the lines you see."""
+    checker = spec.pattern == "checker"
+    zoom = zoom or 1.0
+    step = float(max(4, spec.grid_size))
+    while step * zoom < (8.0 if checker else 16.0):
+        step *= 2.0 if checker else 4.0
+    return step
+
+
 def draw_background(painter: QPainter, rect: QRectF, spec: BackgroundSpec) -> None:
     painter.fillRect(rect, QColor(*spec.color))
     pattern = spec.pattern if spec.pattern in PATTERNS else "lines"
     if pattern == "none":
         return
-    # Keep the pattern at least ~16px apart on screen at any zoom level.
     transform = painter.worldTransform()
     zoom = math.hypot(transform.m11(), transform.m12()) or 1.0
-    step = float(max(4, spec.grid_size))
-    while step * zoom < (8.0 if pattern == "checker" else 16.0):
-        step *= 2.0 if pattern == "checker" else 4.0
+    step = grid_step(spec, zoom)
     color = pattern_color(spec)
     left = math.floor(rect.left() / step) * step
     top = math.floor(rect.top() / step) * step

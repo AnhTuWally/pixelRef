@@ -2,6 +2,22 @@
 
 All notable changes to pixelRef are documented here.
 
+## [Unreleased]
+
+### Added — Snap to grid
+
+- **Snap to grid** (`snap` plugin) — `Alt+'`, *View → Background → Snap to
+  Grid*, or the *Snap to grid* toggle (magnet icon) in the Attribute Editor's
+  Canvas panel. Dragging snaps the selection's nearest edges to the background grid
+  (its *Grid size*), moving a multi-selection as one block; dashed guides show
+  the grid lines it snapped to. Zoomed far out, it snaps to the coarser lines
+  the background draws there, so items always land on a visible line. Gizmo scaling puts the dragged handle on a grid
+  line. Hold `Ctrl` while dragging to flip snapping for that drag.
+- **Snap Selection to Grid** (*Transform* menu, `snap.to_grid`) lines each
+  item up on the grid; works headless too.
+- Plugins can add their own settings rows to the Canvas panel through the new
+  `canvas_background.rows` extension point (`CanvasRow`).
+
 ## [1.1.0] - 2026-10-24
 
 ### Added — Files panel (multi-file management)

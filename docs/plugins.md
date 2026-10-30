@@ -598,6 +598,7 @@ Extension points declared by the built-ins (contribution types are in
 | `inspector.sections` | inspector | `InspectorSection(key, title, order, applies(info), build(parent, inspector), generic=False)`; `generic=True` for sections that apply to every type (they don't replace a type's generated Attributes section) |
 | `inspector.rows` | inspector | `InspectorRows(section, order, build)`: rows inside another plugin's section |
 | `inspector.empty_panels` | inspector | `EmptyPanel(key, order, build)`: shown when nothing is selected |
+| `canvas_background.rows` | canvas_background | `CanvasRow(key, label, order, build)`: a labelled setting in the Canvas panel; `build(parent)` returns a widget with `refresh()` |
 | `quick_edit.sections` | quick_edit | `QuickSection(key, title, order, applies(names), build(parent))`: controls in the canvas quick editor bar, before the fields; the widget has `refresh(names)` and keeps a fixed size (playback's transport is one) |
 | `ingest.handlers` | clipboard | `IngestHandler(name, order, accepts(mime), describe(mime), ingest(view, pos, mime))` |
 | `clipboard.exporters` | clipboard | `fn(names, QMimeData)` adding formats when copying |

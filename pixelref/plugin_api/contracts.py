@@ -8,6 +8,7 @@ Extension point             Declared by        Contribution
 ``inspector.sections``      inspector          :class:`InspectorSection`
 ``inspector.rows``          inspector          :class:`InspectorRows`
 ``inspector.empty_panels``  inspector          :class:`EmptyPanel`
+``canvas_background.rows``  canvas_background  :class:`CanvasRow`
 ``quick_edit.sections``     quick_edit         :class:`QuickSection`
 ``ingest.handlers``         clipboard          :class:`IngestHandler`
 ``clipboard.exporters``     clipboard          callable(names, QMimeData) adding formats
@@ -110,6 +111,16 @@ class EmptyPanel:
     key: str
     order: float
     build: Callable[[Any, Any], Any]  # -> widget with refresh()
+
+
+@dataclass
+class CanvasRow:
+    """A labelled setting in the Attribute Editor's Canvas panel (shown when nothing is selected)."""
+
+    key: str
+    label: str
+    order: float
+    build: Callable[[Any], Any]  # build(parent) -> widget with refresh()
 
 
 @dataclass

@@ -42,6 +42,12 @@ searches every command.
   checkerboard, plain), grid size and pattern colour. They are also under
   *View → Background*, and `Ctrl+'` toggles the pattern. The background is
   saved in the scene, and new scenes start with your last choice.
+- **Snap to grid:** `Alt+'`, or the *Snap to grid* toggle (magnet icon) in the
+  Canvas settings, turns snapping on or off. Dragged items then land
+  with their nearest edges on the background grid, and scale handles snap to
+  grid lines. Snapping follows the lines you see: the *Grid size*, or the
+  coarser lines drawn when you zoom far out. Hold `Ctrl` while dragging to
+  flip snapping for that drag.
 - **Undo / redo** covers every change to the document. Camera moves (pan, zoom,
   framing) are not undoable.
 
