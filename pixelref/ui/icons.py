@@ -437,6 +437,10 @@ def _draw(name: str, painter: QPainter, color: QColor) -> None:
         painter.drawPath(body)
         for x in (4.5, 11.5):
             painter.drawLine(QPointF(x, 11.2), QPointF(x, 13.8))
+    elif name == "search":  # a magnifying glass
+        painter.drawEllipse(QPointF(6.8, 6.8), 4.3, 4.3)
+        painter.setPen(QPen(color, 2.2, Qt.SolidLine, Qt.RoundCap))
+        painter.drawLine(QPointF(10, 10), QPointF(13.8, 13.8))
     else:  # unknown icon: a small dot so buttons still show something
         painter.setBrush(color)
         painter.drawEllipse(QPointF(8, 8), 2.5, 2.5)

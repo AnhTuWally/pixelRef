@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
-from pixelref.plugin_api import CommandError
+from pixelref.plugin_api import CommandError, clean_tags
 from pixelref.plugin_api.ui import widgets as w
 
 ENABLED_KEY = "enabled"
@@ -459,8 +459,25 @@ class QuickEdit:
             return
         if len(names) == 1:
             self.app.run_command("set_attr", names[0], attr, value)
+        elif attr == "tags":
+            self._commit_tags(names, value)
         else:
             self.app.run_command("quick_edit.set", names, attr, value)
+
+    def _commit_tags(self, names: list[str], value: Any) -> None:
+        """The field shows the first node's tags: apply what was added and removed there to every
+        node, keeping each node's other tags (replacing the lists would drop them)."""
+        shown = list(self.canvas.nodes[names[0]].get("attrs", {}).get("tags") or [])
+        typed = clean_tags([value] if isinstance(value, str) else value or [])
+        added = [t for t in typed if t not in shown]
+        removed = [t for t in shown if t not in typed]
+        if not added and not removed:
+            return
+        with self.ui.session.undo.chunk("Edit tags"):
+            if added:
+                self.app.run_command("add_tags", added, names)
+            if removed:
+                self.app.run_command("remove_tags", removed, names)
 
     # ---- Menus ----------------------------------------------------------------------------------------
 

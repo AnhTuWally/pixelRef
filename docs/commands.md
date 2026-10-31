@@ -13,6 +13,7 @@ the rest also work headless (batch mode, scripts).
 | --- | --- | --- | --- |
 | `add_attr(node: str, name: Any, type: str = 'any', default: Any = None, value: Any = None, **spec: Any)` |  | yes | Add a dynamic attribute to one node (saved with the scene); ``name`` may also be an ``Attr``. |
 | `add_plugin_source(path: str, label: str = '', policy: str = 'ask')` |  |  | Look for plugins in another folder too (remembered); its plugins still need approving. |
+| `add_tags(tags: Any, nodes: Any = None)` |  | yes | Add tags to nodes (default: the selection), keeping their other tags. |
 | `add_trusted_publisher(public_key: str, name: str = '')` |  |  | Trust a publisher's signing key: a ``*.pub.toml`` file or the base64 key itself. |
 | `attr_info(node: str, attr: str)` |  |  | The specification of one attribute. |
 | `attrs(node: str, computed: bool = True, hidden: bool = True)` |  |  | Attribute names of a node. |
@@ -34,6 +35,7 @@ the rest also work headless (batch mode, scripts).
 | `inherits(node: str, base: str)` |  |  | Whether a node (or a node type, by name) is ``base`` or derives from it. |
 | `list_commands(pattern: str \| None = None)` |  |  | Command names, optionally filtered by a glob pattern such as ``pen.*``. |
 | `list_plugins()` |  |  | Every discovered plugin with its status, version and dependencies. |
+| `list_tags(nodes: Any = None)` |  |  | Every tag in the scene (or on ``nodes``) with how many nodes carry it, by name. |
 | `load_plugin(plugin_id: str)` |  |  | Enable a plugin (remembered between sessions). |
 | `ls(type: str \| list[str] \| None = None, tags: str \| list[str] \| None = None, selection: bool = False, visible: bool \| None = None, pattern: str \| None = None, roots: bool = False)` |  |  | List nodes in scene order, optionally filtered. |
 | `move_nodes(nodes: Any, parent: str \| None = None, anchor: str \| None = None, place: str = 'end')` |  | yes | Reparent (keeping canvas placement) and position among the new siblings. |
@@ -72,6 +74,7 @@ the rest also work headless (batch mode, scripts).
 | `redo()` |  |  | Redo the last undone change; returns its label. |
 | `reload_plugin(plugin_id: str)` |  |  | Re-import a plugin's code (for plugin development). |
 | `remove_plugin_source(path: str)` |  |  | Stop looking for plugins in a folder you added. |
+| `remove_tags(tags: Any, nodes: Any = None)` |  | yes | Remove tags from nodes (default: the selection). Returns the nodes that changed. |
 | `remove_trusted_publisher(key_id: str)` |  |  | Stop trusting a publisher's key (its plugins then need approving one by one). |
 | `rename(node: str, new_name: str)` |  | yes | Rename a node. Names are unique: renaming to a taken name is an error. |
 | `reorder(nodes: Any = None, mode: str = 'front')` |  | yes | Change stacking: front, back, forward or backward (within each parent). |
@@ -84,6 +87,7 @@ the rest also work headless (batch mode, scripts).
 | `set_attr(target: str, *values: Any)` |  | yes | ``set_attr("Node.attr", value)`` or ``set_attr("Node", "attr", value)``. |
 | `set_attrs(node: str, attrs: dict[str, Any])` |  | yes | Set several attributes of one node. |
 | `set_plugin_source(path: str, enabled: bool \| None = None, policy: str \| None = None, label: str \| None = None)` |  |  | Switch a source on or off, or change its policy: "ask", "signed_only" or "trust_all". |
+| `set_tags(tags: Any, nodes: Any = None)` |  | yes | Replace the tags of nodes (default: the selection); ``[]`` clears them. |
 | `set_transform(nodes: Any = None, translate: Iterable[float] \| None = None, rotate: float \| None = None, scale: Iterable[float] \| float \| None = None, pivot: Iterable[float] \| None = None, relative: bool = False, world_space: bool = False)` |  | yes | Set the core transform attributes. |
 | `trusted_publishers()` |  |  | Publishers whose signed plugins load without asking. |
 | `undo()` |  |  | Undo the last change; returns its label. |
@@ -359,6 +363,16 @@ the rest also work headless (batch mode, scripts).
 | `file.switch_to(path: str)` |  |  | Switch to an open file (no prompt; captures the current state first). |
 | `file.thumbnail(path: str \| None = None, save_to: str \| None = None)` |  |  | A scene file's thumbnail (default: the open scene's file): its size and date, |
 | `file.toggle_resume()` |  |  | Switch Session Resume (reopen your last board automatically on launch) on or off. |
+
+## find
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `find.locate(node: str, view: str \| None = None)` | `find_locate` |  | Go to an element: glide a view to it (or frame it) and select it. Returns its name. |
+| `find.search(query: str, limit: int \| None = 50, canvas_only: bool = True)` | `find` |  | Elements matching a query (words, "phrases", #tag, type:, name:, note:, key:value), best first. |
+| `find.select(query: str, add: bool = False)` |  |  | Select every element matching a query (``add``: keep the current selection too). |
+| `find.show(query: str \| None = None)` |  |  | Open the Find panel (or focus it), optionally with a query typed in. |
+| `find.similar(nodes: Any = None)` |  |  | Open Find with everything sharing a tag with nodes (default: the selection). |
 
 ## frames
 

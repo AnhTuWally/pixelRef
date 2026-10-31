@@ -252,6 +252,30 @@ adjusted by its handles without leaving the tool.
   `outliner.isolate_types`, `outliner.set_type_flag`,
   `quick_edit.set_fields(type, [attrs])`, `panels.set_mode/popup/toggle`.
 
+### Tags, notes and Find (`inspector`, `find`)
+
+- **Tags** (the `tags` attribute every node has) are edited in the Attribute
+  Editor's *Tags* section, as chips, on one item or a whole selection: adding
+  or removing a tag never replaces an item's other tags. The quick editor can
+  show a *Tags* field too. Kernel commands, one undo step each:
+  `add_tags(tags, nodes=None)`, `remove_tags(tags, nodes=None)`,
+  `set_tags(tags, nodes=None)`; `list_tags(nodes=None)` counts them. Tags are
+  trimmed and kept once each, in order.
+- **Note** (free text) and **Metadata** (key / value fields) are optional
+  attributes of every node, stored only once set. The note is the item's
+  description; there is no separate one.
+- **Find** (`Ctrl+F`, `find.show`): a panel that searches names, tags, types,
+  notes, metadata and text as you type. `Enter` goes to a result (gliding, so
+  `Alt+Left` comes back), `Shift+Enter` selects every match. Query syntax:
+  words and `"phrases"` anywhere, `#tag` (`#a,b` either, `#sky*` wildcards),
+  `type:`, `name:`, `note:`, `key:value` for metadata, `-term` to leave out;
+  every term must match. *Find Similar* (canvas menu) finds what shares a tag
+  with the selection.
+- Commands: `find(query, limit=50)` (= `find.search`, results best first as
+  `{name, type, score, fields, snippet, tags}`), `find.select(query, add=False)`,
+  `find.locate(node)`, `find.similar(nodes=None)`, `find.show(query=None)`.
+  The `find` service is the search index (headless).
+
 ### Effects (`effects`)
 
 - Any element can have an **effect stack**. The built-in effects are
@@ -413,7 +437,7 @@ shows the actual bindings.
 
 | Area | Keys |
 | --- | --- |
-| Everywhere | `Ctrl+K` command search · `F1` shortcuts · `Ctrl+Z` / `Ctrl+Y` undo / redo · `Esc` cancel or leave |
+| Everywhere | `Ctrl+K` command search · `Ctrl+F` find items · `F1` shortcuts · `Ctrl+Z` / `Ctrl+Y` undo / redo · `Esc` cancel or leave |
 | Files | `Ctrl+N` new · `Ctrl+O` open · `Ctrl+S` save · `Ctrl+E` export image · `Ctrl+Alt+C` copy as image · `Ctrl+Shift+E` export originals · `Ctrl+I` insert images |
 | Edit | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` · `Ctrl+D` duplicate · `Del` delete · `Ctrl+A` select all |
 | Navigate | wheel zoom · middle/right-drag or `Space`+drag pan · `F` frame selection · `Shift+F` / `Home` frame all · `Ctrl+0` 100% · tap `Space` maximise view · `Ctrl+1`–`9` view markers |
@@ -527,6 +551,8 @@ note = pxcmd.create_node("annotation_text", parent=img, text="Rim light", transl
 rect = pxcmd.rect.create(0, 0, 300, 200, stroke_color=[255, 64, 64], thickness=6)
 link = pxcmd.links.connect(note, rect, routing="curved", end_cap="arrow")
 pxcmd.ls(type="image")                    # includes subtypes; also tags=, pattern=, visible=, roots=
+pxcmd.find("#hero type:image -#done")     # search like the Find panel: [{name, type, fields, ...}], best first
+pxcmd.add_tags(["hero", "v2"], [img])     # also remove_tags, set_tags, list_tags (one undo step each)
 pxcmd.children(img, all_descendants=True)
 pxcmd.selected(); pxcmd.select([img, note]); pxcmd.select(clear=True)
 
@@ -964,8 +990,9 @@ Which built-in plugin provides each feature:
 | `contact_sheet`, `minimap` | the contact sheet view and the minimap |
 | `effects` | effect stacks, the effect engine and caches |
 | `export`, `file`, `image_storage` | export, scene files, autosave and recovery, embedding and linking |
+| `find` | the Find panel, the search index and `find.*` commands |
 | `gizmo`, `select`, `transform`, `order`, `navigation` | selection, the gizmo, transforms, stacking, the camera |
-| `grouping`, `outliner`, `inspector`, `quick_edit`, `tool_palette` | groups and the panels |
+| `grouping`, `outliner`, `inspector`, `quick_edit`, `tool_palette` | groups and the panels (the inspector also owns the note, metadata and the Tags section) |
 | `help` | `F1` keyboard shortcuts, the `Shift+F1` Help browser and About |
 | `image`, `playback`, `image_info` | image nodes, GIF/WebP/movie playback, filmstrip scrubbing, the image info readout |
 | `links` | links |

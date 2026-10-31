@@ -2,7 +2,7 @@
 
 Shows a header card for the selection and the sections that apply to it.
 Sections come from the ``inspector.sections`` extension point (this plugin
-contributes Transform, Appearance and the generated attribute editors; node
+contributes Transform, Appearance, Tags, Note, Metadata and the generated attribute editors; node
 type plugins contribute theirs). ``inspector.rows`` adds rows to another
 plugin's section; ``inspector.empty_panels`` shows when nothing is selected.
 """
@@ -21,6 +21,7 @@ from pixelref.plugin_api.ui import widgets as w
 
 from .notes import MetadataSection, NoteSection
 from .sections import CORE_ATTRS, AppearanceSection, AttributeEditor, TransformSection
+from .tags import TagsSection
 
 COLLAPSED_KEY = "collapsed"
 
@@ -355,6 +356,12 @@ def activate_ui(ui: Any) -> None:
     def has_node(info: SelectionInfo) -> bool:
         return info.single and session.scene.has(info.names[0])
 
+    def has_nodes(info: SelectionInfo) -> bool:
+        return all(session.scene.has(name) for name in info.names)
+
+    ui.contribute("inspector.sections", InspectorSection(
+        key="tags", title="Tags", order=94, applies=has_nodes, generic=True,
+        build=lambda parent, _i: TagsSection(ui, parent)))
     ui.contribute("inspector.sections", InspectorSection(
         key="note", title="Note", order=95, applies=has_node, generic=True,
         build=lambda parent, _i: NoteSection(ui, parent)))

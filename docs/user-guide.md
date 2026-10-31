@@ -9,6 +9,7 @@ searches every command.
 - [Annotations](#annotations)
 - [Links](#links)
 - [Groups, the Outliner and the Attribute Editor](#groups-the-outliner-and-the-attribute-editor)
+- [Finding items](#finding-items)
 - [Backdrops](#backdrops)
 - [Effects](#effects)
 - [Views and window management](#views-and-window-management)
@@ -364,12 +365,27 @@ a key and a value, ✕ removes it). Values can be text, numbers or `true` /
 other nodes autocomplete. Both are saved with the scene and undoable; from
 scripts they are the `note` and `metadata` (a dict) attributes.
 
+**Tags** label items so you can find them again. The **Tags** section of the
+Attribute Editor shows the selection's tags as chips. Type in *Add tags…* and
+press `Enter` to add one (commas separate several); tags already on the board
+autocomplete, most used first. ✕ on a chip removes the tag. With several items
+selected, everything applies to all of them, and a tag only some of them have is
+dimmed with a count (*sky 2/5*); its **+** adds it to the rest. Adding or
+removing a tag never touches an item's other tags. Click a tag's name to find
+everything carrying it. Tags are saved with the scene, survive import and
+editable PNGs, and undo as one step; from scripts: `pxcmd.add_tags("sky")`
+(the selection), `pxcmd.remove_tags(["sky"], nodes)`, `pxcmd.set_tags([], nodes)`
+and `pxcmd.list_tags()`.
+
 **Quick editor.** Select something on the canvas and a small bar appears
 below it with the attributes you change most: colour, width and line style
 for shapes, colour, size and alignment for text, opacity for images. Edits
 apply to every selected element and undo as one step. The bar hides while you
 drag the selection. Its **⋯** menu chooses the fields for each kind of element
 (tick and drag to reorder; *Plugin default* puts back the plugin's choice).
+Add **Tags** there to tag from the bar: with several items selected it shows the
+first one's tags, and what you add or remove there is added to or removed from
+every selected item.
 Right-click a field to remove it. Turn the bar off or on with
 **View ▸ Quick Attribute Editor**, or disable the *Quick Attribute Editor*
 plugin.
@@ -377,6 +393,40 @@ plugin.
 The Tools, Outliner and Attribute Editor are **panels**: docked in the
 sidebar, floating over the canvas, or hidden and popped up on demand (`Alt+T`,
 `Alt+O`, `Alt+A`). See [Panels](window-manager.md#panels).
+
+## Finding items
+
+`Ctrl+F` (or *Find…* in the right-click menu) opens the **Find** panel. Type
+and the list fills as you go: each result shows the item's name, its type, the
+part of its note or text that matched, and its tags. Hidden items are dimmed.
+
+- `Up` / `Down` move through the results, `Enter` (or a click) **goes to** the
+  highlighted item and selects it, and `Shift+Enter` (or **Select All**)
+  selects every match. Going there glides the view like following a link, so
+  `Alt+Left` brings you back. Finding never changes the board or the undo list.
+- While the field is empty, the panel lists the tags on the board, most used
+  first: click one to find what carries it.
+- **Find Similar (Same Tags)** in the right-click menu finds everything sharing
+  a tag with the selection.
+- The panel is a pop-up by default; its pin turns it into a floating card, and
+  right-clicking its *Find* tab on the window's edge docks it in the sidebar.
+
+What you can type (case never matters, and every part must match):
+
+| Type | Finds |
+| --- | --- |
+| `sky` | items whose name, tags, type, note, metadata or text contain *sky* |
+| `"warm light"` | a phrase |
+| `#hero` or `tag:hero` | items tagged *hero* (the whole tag); `#sky*` also finds *skyline* |
+| `#sky,sea` | items tagged *sky* or *sea* |
+| `type:image` | images; also base types (`type:annotation_*`, every annotation) and labels (`type:rectangle`) |
+| `name:shot_` · `note:fix` | only the name, or only the note |
+| `shot:010` · `shot:` | a metadata field *shot* containing *010*, or having a *shot* field at all |
+| `-#done` · `-draft` | leave out what matches |
+
+For images, the file name counts as their text (not the folders it is in).
+From scripts: `pxcmd.find("#hero type:image")` lists matches best first,
+`pxcmd.find.select(query)` selects them and `pxcmd.find.locate(name)` goes to one.
 
 ## Backdrops
 

@@ -228,6 +228,18 @@ format, no second schema) in a private `pxRF` chunk, zlib-compressed:
   `clipboard.import_png_scene`, one undo step that merges with
   `strip_paths=True`. Scene-level `plugins`/sections in the payload are ignored.
 
+## Tags, notes and search
+
+Every node has `tags` (kernel), and the inspector plugin adds the optional
+`note` and `metadata` attributes to every node. The kernel's `add_tags` /
+`remove_tags` / `set_tags` commands edit tags on many nodes in one undo step.
+The `find` plugin keeps a **derived search index** (one entry per node,
+rebuilt from `SceneGraph.node_revisions` when a node changes, never saved) and
+offers `find.search` / `find.select` headless, plus the Find panel (`Ctrl+F`).
+Search covers names, types, tags, notes, metadata and the text attributes of any
+node type's schema, so plugin types are searchable without registering
+anything. Decisions and measurements: [design-find.md](design-find.md).
+
 ## Environment variables
 
 | Variable | Effect |

@@ -628,7 +628,17 @@ files or bytes), `image_cache`, `transform` (targets and world-space
 transforms), `ingest`, `gizmo`, `inspector`, `outliner`, `tool_palette`,
 `drawing_session`, `notes`, `text`, `recovery`, `files`, `image_storage`,
 `canvas_background`, `console`, `playback`, `playback.controls`, `links`,
-`minimaps`, `contact_sheets`, `start_panel`, `effects` and `effects_engine`.
+`minimaps`, `contact_sheets`, `start_panel`, `effects`, `effects_engine` and
+`find` (the search index: `ctx.service("find").search("#hero type:image")` returns
+`Match` objects best first; it works headless).
+
+**Tags, notes and metadata are shared.** Don't add your own "label",
+"description" or "keywords" attribute: every node already has `tags` (edit them
+with the `add_tags` / `remove_tags` / `set_tags` commands, which never replace a
+node's other tags; `pixelref.plugin_api.clean_tags` normalises a list the same
+way), a `note` and a `metadata` dict. Find searches those, the name, the type
+and every `string`, `text`, `path` (file name) and `asset` (original file name)
+attribute your node type declares, without anything to register.
 
 ## Testing a plugin
 

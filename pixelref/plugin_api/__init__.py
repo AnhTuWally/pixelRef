@@ -31,6 +31,7 @@ from ..core.attributes import Attr
 from ..core.docs import DocEntry, docs_folder
 from ..core.errors import CommandError, PluginError, SceneError
 from ..core.extensions import Disposable
+from ..core.kernel_commands import clean_tags
 from ..core.nodetypes import (
     CAP_COLORABLE,
     CAP_COMPOUND,
@@ -61,6 +62,7 @@ __all__ = [
     "PluginError",
     "SceneError",
     "TypeExtension",
+    "clean_tags",
     "differs",
     "fast_copy",
     "read_thumbnail",

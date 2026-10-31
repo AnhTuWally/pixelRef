@@ -4,6 +4,27 @@ All notable changes to pixelRef are documented here.
 
 ## [Unreleased]
 
+### Added — Tags and Find
+
+- **Find panel** (`Ctrl+F`, *Find…* in the canvas menu): searches names, tags,
+  types, notes, metadata and text as you type. `Enter` goes to the highlighted
+  item (gliding; `Alt+Left` comes back), `Shift+Enter` selects every match. Query
+  syntax: words, `"phrases"`, `#tag` (`#a,b` either, `#sky*` wildcards), `type:`,
+  `name:`, `note:`, `key:value` (metadata), `-term`. With the field empty it lists
+  the board's tags. *Find Similar (Same Tags)* in the canvas menu.
+- **Tags section** in the Attribute Editor: tag chips with autocomplete, for one
+  item or a whole selection (partial tags show a count and a **+**). Clicking a
+  tag finds everything carrying it.
+- Kernel commands `add_tags`, `remove_tags`, `set_tags` (one undo step each,
+  touching only nodes that change) and `list_tags`; `find.search` (alias `find`),
+  `find.select`, `find.locate`, `find.similar`, `find.show`; the `find` service
+  (a headless search index); `pixelref.plugin_api.clean_tags`.
+
+### Fixed
+
+- The quick editor's *Tags* field, with several items selected, replaced every
+  item's tags with the first item's. It now adds and removes only what you changed.
+
 ### Added — Finding the other end of a link
 
 - Off-screen linked elements of the selection get a **chip on the view's edge**
