@@ -17,6 +17,7 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QDialogButtonBox, QFileDialog,
                                QLabel, QMessageBox, QVBoxLayout)
 
+from pixelref.core import paths
 from pixelref.plugin_api import SCENE_EXT, SCENE_EXTS, perf
 from pixelref.plugin_api.contracts import EmptyPanel, IngestHandler
 
@@ -70,6 +71,8 @@ def save_dir(settings: Any) -> Path:
         custom = str(settings.value(SAVE_DIR_SETTING, "") or "").strip()
         if custom:
             path = Path(custom).expanduser()
+        elif (portable := paths.portable()) is not None:
+            path = portable.boards
         else:
             base = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation) or str(Path.home() / "Documents")
             path = Path(base) / "pixelRef"
@@ -107,6 +110,8 @@ class RecoveryService:
 
     @staticmethod
     def recovery_dir() -> Path:
+        if (portable := paths.portable()) is not None:
+            return portable.local_data / "recovery"
         base = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation) or str(Path.home() / ".pixelref")
         return Path(base) / "recovery"
 

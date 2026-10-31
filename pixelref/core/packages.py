@@ -48,6 +48,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from . import paths
 from .errors import PluginError
 
 MANIFEST_VERSION = 1
@@ -207,6 +208,8 @@ def default_packages_root() -> Path:
     override = os.environ.get("PIXELREF_PACKAGES_DIR")
     if override:
         return Path(override)
+    if (portable := paths.portable()) is not None:
+        return portable.packages
     if sys.platform == "win32":
         base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
         return Path(base) / "pixelRef" / "python"

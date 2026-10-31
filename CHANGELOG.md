@@ -4,6 +4,12 @@ All notable changes to pixelRef are documented here.
 
 ## [Unreleased]
 
+### Added — Fully portable mode
+
+- A `portable.toml` beside `pixelRef.exe` keeps settings, plugins, recovery files, caches, managed
+  Python packages and the default boards folder in `user-data/` next to the program. Opt-in; see
+  [docs/packaging.md](docs/packaging.md#fully-portable-mode).
+
 ### Added — Update discovery
 
 - **Quiet update check**: about once a day pixelRef reads GitHub's public release

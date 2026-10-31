@@ -8,6 +8,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ..paths import application_root  # noqa: F401  (re-exported: the updater and portable mode share it)
 from .versions import Version
 
 REPOSITORY = "AnhTuWally/pixelRef"
@@ -63,13 +64,6 @@ def current_platform() -> Platform:
 
 def detect_install_mode() -> InstallMode:
     return InstallMode.STANDALONE if getattr(sys, "frozen", False) else InstallMode.SOURCE
-
-
-def application_root() -> Path | None:
-    """The folder holding the standalone executable, or None when running from source."""
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
-    return None
 
 
 @dataclass(frozen=True)

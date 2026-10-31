@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from .. import __version__ as APP_VERSION
+from ..core import paths
 from ..core.scene_file import SCENE_EXTS
 
 
@@ -42,6 +43,8 @@ def create_app(argv: list[str] | None = None, persist_layout: bool = True, plugi
 def _data_dir() -> Path | None:
     from PySide6.QtCore import QStandardPaths
 
+    if (portable := paths.portable()) is not None:
+        return portable.local_data
     base = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
     return Path(base) if base else None
 

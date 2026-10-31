@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelref.core import paths
 from pixelref.plugin_api import CAP_CONTAINER, Attr
 from pixelref.plugin_api.contracts import InspectorSection, SelectionInfo
 from pixelref.plugin_api.ui import widgets as w
@@ -30,6 +31,8 @@ SECTION_ORDER = 35  # after Image (30), before the generated attributes
 
 
 def cache_folder() -> Path:
+    if (portable := paths.portable()) is not None:
+        return portable.cache / "effects"
     base = QStandardPaths.writableLocation(QStandardPaths.CacheLocation) or str(Path.home() / ".cache" / "pixelRef")
     return Path(base) / "effects"
 

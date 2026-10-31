@@ -21,6 +21,7 @@ from PySide6.QtGui import QColor, QCursor
 from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox, QWidget
 from shiboken6 import isValid
 
+from ..core import paths
 from ..core.events import EventStream
 from ..core.extensions import Disposable
 from ..core.session import Session
@@ -166,11 +167,15 @@ class App:
 
     @staticmethod
     def config_dir() -> Path:
+        if (portable := paths.portable()) is not None:
+            return portable.config
         base = QStandardPaths.writableLocation(QStandardPaths.AppConfigLocation) or str(Path.home() / ".pixelref")
         return Path(base)
 
     @staticmethod
     def data_dir() -> Path:
+        if (portable := paths.portable()) is not None:
+            return portable.local_data
         base = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation) or str(Path.home() / ".pixelref")
         return Path(base)
 
