@@ -4,6 +4,15 @@ All notable changes to pixelRef are documented here.
 
 ## [Unreleased]
 
+### Added — Update discovery
+
+- **Quiet update check**: about once a day pixelRef reads GitHub's public release
+  list in the background and shows *Update available* in the status bar when a
+  newer version exists. *Check for Updates…* (canvas menu) checks now;
+  *Update Settings…* (command search) sets the channel and turns checks off.
+  Discovery only: nothing is downloaded or installed. See
+  [docs/update-architecture.md](docs/update-architecture.md).
+
 ### Added — Tags and Find
 
 - **Find panel** (`Ctrl+F`, *Find…* in the canvas menu): searches names, tags,

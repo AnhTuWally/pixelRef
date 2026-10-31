@@ -32,6 +32,7 @@ except TypeError:
 TMP = Path(_TMP.name)
 # Tests never touch the user's real Python package folder (core.packages).
 os.environ["PIXELREF_PACKAGES_DIR"] = str(TMP / "python")
+os.environ["PIXELREF_DISABLE_UPDATE_CHECK"] = "1"  # no automatic network check in tests
 QStandardPaths.setTestModeEnabled(True)  # recovery files etc. go to a test location
 QSettings.setDefaultFormat(QSettings.IniFormat)
 QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, str(TMP / "settings"))
