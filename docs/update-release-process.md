@@ -14,7 +14,7 @@ and fails closed). Update *discovery* works without them.
 | **Update notification** (status-bar note, *Check for Updates…*, channel, off switch) | Built, tested, on by default | **Yes.** It only reads GitHub's public release list; it downloads and changes nothing. |
 | Fully portable mode (`portable.toml`) | Built, tested, opt-in | **Yes.** Nothing changes without the file. |
 | Signed manifests, verified download, staging | Built, tested | Library only: nothing is reachable until installing is enabled. |
-| Activation helper, health check, recovery, rollback | Built, tested with injected faults | **No.** Disabled by `ASSISTED_INSTALL_ENABLED = False`. |
+| Activation helper (frozen, bundled in the app), health check, recovery, rollback | Built, tested with injected faults; frozen helper run on Linux only | **No.** Disabled by `ASSISTED_INSTALL_ENABLED = False`. |
 | Release workflows (`.github/workflows`) | Written, parsed, partly dry-run locally | **Never run on GitHub.** Try with a `v…-beta.N` tag first. |
 
 **What users get today:** a quiet "Update available" note and a link to download the new ZIP by hand. There
@@ -32,9 +32,12 @@ All of these, in order. Do not skip one because a later one passed.
    secret, tag protection for `v*`, read-only default token (see *Automated releases*).
 3. **First pipeline run** with a pre-release tag (`v1.2.0-beta.1`). Fix whatever the first real run shows,
    and confirm the draft's files pass `packaging/verify_release.py`.
-4. **Build and bundle the update helper.** Not done: there is no `helper.spec`, `pixelref.spec` doesn't
-   include it, and the build doesn't yet put it in the app as `updater/pixelref-updater.exe`. Until it is
-   bundled `assist_status` reports it unavailable even if the flag is on.
+4. **Update helper: built and bundled; Windows build not yet seen.** `packaging/updater/helper.spec` builds
+   `dist/pixelref-updater/` (its own Python and `cryptography`, no Qt), `pixelref.spec` bundles it as plain files in
+   `_internal/updater/`, and `build_exe.py` builds the helper first and fails the build if it is missing or
+   doesn't run (smoke step 5/6). On Linux the frozen helper was built, bundled and run (see *Verified*); the Windows
+   `.exe` has not been built, so the first Windows build (CI or by hand) is the check. `assist_status` still reports
+   installing unavailable until the flag is on and a release key is embedded.
 5. **Test on a real Windows machine**, from a v1.2.0-beta build to a newer beta, with the flag on in a test
    build: update, a deliberately failing new version (the health check must roll back and restart the
    old one), manual rollback, an open file or antivirus holding a file, a USB stick removed mid-update, and

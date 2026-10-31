@@ -82,6 +82,15 @@ datas = (
     + [(str(path), "docs/images") for path in sorted((ROOT / "docs" / "images").glob("*.webp"))]
 )
 
+# The update helper (built first by build_exe.py from packaging/updater/helper.spec): shipped as plain files
+# under _internal/updater/, copied out by the app when an update is installed (core/updates/flow.py).
+# Without it the app still builds and runs; it just reports installing as unavailable, and build_exe.py's
+# smoke test fails so a release without it is never made.
+HELPER = ROOT / "dist" / "pixelref-updater"
+if HELPER.is_dir():
+    datas += [(str(path), str(Path("updater") / path.relative_to(HELPER).parent))
+              for path in sorted(HELPER.rglob("*")) if path.is_file()]
+
 a = Analysis(  # noqa: F821
     [str(ROOT / "packaging" / "launcher.py")],
     pathex=[str(ROOT)],

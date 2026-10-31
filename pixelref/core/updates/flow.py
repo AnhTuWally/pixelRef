@@ -50,7 +50,8 @@ def assist_status(mode: InstallMode, root: Path | None, trust: TrustStore, platf
         return False, f"Installing updates is not supported on {platform} yet."
     if not trust.keys:
         return False, "This build has no release key, so it cannot verify updates."
-    if (bundle or helper_bundle()) is None:
+    folder = bundle or helper_bundle()
+    if folder is None or not (folder / HELPER_EXE[platform.system]).is_file():
         return False, "The update helper is not part of this build."
     try:
         update_directory(root).mkdir(exist_ok=True)

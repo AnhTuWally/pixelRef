@@ -272,8 +272,26 @@ for the user-visible flow. Security-relevant points:
 
 ### Not done
 
-- The helper is **not bundled** (`packaging/pixelref.spec` does not include it and no `helper.spec` exists),
-  so in a real build `assist_status` reports it unavailable. Building and bundling it, then the manual
-  upgrade and rollback demonstration on Windows, are what stand between this and enabling the flag.
+- The helper **is now built and bundled** (`packaging/updater/helper.spec`, `_internal/updater/`), and the build
+  fails without it. What stands between this and enabling the flag is a Windows build, the manual upgrade and
+  rollback demonstration on Windows, and an embedded release key. In a build without a key, or with the flag
+  off, `assist_status` still reports installing unavailable.
 - Automatic download, a settings page, and a progress/Result UI for the helper phase itself (the helper
   runs without a window; the user only sees the app close and reopen).
+
+## The frozen helper (step 4)
+
+- **Independent by construction.** Its own PyInstaller one-folder app (own Python, own libraries). It imports
+  only `pixelref.core.updates` and two light shared modules; a test fails if any of that starts importing Qt, pip,
+  plugins or the UI.
+- **Checked on every build.** `build_exe.py` runs the bundled helper in place (outside an install it must refuse
+  `activate` with exit 3 while installing is disabled) and from an install-shaped folder (it must derive its root
+  from its location and `recover` must report nothing to do, with a scrubbed environment).
+- **Verified on Linux, not on Windows.** The frozen helper was built, bundled and run on Linux; a missing helper
+  is caught. The Linux app build then failed an unrelated image-format check of the existing smoke test (the
+  distro's Qt has no tiff/webp plugins), so a full green `build_exe.py` run has **not** been seen on any platform
+  in this work. Check the first Windows build.
+- **Not exercised frozen:** a real activation. The flag is compiled in as off, the release key is empty, and
+  staging only supports Windows layouts, so the frozen helper can't be driven through an update on Linux.
+- Release inventory covers the helper's files like any other program file (71 files checked), so an update
+  replaces them as part of `_internal/`.

@@ -42,9 +42,11 @@ def build() -> None:
         import PyInstaller  # noqa: F401
     except ImportError:
         raise SystemExit("PyInstaller is missing: pip install -r packaging/requirements-build.txt") from None
-    subprocess.run([sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
-                    "--distpath", str(ROOT / "dist"), "--workpath", str(ROOT / "build" / "pyinstaller"),
-                    str(ROOT / "packaging" / "pixelref.spec")], check=True, cwd=ROOT)
+    # The update helper first: the app's spec bundles dist/pixelref-updater/ into dist/pixelRef/_internal/updater/.
+    for spec, work in (("updater/helper.spec", "pyinstaller-helper"), ("pixelref.spec", "pyinstaller")):
+        subprocess.run([sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
+                        "--distpath", str(ROOT / "dist"), "--workpath", str(ROOT / "build" / work),
+                        str(ROOT / "packaging" / spec)], check=True, cwd=ROOT)
 
 
 def package() -> Path:
@@ -86,6 +88,35 @@ def make_wheel(folder: Path, name: str, version: str, code: str) -> Path:
     return wheel
 
 
+def smoke_test_helper(work: Path, env: dict) -> None:
+    """The update helper must be bundled, run on its own, and find its install from where it sits."""
+    import json
+    import shutil
+
+    bundled = DIST / "_internal" / "updater"
+    name = f"pixelref-updater{EXE_SUFFIX}"
+    if not (bundled / name).is_file() or not (bundled / "_internal").is_dir():
+        raise SystemExit(f"FAILED: the update helper is not bundled in the app ({bundled / name} is missing, or it has no "
+                         "runtime of its own). Build with packaging/build_exe.py, which builds packaging/updater/helper.spec first.")
+
+    def helper(exe: Path, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run([str(exe), *args], capture_output=True, text=True, env=env, cwd=exe.parent,
+                              encoding="utf-8", errors="replace", timeout=120)
+
+    # Run in place, outside any install: it has no root, and installing is disabled in this build.
+    refused = helper(bundled / name, "activate", "a" * 32)
+    if refused.returncode != 3 or "disabled" not in refused.stdout:
+        raise SystemExit(f"FAILED: helper activate should be refused while installing is disabled:\n{refused.stdout}{refused.stderr}")
+    # Copied where the app puts it, it derives its install from its own location and `recover` has nothing to do.
+    folder = work / "install" / ".pixelref-update" / "helper" / ("b" * 32)
+    shutil.copytree(bundled, folder)
+    recovered = helper(folder / name, "recover")
+    result = json.loads(recovered.stdout.strip().splitlines()[-1]) if recovered.stdout.strip() else {}
+    if recovered.returncode != 0 or result.get("state") != "IDLE":
+        raise SystemExit(f"FAILED: helper recover:\n{recovered.stdout}{recovered.stderr}")
+    print("5/6 update helper: bundled, runs on its own, finds its install, refuses to install while disabled")
+
+
 def smoke_test() -> None:
     cli = DIST / f"pixelref-cli{EXE_SUFFIX}"
     app = DIST / f"pixelRef{EXE_SUFFIX}"
@@ -104,7 +135,7 @@ def smoke_test() -> None:
             raise SystemExit(f"FAILED: pixelref-cli {' '.join(args)}\n{result.stdout}\n{result.stderr}")
         return result.stdout
 
-    print("1/5 bundled pip:", run("--run-pip", "--version").strip())
+    print("1/6 bundled pip:", run("--run-pip", "--version").strip())
 
     wheel = make_wheel(work, "pixelref-smoke", "1.0.0", "MESSAGE = 'installed and imported'\n")
     script = work / "smoke.py"
@@ -123,7 +154,7 @@ def smoke_test() -> None:
         print("stdlib: ok")
         print("frozen:", getattr(sys, "frozen", False))
     """), encoding="utf-8")
-    print("2/5 batch mode + package install:")
+    print("2/6 batch mode + package install:")
     print(textwrap.indent(run("--batch", str(script)).strip(), "    "))
 
     # The real UI kernel (offscreen): catches Qt libraries the spec left out by mistake.
@@ -151,7 +182,7 @@ def smoke_test() -> None:
         assert guide_path() is not None, "Getting Started board (onboard.pxref) is not bundled"
         print("ui: canvas renders, image formats:", ", ".join(sorted(formats)))
     """), encoding="utf-8")
-    print("3/5 UI kernel (offscreen):")
+    print("3/6 UI kernel (offscreen):")
     print(textwrap.indent(run("--batch", str(ui_script)).strip(), "    "))
 
     plugin = work / "signed" / "smoke_plugin"
@@ -162,11 +193,13 @@ def smoke_test() -> None:
     (plugin / "__init__.py").write_text("def activate(ctx):\n    pass\n", encoding="utf-8")
     run("plugin", "keygen", str(work / "smoke.pem"), "--name", "Smoke test")
     run("plugin", "sign", str(plugin), "--key", str(work / "smoke.pem"))
-    print("4/5 plugin signing:", run("plugin", "verify", str(plugin), "--publisher",
+    print("4/6 plugin signing:", run("plugin", "verify", str(plugin), "--publisher",
                                      str(work / "smoke.pub.toml")).strip())
 
+    smoke_test_helper(work, env)
+
     size = sum(f.stat().st_size for f in DIST.rglob("*") if f.is_file())
-    print(f"5/5 build size: {size / 1e6:.0f} MB in {DIST}")
+    print(f"6/6 build size: {size / 1e6:.0f} MB in {DIST}")
     print("Smoke test passed.")
 
 

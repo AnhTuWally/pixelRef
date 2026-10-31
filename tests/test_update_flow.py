@@ -133,12 +133,13 @@ def test_prepare_update_blocks_on_user_files_and_unfinished_updates():
 
 def test_assist_status_requires_every_condition():
     root = ti.make_install()
-    bundle = tmp_dir()
+    bundle = helper_bundle()
     kw = dict(mode=InstallMode.STANDALONE, root=root, trust=TRUST, platform=WIN, bundle=bundle)
     assert flow.assist_status(**kw, enabled=True) == (True, "")
     for change, text in ((dict(enabled=False), "not enabled"), (dict(mode=InstallMode.SOURCE), "source"),
                          (dict(root=None), "source"), (dict(trust=ti.TrustStore()), "no release key"),
-                         (dict(platform=Platform("linux", "x64")), "not supported"), (dict(bundle=None), "helper")):
+                         (dict(platform=Platform("linux", "x64")), "not supported"), (dict(bundle=None), "helper"),
+                         (dict(bundle=tmp_dir()), "helper")):  # a folder without the executable is not a helper
         args = {**kw, "enabled": True, **change}
         ok, why = flow.assist_status(**args)
         assert not ok and text in why, (change, why)
