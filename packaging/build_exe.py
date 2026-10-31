@@ -54,6 +54,10 @@ def package() -> Path:
     arch = {"amd64": "x64", "x86_64": "x64", "arm64": "arm64", "aarch64": "arm64"}.get(platform.machine().lower(), platform.machine().lower())
     target = DIST.parent / f"pixelRef-v{version}-{system}-{arch}.zip"
     target.unlink(missing_ok=True)
+    sys.path.insert(0, str(ROOT))
+    from pixelref.core.updates.inventory import write_inventory
+
+    write_inventory(DIST, version)  # the release's file-ownership list: what an update may replace
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         archive.write(DIST, DIST.name)
         for path in sorted(DIST.rglob("*")):

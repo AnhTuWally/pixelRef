@@ -59,7 +59,7 @@ Zip the folder so the archive is named exactly **`pixelRef-v<version>-<os>-<arch
 - A pre-release version (`1.3.0-beta.1`) must be signed with `--channel beta`, and a plain version
   with `--channel stable`.
 
-Build and sign on each target OS separately; one manifest covers one archive.
+`build_exe.py` writes `release-inventory.json` into the folder before zipping; installs use it to know which files belong to the release. Build and sign on each target OS separately; one manifest covers one archive.
 
 ## 4. Sign it
 
@@ -79,7 +79,7 @@ python packaging/sign_release.py sign \
 |---|---|
 | `--sequence` | A number that **must increase with every manifest you ever publish** (1, 2, 3…, across all platforms and channels). Installs refuse a manifest with a lower number than the last they accepted. Keep a note of the last one used. |
 | `--valid-days` | How long the manifest is accepted (default 90). Shorter limits how long an attacker can replay old metadata, but you must re-sign before it lapses for the *current* release. |
-| `--inventory` | Also signs a hash of every file in the ZIP. Recommended. |
+| `--inventory` | Also signs a hash of every file in the ZIP. **Required for installable releases**: the update helper refuses a manifest without it. |
 | `--private` | Path to the key. In CI you may set `PIXELREF_RELEASE_KEY_FILE` instead. |
 
 It prints `signed … with key <id>`. The key id must equal the one from step 1. It refuses to write a

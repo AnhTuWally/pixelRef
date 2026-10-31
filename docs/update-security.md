@@ -130,3 +130,60 @@ through the publisher tool.
 
 Not yet done: the transaction journal (M5), and the helper that activates a staged version (M4).
 `stage_update` is not connected to any UI; nothing downloads automatically.
+
+## Activation by the helper (M4)
+
+`pixelref/core/updates/install.py`, `inventory.py`, `journal.py` and `packaging/updater/helper_main.py`.
+
+**Disabled.** `ASSISTED_INSTALL_ENABLED` is `False`, the helper exits with code 3, and nothing in the app
+calls any of this. It may only be switched on after the recovery milestone's fault-injection tests and a
+manual upgrade/rollback demonstration pass on the target platform.
+
+- **Independent helper.** It runs from a copy in `.pixelref-update/helper/<transaction>/`, outside the
+  files being replaced, and *derives* the install root from its own location. Its only operation is
+  `activate <transaction-id> [--wait-pid N …]`: no source, destination or executable arguments.
+  Everything is re-read from disk and re-verified: the signed manifest (same checks as the app, trust
+  store from the helper's own build), the staged package and every inventoried file, and the install.
+- **One transaction per install.** An exclusive lock file (a dead owner's lock is replaced); an earlier
+  unfinished journal blocks a new transaction.
+- **Never closes the app.** The helper only waits for the app's process ids to exit. If they don't
+  exit in time it changes nothing. (The app's own close flow, with its unsaved-board prompts, is
+  what asks the user; that UI is a later PR.)
+- **Ownership.** `release-inventory.json` (written by `build_exe.py`) lists the files of the installed
+  release. A top-level entry may be replaced or removed only if every file in it is listed *and* still has
+  its listed hash. An unknown file inside such a folder, a modified or missing installed file, a link, or
+  an unknown entry where the release wants to put something **blocks the update** and lists what to
+  resolve. `portable.toml`, `user-data/` and all other unknown top-level entries are never touched.
+  The inventory is local and unsigned (a local attacker can edit it); a new release's inventory is
+  covered by the signed manifest.
+- **Source checkouts** (`.git` or `launch_pixelRef.py` present) are refused.
+- **Manifest inventory is required.** Installation needs the signed per-file inventory (publish with
+  `sign_release.py --inventory`), so staged files can be checked individually.
+- **Activation is not atomic.** Replacing several top-level entries is a sequence of same-filesystem
+  renames, each journaled: old entry to `backup/<id>/`, new entry into place. Nothing is copied or
+  deleted, so the previous version stays complete in the backup. On an ordinary error the moves are undone
+  by inspecting the real filesystem (idempotent; safe to repeat after an interruption).
+- **Journal.** `journal.json` follows the plan's state machine with validated transitions, atomic durable
+  writes and strict loading. It never stores a path: staging and backup folders are derived from the
+  transaction id and operations name single top-level entries, so a forged journal cannot aim recovery
+  at another location. (This differs from the plan's schema, which listed directory fields.)
+
+### Tested
+
+`tests/test_update_install.py`: success path with the user's files byte-identical; failure injected
+before every filesystem step restores the tree exactly and loses no file; simulated power loss at every
+step loses nothing and the leftover journal rolls back (also when the rollback is itself interrupted,
+and when repeated); each ownership conflict; source checkout and missing inventory; bad key, expiry,
+tampered staged file, replayed sequence; forged transaction ids and journals; lock handling; waiting for
+the app; helper-root derivation.
+
+### Not done / not verified
+
+- **Not tested on Windows.** File-lock behaviour (a rename failing because a DLL is open), the Windows
+  process-liveness check and detached launch are written but only the POSIX paths ran. The helper has not
+  been built as a frozen executable (`helper.spec` does not exist yet), and the helper would currently pull
+  in `pixelref.core` as a whole; slimming that is future work.
+- **Health acknowledgment, crash/startup recovery, loop prevention, manual rollback and committing the
+  sequence counter** are the next milestone. Until then a launched update stays in `PENDING_HEALTH_CHECK`.
+- The helper is copied from the installed app: it is as trustworthy as the install itself.
+- macOS bundles and Linux layouts are not defined.
