@@ -8,10 +8,12 @@ Writes go through a temporary file, ``fsync`` and an atomic replace (plus a dire
 
 from __future__ import annotations
 
+import contextlib
 import datetime as _dt
 import json
 import os
 import re
+import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -66,6 +68,9 @@ class Journal:
     startup_token: str = ""
     failure_reason: str = ""
     schema_version: int = SCHEMA_VERSION
+    kind: str = "install"           # "install" (a staged update) or "rollback" (restore a backup)
+    source_transaction: str = ""    # for a rollback: the transaction whose backup is restored
+    sequence: int = 0               # the signed metadata sequence recorded when the update commits
 
     def __post_init__(self) -> None:
         if not self.history:
@@ -86,7 +91,8 @@ class Journal:
 def validate(data: Any) -> Journal:
     """Strictly check a decoded journal; anything unexpected raises JournalError."""
     keys = {"schema_version", "transaction_id", "installation_id", "old_version", "new_version", "manifest_digest",
-            "state", "history", "operations", "startup_attempts", "startup_token", "failure_reason"}
+            "state", "history", "operations", "startup_attempts", "startup_token", "failure_reason", "kind",
+            "source_transaction", "sequence"}
     try:
         if not isinstance(data, dict) or set(data) != keys or data["schema_version"] != SCHEMA_VERSION:
             raise ValueError("unexpected fields")
@@ -101,6 +107,13 @@ def validate(data: Any) -> Journal:
             raise ValueError("bad attempts")
         if not isinstance(data["startup_token"], str) or len(data["startup_token"]) > 64 or not isinstance(data["failure_reason"], str):
             raise ValueError("bad text")
+        if data["kind"] not in ("install", "rollback"):
+            raise ValueError("bad kind")
+        if (data["source_transaction"] == "") != (data["kind"] == "install") or (
+                data["source_transaction"] and not TRANSACTION_ID.match(str(data["source_transaction"]))):
+            raise ValueError("bad source transaction")
+        if isinstance(data["sequence"], bool) or not isinstance(data["sequence"], int) or not 0 <= data["sequence"] <= 2**53:
+            raise ValueError("bad sequence")
         history = data["history"]
         if (not isinstance(history, list) or not 0 < len(history) <= 200
                 or any(not isinstance(h, dict) or set(h) != {"state", "at"} or h["state"] not in STATES
@@ -164,3 +177,28 @@ def installation_id(update_dir: Path) -> str:
     value = uuid.uuid4().hex
     path.write_text(value, encoding="ascii")
     return value
+
+
+@contextlib.contextmanager
+def journal_guard(update_dir: Path, timeout: float = 5.0, stale: float = 30.0, sleep=time.sleep):
+    """Serialize read-modify-write of the journal between the helper and the app (which commits it)."""
+    path = Path(update_dir) / "journal.lock"
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            os.close(os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+            break
+        except FileExistsError:
+            try:
+                if time.time() - path.stat().st_mtime > stale:
+                    path.unlink(missing_ok=True)
+                    continue
+            except OSError:
+                continue
+            if time.monotonic() >= deadline:
+                raise JournalError("the update journal is busy") from None
+            sleep(0.02)
+    try:
+        yield
+    finally:
+        path.unlink(missing_ok=True)

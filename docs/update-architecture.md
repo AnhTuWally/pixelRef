@@ -3,7 +3,7 @@
 pixelRef can tell you when a newer version exists. **In the app today that is all it does**: it never
 downloads, installs or changes any file. Release verification (M2) and verified download and staging
 (M3) exist as tested library code (see [update-security.md](update-security.md)) but are not connected
-to the UI; the activation helper (M4) exists but is disabled behind a build flag. Health checks and crash recovery (M5) are not built, and nothing can be enabled until they pass.
+to the UI; the activation helper (M4) exists but is disabled behind a build flag. Health checks, crash recovery and manual rollback (M5) exist as tested library code. Nothing is enabled: the real-Windows and manual upgrade/rollback gates have not been run, and the app doesn't call any of it yet.
 
 ## What runs now (M1: discovery)
 

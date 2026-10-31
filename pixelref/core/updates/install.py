@@ -36,7 +36,8 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from .inventory import INVENTORY_NAME, EXCLUDED_TOP_LEVEL, Inventory, InventoryError, file_sha256, load_inventory
-from .journal import (TERMINAL, TRANSACTION_ID, Journal, JournalError, installation_id, read_journal, write_journal)
+from .journal import (TERMINAL, TRANSACTION_ID, Journal, JournalError, installation_id, journal_guard, read_journal,
+                      write_journal)
 from .models import Channel, Platform
 from .staging import REQUIRED_LAYOUT, StagingError, read_last_sequence, staging_root, update_directory, validate_staged
 from .verification import Manifest, TrustStore, VerificationError, verify_release
@@ -157,10 +158,13 @@ class Operation:
 class Plan:
     root: Path
     transaction: str
-    directory: Path          # the staged transaction folder
-    application: Path        # its extracted/pixelRef
-    manifest: Manifest
+    kind: str                # "install" | "rollback"
+    source: Path             # folder holding the new top-level entries (staged app, or a backup)
+    source_transaction: str  # for a rollback: the backup being restored
     old_version: str
+    new_version: str
+    manifest_digest: str
+    sequence: int
     operations: tuple[Operation, ...]
 
 
@@ -211,6 +215,15 @@ def plan_activation(root: Path, transaction: str, *, trust: TrustStore, platform
     if INVENTORY_NAME not in new_files or any(_top(p).casefold() in {n.casefold() for n in EXCLUDED_TOP_LEVEL - {INVENTORY_NAME}}
                                               for p in new_files):
         raise InstallError("the release lacks its inventory or contains a protected name")
+    operations = _operations(root, installed, {_top(p) for p in new_files})
+    _check_filesystem(root, update, directory)
+    return Plan(root, transaction, "install", application, "", str(installed.version), str(manifest.version),
+                manifest.digest, manifest.sequence, tuple(operations))
+
+
+def _operations(root: Path, installed: Inventory, new_tops: set[str]) -> list[Operation]:
+    """What must move to replace the installed release with one whose top-level entries are
+    ``new_tops``. Raises InstallError listing everything that blocks it (nothing is changed)."""
     problems: list[str] = []
     # Every file the installed release owns must still be exactly what it shipped.
     for path, (size, digest) in installed.files.items():
@@ -219,7 +232,6 @@ def plan_activation(root: Path, transaction: str, *, trust: TrustStore, platform
             problems.append(f"missing installed file {path}")
         elif live.stat().st_size != size or file_sha256(live) != digest:
             problems.append(f"modified installed file {path}")
-    new_tops = {_top(p) for p in new_files}
     old_tops = installed.top_levels()
     owned = set(installed.files) | {INVENTORY_NAME}
     operations: list[Operation] = []
@@ -243,9 +255,12 @@ def plan_activation(root: Path, transaction: str, *, trust: TrustStore, platform
     if problems:
         raise InstallError("update blocked, resolve these first: " + "; ".join(problems[:10])
                            + (f" (+{len(problems) - 10} more)" if len(problems) > 10 else ""))
-    # Same filesystem (renames only), and the install folder really accepts changes.
-    devices = {root.stat().st_dev, update.stat().st_dev, directory.stat().st_dev}
-    if len(devices) != 1:
+    return operations
+
+
+def _check_filesystem(root: Path, update: Path, *folders: Path) -> None:
+    """Same filesystem (renames only), and the install folder really accepts changes."""
+    if len({root.stat().st_dev, update.stat().st_dev, *(f.stat().st_dev for f in folders)}) != 1:
         raise InstallError("the update folder is on a different filesystem than the installation")
     probe = root / f".pixelref-probe-{uuid.uuid4().hex}"
     try:
@@ -253,7 +268,6 @@ def plan_activation(root: Path, transaction: str, *, trust: TrustStore, platform
         probe.unlink()
     except OSError as exc:
         raise InstallError(f"the installation folder is not writable: {exc}") from exc
-    return Plan(root, transaction, directory, application, manifest, str(installed.version), tuple(operations))
 
 
 # ---- Activation and rollback ---------------------------------------------------------------------
@@ -262,10 +276,14 @@ def _exists(path: Path) -> bool:
     return os.path.lexists(path)
 
 
-def _paths(plan_root: Path, transaction: str, name: str) -> tuple[Path, Path, Path]:
-    update = update_directory(plan_root)
-    return (plan_root / name, update / BACKUP_DIR / transaction / name,
-            staging_root(plan_root) / transaction / "extracted" / "pixelRef" / name)
+def _paths(root: Path, journal: Journal, name: str) -> tuple[Path, Path, Path]:
+    """(live, backup, source) of one top-level entry, all derived from the journal's transaction ids."""
+    update = update_directory(root)
+    if journal.kind == "install":
+        source = staging_root(root) / journal.transaction_id / "extracted" / "pixelRef" / name
+    else:
+        source = update / BACKUP_DIR / journal.source_transaction / name
+    return root / name, update / BACKUP_DIR / journal.transaction_id / name, source
 
 
 def rollback(root: Path, journal: Journal, fault: Callable[[str], None] = lambda point: None) -> None:
@@ -277,7 +295,7 @@ def rollback(root: Path, journal: Journal, fault: Callable[[str], None] = lambda
         write_journal(update, journal)
     try:
         for op in reversed(journal.operations):
-            live, backup, staged = _paths(root, journal.transaction_id, op["name"])
+            live, backup, staged = _paths(root, journal, op["name"])
             fault(f"rollback:{op['name']}")
             if _exists(backup):
                 if _exists(live):
@@ -290,9 +308,10 @@ def rollback(root: Path, journal: Journal, fault: Callable[[str], None] = lambda
             op["status"] = "restored"
             write_journal(update, journal)
     except BaseException as exc:
-        if isinstance(exc, Exception):
+        if isinstance(exc, Exception):  # (BaseException = power loss: the journal stays ROLLING_BACK)
             journal.transition("ROLLBACK_FAILED", str(exc))
             write_journal(update, journal)
+            raise RollbackError(f"rollback failed: {exc}") from exc
         raise
     journal.transition("ROLLED_BACK")
     write_journal(update, journal)
@@ -307,9 +326,10 @@ def activate(plan: Plan, *, fault: Callable[[str], None] = lambda point: None, e
     existing = read_journal(update)
     if existing is not None and existing.state not in TERMINAL:
         raise InstallError(f"an earlier update is unfinished ({existing.state})")
-    journal = Journal(plan.transaction, installation_id(update), plan.old_version, str(plan.manifest.version),
-                      plan.manifest.digest, operations=[{"name": o.name, "action": o.action, "status": "pending"}
-                                                         for o in plan.operations])
+    journal = Journal(plan.transaction, installation_id(update), plan.old_version, plan.new_version,
+                      plan.manifest_digest, kind=plan.kind, source_transaction=plan.source_transaction,
+                      sequence=plan.sequence, operations=[{"name": o.name, "action": o.action, "status": "pending"}
+                                                          for o in plan.operations])
     write_journal(update, journal)
     journal.transition("ACTIVATING")
     write_journal(update, journal)
@@ -317,7 +337,7 @@ def activate(plan: Plan, *, fault: Callable[[str], None] = lambda point: None, e
         fault("journal:activating")
         (update / BACKUP_DIR / plan.transaction).mkdir(parents=True)
         for op in journal.operations:
-            live, backup, staged = _paths(root, plan.transaction, op["name"])
+            live, backup, staged = _paths(root, journal, op["name"])
             if op["action"] in ("replace", "remove"):
                 fault(f"{op['name']}:before_move_out")
                 os.rename(live, backup)
@@ -343,7 +363,7 @@ def activate(plan: Plan, *, fault: Callable[[str], None] = lambda point: None, e
     return journal
 
 
-def launch_application(root: Path, platform: Platform, token: str, popen=subprocess.Popen) -> None:
+def launch_application(root: Path, platform: Platform, token: str, popen=subprocess.Popen):
     """Start the new app, detached from the helper, with the one-time startup token."""
     exe = Path(root) / REQUIRED_LAYOUT[platform.system][0]
     options: dict = {"cwd": str(root), "close_fds": True, "env": {**os.environ, "PIXELREF_STARTUP_TOKEN": token}}
@@ -351,14 +371,56 @@ def launch_application(root: Path, platform: Platform, token: str, popen=subproc
         options["creationflags"] = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
     else:
         options["start_new_session"] = True
-    popen([str(exe)], **options)
+    return popen([str(exe)], **options)
+
+
+HEALTH_POLL_SECONDS = 0.5
+
+
+def wait_for_health(root: Path, transaction: str, child, timeout: float, *, poll: float = HEALTH_POLL_SECONDS,
+                    clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep) -> bool:
+    """True once the new app has acknowledged (journal COMMITTED). False on timeout or if it exited first."""
+    update = update_directory(root)
+    deadline = clock() + timeout
+
+    def committed() -> bool:
+        try:
+            journal = read_journal(update)
+        except JournalError:
+            return False
+        return journal is not None and journal.transaction_id == transaction and journal.state == "COMMITTED"
+
+    while True:
+        if committed():
+            return True
+        if child is not None and child.poll() is not None:
+            return committed()
+        if clock() >= deadline:
+            return False
+        sleep(poll)
+
+
+def begin_rollback(update: Path, transaction: str) -> Journal | None:
+    """Under the journal guard: move a still-pending transaction to ROLLING_BACK. None if it is no longer
+    pending (the app committed first), so a late acknowledgment and a timeout can never both win."""
+    with journal_guard(update):
+        journal = read_journal(update)
+        if journal is None or journal.transaction_id != transaction or journal.state not in (
+                "PENDING_HEALTH_CHECK", "ACTIVATING"):
+            return None
+        journal.transition("ROLLING_BACK", "the new version did not start correctly")
+        write_journal(update, journal)
+        return journal
 
 
 def run_activation(root: Path, transaction: str, *, trust: TrustStore, platform: Platform, pids: Iterable[int] = (),
-                   wait_timeout: float = 60.0, enabled: bool | None = None, fault: Callable[[str], None] = lambda p: None,
-                   alive: Callable[[int], bool] = process_alive, launcher: Callable[..., None] = launch_application,
-                   now=None) -> Journal:
-    """The helper's whole job. Returns the journal in PENDING_HEALTH_CHECK."""
+                   wait_timeout: float = 60.0, health_timeout: float | None = 120.0, enabled: bool | None = None,
+                   fault: Callable[[str], None] = lambda p: None, alive: Callable[[int], bool] = process_alive,
+                   launcher: Callable[..., object] = launch_application, now=None,
+                   clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep) -> Journal:
+    """The helper's whole job: activate, launch, wait for the new app to prove it started, then commit
+    (the app commits) or roll back and relaunch the previous version. ``health_timeout=None`` returns
+    right after launching (PENDING_HEALTH_CHECK) without waiting; the helper itself always waits."""
     if not (ASSISTED_INSTALL_ENABLED if enabled is None else enabled):
         raise InstallError("assisted installation is disabled in this build")
     root = Path(root)
@@ -373,5 +435,20 @@ def run_activation(root: Path, transaction: str, *, trust: TrustStore, platform:
             journal = activate(plan, fault=fault, enabled=True)
         except JournalError as exc:
             raise InstallError(str(exc)) from exc
-        launcher(root, platform, journal.startup_token)
-        return journal
+        child = launcher(root, platform, journal.startup_token)
+        if health_timeout is None:
+            return journal
+        if wait_for_health(root, transaction, child, health_timeout, clock=clock, sleep=sleep):
+            return read_journal(update) or journal
+        if child is not None and child.poll() is None:  # our own just-launched, unhealthy child
+            child.terminate()
+            try:
+                child.wait(10)
+            except Exception:  # noqa: BLE001
+                pass
+        pending = begin_rollback(update, transaction)
+        if pending is None:  # it acknowledged at the last moment
+            return read_journal(update) or journal
+        rollback(root, pending, fault)
+        launcher(root, platform, "")  # leave the user with their previous, working version
+        return read_journal(update) or pending

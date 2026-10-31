@@ -130,7 +130,8 @@ class Launcher:
 
 
 def run(root, tx, **kw):
-    args = dict(trust=TRUST, platform=WIN, enabled=True, now=NOW, launcher=Launcher(), alive=lambda pid: False)
+    args = dict(trust=TRUST, platform=WIN, enabled=True, now=NOW, launcher=Launcher(), alive=lambda pid: False,
+                health_timeout=None)  # None: return after launching (the health protocol is tested separately)
     args.update(kw)
     return ins.run_activation(root, tx, **args)
 

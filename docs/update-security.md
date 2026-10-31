@@ -135,8 +135,8 @@ Not yet done: the transaction journal (M5), and the helper that activates a stag
 
 `pixelref/core/updates/install.py`, `inventory.py`, `journal.py` and `packaging/updater/helper_main.py`.
 
-**Disabled.** `ASSISTED_INSTALL_ENABLED` is `False`, the helper exits with code 3, and nothing in the app
-calls any of this. It may only be switched on after the recovery milestone's fault-injection tests and a
+**Disabled.** `ASSISTED_INSTALL_ENABLED` is `False`, the helper exits with code 3 (except `recover`, which only
+undoes moves), and nothing in the app calls any of this. It may only be switched on after the recovery milestone's fault-injection tests and a
 manual upgrade/rollback demonstration pass on the target platform.
 
 - **Independent helper.** It runs from a copy in `.pixelref-update/helper/<transaction>/`, outside the
@@ -183,7 +183,67 @@ the app; helper-root derivation.
   process-liveness check and detached launch are written but only the POSIX paths ran. The helper has not
   been built as a frozen executable (`helper.spec` does not exist yet), and the helper would currently pull
   in `pixelref.core` as a whole; slimming that is future work.
-- **Health acknowledgment, crash/startup recovery, loop prevention, manual rollback and committing the
-  sequence counter** are the next milestone. Until then a launched update stays in `PENDING_HEALTH_CHECK`.
 - The helper is copied from the installed app: it is as trustworthy as the install itself.
 - macOS bundles and Linux layouts are not defined.
+
+## Health checks, recovery and rollback (M5)
+
+`pixelref/core/updates/recovery.py` and the helper's `recover` / `rollback` commands. Still disabled with
+the flag above (`recover` aside), and still not wired to the app.
+
+**Health protocol.** After activation the helper launches the new app with a one-time token in
+`PIXELREF_STARTUP_TOKEN` and waits. The new app calls `acknowledge_health(root, token)` after its essential
+initialization; that commits the journal (`COMMITTED`), records the accepted metadata `sequence`, and prunes
+old backups, helper copies and staging, keeping only this update's backup (the previous version). If the app
+exits first, or does not acknowledge before the timeout (default 120 s), the helper terminates its own
+unhealthy child, rolls back, and starts the previous version again. The acknowledgment and the timeout are
+serialized by a short journal lock, so a late acknowledgment and a rollback can never both win. The sequence
+is therefore only accepted for updates that actually started.
+
+**Never automatic after a healthy start.** A `COMMITTED` update is not rolled back because the user quit,
+and `recover` ignores it.
+
+**Crash recovery.** `begin_startup(root)` (to be called first thing at app start) returns `normal`, `pending`
+(carry on and acknowledge), `recover` (run the helper's `recover` instead of starting) or `manual`.
+`recover` restores an interrupted activation, a failed health check or an interrupted rollback by inspecting
+the real filesystem, only renaming: it is idempotent, can itself be interrupted and repeated, and never
+deletes a file. It refuses while the app is still running, and refuses a damaged journal (a person must look).
+
+**No loops.** A pending update gets 2 launches; after that startup says `recover`. A rollback that keeps
+failing (a file still locked, a drive missing) is retried up to 3 times, after which the journal becomes
+`RECOVERY_REQUIRED` and stays there: nothing is changed further, the files stay where they are, and the
+message names the folder holding the previous version.
+
+**Manual rollback.** `rollback_previous` (helper command `rollback`) restores the previous release from the
+backup through the same journaled mechanism. Preflight requires: every file of the previous release is in
+the backup with its recorded hash, and the current release is unmodified and has no unknown files in its
+folders. The release being replaced is kept as the new backup, so rolling forward is the same operation. It
+is the user's decision, so the "newer than installed" rule for network metadata does not apply. A rollback
+that fails part-way is undone and can be retried.
+
+**Data policy.** Rollback restores program files only. Boards (`.pxref`), settings, plugins and scripts are
+never reverted with the program, and a newer version may have changed them (scene or settings formats may
+not be readable by the older version). The UI that offers rollback must say so; it does not exist yet.
+
+### Tested
+
+`tests/test_update_recovery.py`: healthy commit and pruning; silent, crashing and wrong-token starts roll back
+and relaunch the previous version, without accepting the sequence; the acknowledgment/timeout race;
+bounded startup attempts; recovery after power loss at every step, itself interrupted and repeated;
+recovery refusing while the app runs and with a damaged journal; Windows-style locked files and a vanishing
+drive, injected into the renames during activation and during rollback (nothing lost, retried, then
+`RECOVERY_REQUIRED`); manual rollback and roll-forward; rollback blocked by a tampered or missing backup,
+an added user file or no committed update; a failed rollback undone at every step and then retried; the
+journal lock; the helper's `recover` command.
+
+### Still not done
+
+- **No real Windows run.** The locks are simulated with injected `PermissionError`/`OSError`. Real
+  behaviour (antivirus holding a file, an open DLL, `os.rename` on directories) needs a manual test.
+- **The manual upgrade/rollback demonstration** the release gate requires has not been done: no frozen
+  helper exists, and no release key is embedded.
+- The app does not call `begin_startup` or `acknowledge_health` yet (PR-08), and shows no recovery or
+  rollback result UI.
+- A user who starts a pending update by hand (no token) gets 2 starts before startup asks to recover; the
+  update then cannot be acknowledged and is rolled back.
+- Same-account local attackers can edit the journal, inventory or trust key: unchanged limitation.
