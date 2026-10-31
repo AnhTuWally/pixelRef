@@ -1,0 +1,135 @@
+name: Release
+
+# Builds, signs and publishes a release when a version tag is pushed. Never runs for pull requests.
+# Three jobs with different powers:
+#   build    no secrets      builds and smoke-tests the Windows x64 one-folder app, zips it
+#   sign     SECRET KEY      only here, only in the protected "release" environment (manual approval)
+#   publish  write access    creates a DRAFT, re-verifies the uploaded files from GitHub, then publishes
+# See docs/update-release-process.md for the one-time setup (key, environment, tag protection).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Tag must match the code version
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "bad tag: $TAG"; exit 1; }
+          VERSION=$(python -c "import re;print(re.search(r'__version__\s*=\s*\"([^\"]+)\"', open('pixelref/__init__.py').read())[1])")
+          [ "$TAG" = "v$VERSION" ] || { echo "tag $TAG does not match pixelref.__version__ $VERSION"; exit 1; }
+      - run: python -m pip install -r packaging/requirements-build.txt
+      - name: Update system tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python tests/run_tests.py test_update test_workflows
+      - name: Build, smoke-test the built executables, zip
+        run: python packaging/build_exe.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archive
+          path: dist/pixelRef-v*-windows-x64.zip
+          if-no-files-found: error
+
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: release   # holds PIXELREF_RELEASE_KEY; configure required reviewers on it
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install "cryptography>=43"
+      - uses: actions/download-artifact@v4
+        with:
+          name: archive
+          path: archive
+      - name: Sign the manifest
+        env:
+          TAG: ${{ github.ref_name }}
+          KEY: ${{ secrets.PIXELREF_RELEASE_KEY }}
+          RUN_NUMBER: ${{ github.run_number }}
+          OFFSET: ${{ vars.PIXELREF_SEQUENCE_OFFSET || '0' }}
+        run: |
+          set -eu
+          [ -n "$KEY" ] || { echo "PIXELREF_RELEASE_KEY is not set in the 'release' environment"; exit 1; }
+          umask 077
+          KEYFILE="$RUNNER_TEMP/release.key"
+          trap 'rm -f "$KEYFILE"' EXIT
+          printf '%s\n' "$KEY" > "$KEYFILE"
+          CHANNEL=stable
+          case "$TAG" in *-*) CHANNEL=beta;; esac
+          ARCHIVE=$(ls archive/pixelRef-v*-windows-x64.zip)
+          NAME=$(basename "$ARCHIVE" .zip)
+          mkdir signed
+          cp "$ARCHIVE" signed/
+          # The sequence must only ever increase: the run number does, plus an optional offset
+          # (repository variable) when manifests were also signed by hand.
+          python packaging/sign_release.py sign --private "$KEYFILE" --archive "signed/$NAME.zip" \
+            --release-id "$TAG" --sequence "$((RUN_NUMBER + OFFSET))" --channel "$CHANNEL" --inventory \
+            --out "signed/manifest-${NAME#pixelRef-}.json"
+      - name: Verify with the key embedded in this commit (what users will have)
+        run: |
+          set -eu
+          for M in signed/manifest-*.json; do
+            python packaging/verify_release.py --manifest "$M" --archive "signed/$(basename "$M" .json | sed 's/^manifest-/pixelRef-/').zip"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed
+          path: signed/
+          if-no-files-found: error
+
+  publish:
+    needs: sign
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the release; nothing else in this workflow has it
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install "cryptography>=43"
+      - uses: actions/download-artifact@v4
+        with:
+          name: signed
+          path: signed
+      - name: Create a draft release
+        run: |
+          set -eu
+          FLAGS=""
+          case "$TAG" in *-*) FLAGS="--prerelease";; esac
+          gh release create "$TAG" --draft --verify-tag --title "pixelRef ${TAG#v}" --generate-notes $FLAGS signed/*
+      - name: Re-download the draft's files and verify them independently
+        run: |
+          set -eu
+          mkdir downloaded
+          gh release download "$TAG" --dir downloaded
+          for M in downloaded/manifest-*.json; do
+            python packaging/verify_release.py --manifest "$M" --archive "downloaded/$(basename "$M" .json | sed 's/^manifest-/pixelRef-/').zip"
+          done
+      - name: Publish (only after verification passed)
+        run: gh release edit "$TAG" --draft=false

@@ -177,3 +177,29 @@ def test_publisher_tool_round_trip_and_keeps_private_key_out_of_output():
     assert manifest.files[0].path == "pixelRef/pixelRef.exe"
     verify_artifact(archive, manifest)
     assert b"PRIVATE" not in (folder / "m.json").read_bytes()
+
+
+def test_verify_release_tool():
+    import base64
+    import zipfile
+
+    folder = tmp_dir()
+    tool = str(ROOT / "packaging" / "sign_release.py")
+    verify = str(ROOT / "packaging" / "verify_release.py")
+    sh = lambda *a, ok=True: subprocess.run([sys.executable, "-I", *a], capture_output=True, text=True)
+    assert sh(tool, "generate-key", "--private", str(folder / "k"), "--public", str(folder / "k.pub")).returncode == 0
+    archive = folder / "pixelRef-v1.2.0-windows-x64.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("pixelRef/pixelRef.exe", b"exe")
+    assert sh(tool, "sign", "--private", str(folder / "k"), "--archive", str(archive), "--release-id", "v1.2.0",
+              "--sequence", "1", "--channel", "stable", "--inventory", "--out", str(folder / "m.json")).returncode == 0
+    base = [verify, "--manifest", str(folder / "m.json"), "--archive", str(archive)]
+    good = sh(*base, "--public", str(folder / "k.pub"), "--installed", "1.1.0")
+    assert good.returncode == 0 and "OK:" in good.stdout, good.stderr
+    assert sh(*base).returncode == 1                      # embedded key is empty: fails closed
+    archive.write_bytes(archive.read_bytes() + b"x")
+    bad = sh(*base, "--public", str(folder / "k.pub"))
+    assert bad.returncode == 1 and "FAILED" in bad.stderr
+    other = folder / "other.pub"
+    other.write_text(base64.b64encode(Ed25519PrivateKey.generate().public_key().public_bytes_raw()).decode())
+    assert sh(*base, "--public", str(other)).returncode == 1

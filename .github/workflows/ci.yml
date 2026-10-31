@@ -1,0 +1,43 @@
+name: CI
+
+# Runs on pull requests and pushes to main. It has no access to any secret and only read permission:
+# pull requests (including from forks) must never be able to reach the release key.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: System libraries for Qt (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libdbus-1-3 libfontconfig1 libglib2.0-0
+      - run: python -m pip install -r requirements.txt
+      # The update system must pass on every platform it will be released for.
+      - name: Update system tests
+        run: python tests/run_tests.py test_update test_workflows
+      # The whole suite. Four tests already failed before the update work (test_effects x2,
+      # test_plugin_security activity monitor, test_docs MCP scene tools which needs pytest's tmp_path),
+      # so this step reports but does not block until they are fixed. Remove continue-on-error then.
+      - name: Full test suite
+        continue-on-error: true
+        run: python tests/run_tests.py

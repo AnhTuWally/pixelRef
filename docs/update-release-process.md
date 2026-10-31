@@ -90,21 +90,12 @@ manifest the app would reject.
 Verify the manifest and archive the way a user's computer will:
 
 ```bash
-python - <<'PY'
-import base64, sys
-from pathlib import Path
-sys.path.insert(0, ".")
-from pixelref.core.updates import Platform, Version
-from pixelref.core.updates.verification import *
-
-pub = base64.b64decode(Path("~/pixelref-release-keys/release.pub").expanduser().read_text())
-m = verify_release(Path("manifest-v1.2.0-windows-x64.json").read_bytes(),
-                   trust=TrustStore((TrustedKey(pub),)),
-                   installed=Version(1, 1, 0), platform=Platform("windows", "x64"))
-verify_artifact(Path("pixelRef-v1.2.0-windows-x64.zip"), m)
-print("OK", m.version, m.sequence)
-PY
+python packaging/verify_release.py --manifest manifest-v1.2.0-windows-x64.json \
+    --archive pixelRef-v1.2.0-windows-x64.zip --public ~/pixelref-release-keys/release.pub --installed 1.1.0
 ```
+
+Leave out `--public` once the key is embedded: it then checks against the key users have. It exits 0 only if
+the signature, schema, expiry, size, SHA-256 and file inventory all check out.
 
 Also run the new archive on a clean machine with no Python: extract, launch, open a board.
 
@@ -144,3 +135,52 @@ An individual key can also carry an end date: `TrustedKey(raw, expires="2027-06-
 - Always increase `--sequence`.
 - Archive name = `pixelRef-v<version>-<os>-<arch>.zip`; tag = `v<version>`; code version = `<version>`.
 - If signing or verification fails, **do not publish**. Fix the cause, never loosen the check.
+
+## Automated releases (GitHub Actions)
+
+`.github/workflows/` holds `ci.yml` (tests on pull requests and `main`; no secrets, read-only) and
+`release.yml` (builds, signs and publishes when you push a `v*` tag). The manual steps above still work and
+are the fallback.
+
+### One-time setup (in GitHub, not in the repo)
+
+1. Do steps 1 and 2 above (generate the key, embed the **public** key, commit). Releases fail closed
+   without an embedded key.
+2. **Settings → Environments → New environment `release`.** Add *required reviewers* (you), and restrict
+   it to protected tags if offered. Add the secret **`PIXELREF_RELEASE_KEY`** *to this environment*, not to
+   the repository: paste the entire contents of `release.key` (the PEM). Only the `sign` job uses the
+   environment, so pull requests and the other jobs can never read it.
+3. **Settings → Rules → Tag protection / rulesets:** protect the pattern `v*` so only maintainers can
+   create those tags (pushing a tag starts a release).
+4. **Settings → Actions → General:** set workflow permissions to *read* by default, and require approval
+   for workflows from outside collaborators.
+5. Optional: a repository variable `PIXELREF_SEQUENCE_OFFSET` if you ever signed a manifest by hand with a
+   higher sequence number than the workflow's run number (the sequence must only increase).
+
+### What happens on `git tag v1.2.0 && git push origin v1.2.0`
+
+1. **build** (Windows x64, no secrets): checks the tag equals `pixelref.__version__`, runs the update tests,
+   builds, smoke-tests the *built* executables (`build_exe.py`) and zips the folder with its inventory.
+2. **sign** (waits for your approval of the `release` environment): signs a manifest with
+   `--inventory`, using the run number (plus offset) as the sequence, `beta` if the tag has a `-`. It then
+   verifies the result with the key embedded in that commit, which is what users have.
+3. **publish**: creates a **draft** release with the ZIP and manifest, downloads them back *from GitHub*,
+   verifies them again with a job that has no secrets, and only then publishes. If verification fails the
+   draft stays unpublished for you to delete.
+
+`tests/test_workflows.py` checks the safety properties statically: no `pull_request_target`, a read-only
+default token, the key referenced only by the `sign` job (inside the `release` environment), write access
+only in `publish`, no `${{ }}` inside scripts, and draft → verify → publish order.
+
+### Not done / unverified
+
+- **These workflows have never run.** I had no GitHub access: the YAML is parsed and the sign/verify shell
+  steps were executed locally against a throwaway key and archive, but `actions/*` steps, the Windows build
+  in CI and `gh release` are untested. Expect to fix small things on the first (pre-release) run: push a
+  `v…-beta.N` tag first.
+- **Actions are pinned to major versions** (`@v4`), not commit SHAs. Pin them to SHAs (and enable
+  Dependabot for Actions) when you have network access.
+- **Windows executables are not code-signed** (Authenticode). Signing the manifest does not replace it;
+  SmartScreen and antivirus will still distrust unsigned builds.
+- Only **Windows x64** is built. macOS and Linux need their own layouts defined first.
+- The full test suite is non-blocking in CI until the four tests that already failed are fixed.
