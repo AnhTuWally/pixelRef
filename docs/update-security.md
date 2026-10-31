@@ -67,8 +67,8 @@ Signed fields: `schema_version`, `release_id`, `sequence`, `version`, `channel`,
 
 Network metadata is only accepted if newer than the installed version and not older (by `sequence`)
 than the last accepted manifest. Both comparisons use local state, so they stop an attacker who only
-controls the network or GitHub, not one who controls the machine. The counter's storage lands with
-staging (M3). A *user-requested* rollback to a locally kept, previously verified version is a separate
+controls the network or GitHub, not one who controls the machine. The counter is stored in
+`.pixelref-update/accepted.json` (written atomically, never lowered; a corrupt file reads as 0). A *user-requested* rollback to a locally kept, previously verified version is a separate
 path (M5) and does not go through this check. Freeze attacks (serving old, still-valid metadata) are
 limited only by the `expires_at` window; use short validity (the tool defaults to 90 days).
 
@@ -101,3 +101,32 @@ notarization); do both.
 expired keys, rotation, platform/arch/channel/expiry/updater/version checks, replay and downgrade,
 strict schema, hostile inventory paths, archive hash and size, JSON edge cases, and a round trip
 through the publisher tool.
+
+## Download and staging (M3)
+
+`pixelref/core/updates/staging.py`. Staging prepares a complete new version in
+`<install>/.pixelref-update/staging/<transaction-id>/` and **never touches the live installation**.
+
+- **Download:** HTTPS only, hosts `github.com`, `objects.githubusercontent.com`,
+  `release-assets.githubusercontent.com`, no embedded credentials. Every redirect hop is re-checked;
+  TLS certificates are verified by Python's default context. Reads stop at the signed size, then the
+  exact size and SHA-256 must match the signed manifest. The URL itself is untrusted: the signed hash
+  is what authorizes the bytes.
+- **Inspection before extraction:** rejects absolute, `..`, backslash, drive and UNC paths; symlinks and
+  other non-regular entries; encrypted entries; duplicate or case-colliding names; a file sharing a path
+  with a folder; Windows-reserved names; anything outside `pixelRef/`; the user-owned names
+  `portable.toml`, `user-data` and `.pixelref-update`; more than 20,000 entries or 2 GiB expanded. With
+  a signed file inventory, the archive must match it exactly.
+- **Extraction:** into a folder the call creates, with exclusive-create writes (never following or
+  reusing an existing path), each path re-resolved to stay inside it, bytes counted against the declared
+  size and per-file hashes checked against the inventory.
+- **Layout:** Windows requires `pixelRef.exe`, `pixelref-cli.exe` and `_internal/`. Other platforms
+  refuse to stage until their layout is defined.
+- **Space and permissions:** free space is checked, and a probe file proves the folder is writable.
+- **Failure and cancel:** the whole transaction folder is removed. Cleanup only deletes
+  transaction-id-named plain folders (never symlinks' targets or unknown names).
+- `validate_staged` re-checks a staged transaction independently (marker, archive hash, layout, every
+  inventoried file) so the helper doesn't have to trust the process that staged it.
+
+Not yet done: the transaction journal (M5), and the helper that activates a staged version (M4).
+`stage_update` is not connected to any UI; nothing downloads automatically.

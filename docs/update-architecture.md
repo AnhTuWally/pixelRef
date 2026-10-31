@@ -1,8 +1,9 @@
 # Updates
 
-pixelRef can tell you when a newer version exists. **Today that is all it does**: it never
-downloads, installs or changes any file. Downloading, verification and installation are planned
-milestones (see the plan's M2–M5) and stay off until their security and recovery tests pass.
+pixelRef can tell you when a newer version exists. **In the app today that is all it does**: it never
+downloads, installs or changes any file. Release verification (M2) and verified download and staging
+(M3) exist as tested library code (see [update-security.md](update-security.md)) but are not connected
+to the UI; installation (M4–M5) is not built and stays off until its recovery tests pass.
 
 ## What runs now (M1: discovery)
 
