@@ -1,4 +1,4 @@
-"""Application update support (Qt-free). M1: discovery only. Nothing in this package modifies the
+"""Application update support (Qt-free). M1 discovery, M2 release verification. Nothing in this package modifies the
 installation: see docs/update-architecture.md."""
 
 from .discovery import check_for_updates, default_fetch, parse_releases, select_update
