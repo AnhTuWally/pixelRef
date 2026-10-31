@@ -37,3 +37,34 @@ plugin `pixelref/builtins/updates/` is the UI. Settings keys: `updates/check_ena
 `updates/check_interval`, `updates/channel`, `updates/auto_download`,
 `updates/last_successful_check`, `updates/last_attempt`, `updates/dismissed_version`. They are
 conveniences, never security or transaction state.
+
+## Installing from inside pixelRef (PR-08, off in this build)
+
+The update dialog can offer **Download**, then **Update & Restart**, but only when every condition in
+`flow.assist_status` holds: the feature flag `install.ASSISTED_INSTALL_ENABLED` is on, this is a standalone
+copy (never source), a release key is embedded, the update helper is bundled in the app, the platform is
+supported (Windows x64) and pixelRef's folder is writable. Today the flag is off and the helper is not
+bundled, so the dialog offers exactly what it did before: the notes and a link to download by hand. The
+reason is shown in the dialog and under *Update Settings…*.
+
+With everything enabled the stages are:
+
+1. **Available**: notes (plain text), *Download*, *Later*, *Skip This Version*, and the manual link, always.
+2. **Downloading**: progress and *Cancel Download*; the UI stays responsive (a worker thread). The signed
+   manifest is fetched first and verified, then the archive is downloaded, verified, staged and
+   *preflighted*, which includes the ownership check. A conflict (an unknown file in a program folder)
+   is reported in words and nothing is left staged.
+3. **Ready**: shown only after all of that succeeded. *Update & Restart*.
+4. **Update & Restart**: re-runs the preflight, starts the helper (which only waits for pixelRef to exit),
+   then runs the app's normal close flow, including the unsaved-board prompts. If you cancel that prompt the
+   helper is stopped and nothing has changed. The app never closes or restarts by itself.
+5. **After the restart**: the new version acknowledges itself (commit) about two seconds after start. A
+   one-time message says it was installed, or that it did not work and the previous version was restored.
+
+**Roll Back to Previous Version…** (command search) restores the previous release from the backup the
+last update kept. It warns that only the program is rolled back, never boards, settings, plugins or scripts.
+
+**At every start** a frozen app first calls `flow.startup_gate`, before any UI. With no unfinished update it
+does nothing. With an update awaiting acknowledgment it lets the app start (twice at most); an interrupted
+or repeatedly failing one hands over to the helper's `recover` and exits. If no helper is available it starts
+normally and shows how to recover by hand. It never raises: a broken updater cannot stop pixelRef starting.

@@ -22,6 +22,7 @@ TIMEOUT_SECONDS = 10.0
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 MAX_NOTES_CHARS = 4000
 ASSET_PATTERN = re.compile(r"^pixelRef-v(?P<version>[^/\\]+)-(?P<system>[a-z]+)-(?P<arch>[a-z0-9_]+)\.zip$")
+MANIFEST_PATTERN = re.compile(r"^manifest-v(?P<version>[^/\\]+)-(?P<system>[a-z]+)-(?P<arch>[a-z0-9_]+)\.json$")
 ALLOWED_HOSTS = ("github.com", "api.github.com")
 
 Fetcher = Callable[[str, float], FetchResponse]
@@ -93,6 +94,16 @@ def find_asset(release: Release, target: Platform) -> ReleaseAsset | None:
     return None
 
 
+def find_manifest_asset(release: Release, target: Platform) -> ReleaseAsset | None:
+    """The signed manifest published beside the archive for ``target`` (same version rule as the archive)."""
+    for asset in release.assets:
+        match = MANIFEST_PATTERN.match(asset.name)
+        if (match and match["system"] == target.system and match["arch"] == target.arch
+                and (v := try_parse_version(match["version"])) is not None and v.same_precedence(release.version)):
+            return asset
+    return None
+
+
 def select_update(releases: list[Release], current: Version, channel: Channel, target: Platform
                   ) -> tuple[Release, ReleaseAsset | None] | None:
     """The newest eligible release newer than ``current`` that this platform can use, or None.
@@ -144,4 +155,5 @@ def check_for_updates(current: str | Version, channel: Channel = Channel.STABLE,
     found = select_update(releases, current_version, channel, target)
     if found is None:
         return DiscoveryResult(UpdateState.UP_TO_DATE, current_version, mode=mode)
-    return DiscoveryResult(UpdateState.AVAILABLE, current_version, release=found[0], asset=found[1], mode=mode)
+    return DiscoveryResult(UpdateState.AVAILABLE, current_version, release=found[0], asset=found[1],
+                           manifest_asset=find_manifest_asset(found[0], target) if found[1] else None, mode=mode)

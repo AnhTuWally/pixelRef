@@ -100,6 +100,7 @@ class DiscoveryResult:
     current: Version | None = None
     release: Release | None = None        # set when a newer eligible release exists
     asset: ReleaseAsset | None = None     # the portable archive for this platform, when published
+    manifest_asset: ReleaseAsset | None = None  # its signed manifest, when published
     message: str = ""
     retry_after: float | None = None      # seconds, for RATE_LIMITED when the server said so
     mode: InstallMode = InstallMode.SOURCE
@@ -110,8 +111,10 @@ class DiscoveryResult:
 
     @property
     def can_install(self) -> bool:
-        """Discovery alone never installs (M1): always False until a verified-update pipeline exists."""
-        return False
+        """Whether the release publishes what an assisted install needs (archive and signed manifest) for a
+        standalone copy. Whether installing is actually *offered* is decided by ``flow.assist_status``."""
+        return (self.state is UpdateState.AVAILABLE and self.mode is InstallMode.STANDALONE
+                and self.asset is not None and self.manifest_asset is not None)
 
 
 @dataclass

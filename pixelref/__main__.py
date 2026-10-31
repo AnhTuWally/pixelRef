@@ -39,6 +39,13 @@ def main() -> None:
 
         args = [a for a in sys.argv[1:] if a != "--batch"]
         raise SystemExit(run_batch(args))
+    if getattr(sys, "frozen", False):
+        # An unfinished or failed update is dealt with before any UI starts. This never raises: an
+        # updater problem must not stop pixelRef from starting.
+        from .core.updates.flow import startup_gate
+
+        if startup_gate():
+            raise SystemExit(0)
     from .ui import run
 
     raise SystemExit(run())

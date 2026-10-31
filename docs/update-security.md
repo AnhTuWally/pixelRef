@@ -247,3 +247,33 @@ journal lock; the helper's `recover` command.
 - A user who starts a pending update by hand (no token) gets 2 starts before startup asks to recover; the
   update then cannot be acknowledged and is rolled back.
 - Same-account local attackers can edit the journal, inventory or trust key: unchanged limitation.
+
+## App integration (PR-08)
+
+`pixelref/core/updates/flow.py` and the `updates` plugin. See [update-architecture.md](update-architecture.md)
+for the user-visible flow. Security-relevant points:
+
+- **The app never replaces files.** It downloads into the update folder, stages, preflights and starts the
+  helper. The helper's command line is fixed (`<helper> activate <transaction> --wait-pid <pid>`,
+  `recover`, `rollback`); `launch_helper` rejects any other combination and a malformed transaction id.
+- **Helper before close, undone if cancelled.** The helper is started first (so a spawn failure closes
+  nothing), then the normal close flow runs. If the user cancels it, the helper (which has only been
+  waiting) is terminated. It cannot act while pixelRef is still running.
+- **Everything is re-verified.** The app verifies the manifest and archive, and preflights, but the helper
+  repeats all of it from disk and trusts nothing the app computed. The app's preflight is only to give
+  an early, readable answer.
+- **Gated.** Installing is offered only when the flag, install mode, release key, bundled helper, platform
+  and writability all allow it (`assist_status`). Any failure falls back to notify-and-link.
+- **The startup token** is read from the environment and removed at once, so nothing the app launches
+  inherits it.
+- **No automatic action.** Nothing downloads without a click (auto-download stays unavailable), nothing
+  closes without the close flow, and no dialog opens by itself except the one-time result of a failed or
+  stuck update.
+
+### Not done
+
+- The helper is **not bundled** (`packaging/pixelref.spec` does not include it and no `helper.spec` exists),
+  so in a real build `assist_status` reports it unavailable. Building and bundling it, then the manual
+  upgrade and rollback demonstration on Windows, are what stand between this and enabling the flag.
+- Automatic download, a settings page, and a progress/Result UI for the helper phase itself (the helper
+  runs without a window; the user only sees the app close and reopen).
