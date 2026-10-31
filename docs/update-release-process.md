@@ -5,6 +5,48 @@ Step-by-step instructions for the maintainer. Background and threat model: [upda
 Until step 1 and 2 are done, **no update can be verified** (the app ships with no trusted release key
 and fails closed). Update *discovery* works without them.
 
+## Status and go-live checklist
+
+*Last updated with PR-01, PR-08 and PR-09.*
+
+| Capability | State | Safe to ship? |
+|---|---|---|
+| **Update notification** (status-bar note, *Check for Updates…*, channel, off switch) | Built, tested, on by default | **Yes.** It only reads GitHub's public release list; it downloads and changes nothing. |
+| Fully portable mode (`portable.toml`) | Built, tested, opt-in | **Yes.** Nothing changes without the file. |
+| Signed manifests, verified download, staging | Built, tested | Library only: nothing is reachable until installing is enabled. |
+| Activation helper, health check, recovery, rollback | Built, tested with injected faults | **No.** Disabled by `ASSISTED_INSTALL_ENABLED = False`. |
+| Release workflows (`.github/workflows`) | Written, parsed, partly dry-run locally | **Never run on GitHub.** Try with a `v…-beta.N` tag first. |
+
+**What users get today:** a quiet "Update available" note and a link to download the new ZIP by hand. There
+is no in-app install. Releases need no signing for that: you can publish ordinary GitHub releases
+(`pixelRef-v<version>-<os>-<arch>.zip`) and the note appears for users on a build that has the Updates plugin.
+
+**Older builds (v1.1.0 and earlier) never show the note.** They need a one-time manual ZIP replacement.
+
+### Before in-app installing can be turned on
+
+All of these, in order. Do not skip one because a later one passed.
+
+1. **Release key.** Generate it and embed the public key (steps 1 and 2 below). Without it nothing can verify.
+2. **GitHub setup.** The `release` environment with required reviewers and the `PIXELREF_RELEASE_KEY`
+   secret, tag protection for `v*`, read-only default token (see *Automated releases*).
+3. **First pipeline run** with a pre-release tag (`v1.2.0-beta.1`). Fix whatever the first real run shows,
+   and confirm the draft's files pass `packaging/verify_release.py`.
+4. **Build and bundle the update helper.** Not done: there is no `helper.spec`, `pixelref.spec` doesn't
+   include it, and the build doesn't yet put it in the app as `updater/pixelref-updater.exe`. Until it is
+   bundled `assist_status` reports it unavailable even if the flag is on.
+5. **Test on a real Windows machine**, from a v1.2.0-beta build to a newer beta, with the flag on in a test
+   build: update, a deliberately failing new version (the health check must roll back and restart the
+   old one), manual rollback, an open file or antivirus holding a file, a USB stick removed mid-update, and
+   `user-data/` plus your own plugins and scripts untouched afterwards. Only simulated file locks have been
+   run so far.
+6. **Code-sign the Windows executables** (Authenticode). Not done; SmartScreen and antivirus distrust
+   unsigned builds regardless of the manifest signature.
+7. Only then set `ASSISTED_INSTALL_ENABLED = True` in a commit of its own, and ship it in a beta first.
+
+Until step 7, **everything above step 1 is optional for a normal release**: ship releases as before and the
+notification does the rest.
+
 ## What you need
 
 - A trusted, offline-capable machine (not a shared CI runner) with Python 3.11+ and `pip install cryptography`.

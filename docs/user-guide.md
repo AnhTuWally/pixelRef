@@ -810,6 +810,28 @@ the *Scripts* menu that you can put on a key. *Record Macro* (`Ctrl+Alt+R`,
 or the record button in the window bar) saves what you do as a script. `keymap.toml` can also bind command lists,
 Python and your own key modes. See [keymap.md](keymap.md).
 
+## Updates
+
+pixelRef can tell you when a newer version exists. About once a day it reads GitHub's public list of
+releases in the background; if there is a newer one, **Update available** appears in the status bar. Click it
+for the release notes and a link to download the new ZIP. That is all it does: it never downloads or installs
+anything by itself, and your boards and settings are never touched. Nothing is sent about you or your boards.
+
+- **Check for Updates…** (canvas menu) checks right now, even when automatic checks are off.
+- **Update Settings…** (command search) turns automatic checks off, chooses *Stable* or *Beta*
+  (which includes pre-releases) and shows the last successful check.
+- A failed check says so (no connection, GitHub's rate limit, an unreadable answer). It is never reported as
+  "up to date", and it never interrupts you.
+- Skip a version with **Skip This Version**; the note comes back for the next one.
+- Running from source (`python -m pixelref`)? pixelRef only tells you; update with git.
+- No internet, or the Updates plugin switched off in Window → Plugins…: pixelRef works the same.
+
+To install a new version, download the ZIP and extract it to a fresh folder, then copy your own files if you
+keep any beside the program. Settings kept in the usual per-user folders carry over by themselves. For
+keeping everything beside the program, see [Fully portable mode](packaging.md#fully-portable-mode).
+Maintainers: [update-architecture.md](update-architecture.md), [update-security.md](update-security.md),
+[update-release-process.md](update-release-process.md).
+
 ## Plugins
 
 > **Plugins and scripts run with the same access as you.** They can read and
