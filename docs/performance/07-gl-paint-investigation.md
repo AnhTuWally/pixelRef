@@ -21,11 +21,14 @@ per paint). Numbers are means over ≈240 paints (≈3–4 s) unless a range is 
    switched off (no blit, no overlays), 4 GL views still need 19.0 ms per round (budget 16.7). One to three views
    fit in a vsync. So the 4-linked-view ceiling (38.6–42 fps) is not reachable by making tile or overlay
    painting cheaper.
-5. **One configuration change helps, untested for correctness: `QT_WIDGETS_RHI=1`** (Qt's RHI-based widget
-   compositing; default backend on Windows is D3D11). Measured here: begin wait 5.0 → 0.05 ms, single-view
-   `paintEvent` 4.8 → 1.0 ms, 4 empty GL views 19.2 → 16.7 ms per round, 4 linked views 41.6 → 45.6 fps,
-   single-view pan unchanged (59.8 fps, p95 17.4–17.6 ms). Forcing its OpenGL backend reproduces the default
-   (19.5 ms), so the gain comes from the D3D11 composition path.
+5. **`QT_WIDGETS_RHI=1` looked like a fix and is not: it does not display the canvas.** (Qt's RHI-based widget
+   compositing; default backend on Windows is D3D11.) The timing run showed begin wait 5.0 → 0.05 ms,
+   single-view `paintEvent` 4.8 → 1.0 ms, 4 linked views 41.6 → 45.6 fps. Validating the pixels on screen
+   (`tools/validate_rhi.py`) showed why: every canvas viewport is **black** (100% of sampled pixels in the single
+   view steps, 90% with four views; default path: 0%), while the chrome and the minimap draw. The speedup was
+   the cost of not compositing the GL widget. Forcing its OpenGL backend (`QT_WIDGETS_RHI_BACKEND=opengl`)
+   displays correctly (identical to default within the 0.003% capture noise) but is as slow as the default
+   (19.5 ms per round), so there is nothing to gain.
 
 ## Measurements
 
@@ -52,10 +55,26 @@ Round time (all views updated and painted, vsync-locked at 16.7 ms), painting di
 | 3 | 16.3 | | 11.6 |
 | 4 | 19.0 (19.2 in a separate run) | 16.7 | 16.6 |
 
-With painting enabled, 4 views: 21.4 ms (default) vs 19.3 ms (`QT_WIDGETS_RHI=1`).
-End-to-end (`bench_canvas_nav.py`, 4 linked views, medium, warm pan): 42.0 / 41.2 fps default, 45.9 / 45.3 fps
-with `QT_WIDGETS_RHI=1`. (The earlier Phase 1 figure of 38.6–39 fps was taken at a different time; compare only
-within a row pair.) Software viewport reached 51.5–51.9 fps. None reach the 55 fps gate.
+The `QT_WIDGETS_RHI=1` column was measured while the canvas was not being displayed (see validation below): it
+shows the cost of skipping the GL widget, not a usable configuration.
+End-to-end (`bench_canvas_nav.py`, 4 linked views, medium, warm pan, default path): 42.0 / 41.2 fps. (The
+earlier Phase 1 figure of 38.6–39 fps was taken at a different time; compare only within a pair.) Software
+viewport reached 51.5–51.9 fps. None reach the 55 fps gate.
+
+## Validation of `QT_WIDGETS_RHI=1` (`tools/validate_rhi.py`)
+
+Real window, maximized, `medium` board; screen pixels captured after each of nine steps (initial, fit, four
+linked views, pan, zoom, small window, maximized again, hide/show, back to one view). Capture noise between two
+default-path runs: ≤0.057% of pixels differ (0.000–0.003% in 8 of 9 steps).
+
+| Path | Canvas pixels vs default | Pure-black canvas samples |
+|---|---|---|
+| default | reference | 0% in all 9 steps |
+| `QT_WIDGETS_RHI=1` (D3D11) | 29–51% of the window's pixels differ | 100% (single view), 89.6% (four views), 57.4% (small window) |
+| `QT_WIDGETS_RHI=1`, `QT_WIDGETS_RHI_BACKEND=opengl` | ≤0.003% (identical) | 0% |
+
+The captures include whatever else was on the desktop (another window overlapped part of the app); it is the
+same in all runs, and the captures are not kept in the repository.
 
 ## Verdict
 
@@ -63,16 +82,14 @@ within a row pair.) Software viewport reached 51.5–51.9 fps. None reach the 55
   rest is waiting. Optimising tiles or overlays cannot change linked-view throughput.
 * **Do not describe the earlier "6 ms vs 2 ms" as a GL slowdown** in any user-facing claim. It is where a
   vsync-locked wait lands.
-* **Go on evaluating `QT_WIDGETS_RHI=1`** as a cheap experiment, not yet a change: ≈+10% on 4 linked views and
-  no regression on one view. It must be validated before adoption:
-  - correctness of `grab()` / `render_frame` / screenshots / export through the RHI path;
-  - D3D11 vs the GL widgets' context sharing (multiple views), window resize, DPI changes, multi-monitor;
-  - macOS (Metal) and Linux (Vulkan/OpenGL) behaviour, which were not tested; it is a Qt-internal switch and
-    its support status for ordinary `QOpenGLWidget` use in this Qt version was not checked (unverified);
-  - whether it should be set in `main()` before `QApplication`, and an opt-out.
-* The 55 fps linked-view gate is not reachable on this machine with GL widgets by any change identified here.
-  Options if it must be met: reduce what linked views repaint (paint only the views whose content changed, or
-  skip hidden/occluded ones), or accept ≈45 fps. Neither was prototyped.
+* **No-go on `QT_WIDGETS_RHI=1`** (see 5 above and the validation below). Its timings must not be quoted as a
+  gain. The app's own `render_frame` / `grab_clean` paths paint into software `QImage`s and do not involve the GL
+  widget, so they were never at risk; the failure is only in what reaches the screen. Not tested: macOS, Linux,
+  other GPUs/Qt versions, where behaviour may differ.
+* The 55 fps linked-view gate is not reachable on this machine with GL widgets by any change identified here
+  (the one candidate, RHI, failed validation). Options if it must be met: reduce what linked views repaint (paint
+  only the views whose content changed, or skip hidden/occluded ones), use the software viewport for linked
+  layouts (51.5–51.9 fps measured), or accept ≈40 fps. None was prototyped as a change.
 
 ## Limits
 

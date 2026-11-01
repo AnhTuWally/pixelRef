@@ -94,7 +94,7 @@ saving ≈0.05–0.08 ms per emit (estimate). Only do it if 1.2 leaves it visibl
 ### 1.5 Investigation (no change yet): GL `paintEvent` cost
 
 **Done: see [07-gl-paint-investigation.md](07-gl-paint-investigation.md)** (the 4 ms is a blocking wait, not work; no-go on a
-GL paint fix; `QT_WIDGETS_RHI=1` is a candidate to validate). The text below is the original plan.
+GL paint fix; `QT_WIDGETS_RHI=1` was validated and rejected: it displays a black canvas). The text below is the original plan.
 
 Warm pan frames cost 5.8–6.0 ms in `paintEvent` on the GL viewport vs 2.1 ms software for identical tile blits.
 Capture with PIX/ETW or time `QPainter.end()` separately in `CanvasView._paint_event`. Deliverable: a note in
