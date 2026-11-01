@@ -19,8 +19,9 @@ after the change with `tools/bench_canvas_nav.py`; 3 runs where a gate depends o
 * Updating the minimaps once per event-loop pass took it to 38.6–39 fps (handler 1.9 ms).
 * The remainder is paint, not event handling. 4 linked views repaint on every pan, at ≈6.3 ms each on the GL
   viewport (≈25 ms per round). Same run with `PIXELREF_GL=0` (software viewport): 51.5 / 51.9 fps, p95 23 ms.
-  So ≥ 55 fps with linked views needs the GL `paintEvent` cost of roadmap step 1.5 to be understood first. The
-  gate was not relaxed.
+  Step 1.5 ([07](07-gl-paint-investigation.md)) later showed this is not paint cost: the 6 ms is a blocking wait, and with
+  all painting disabled 4 GL views still take 19 ms per round. The gate was not relaxed and is not reachable by paint
+  optimisation; `QT_WIDGETS_RHI=1` measured ≈+10% (≈45 fps) and still needs validation.
 * Deviation from the roadmap: the reports are collapsed synchronously at the source (`CanvasView._camera_batch`),
   not deferred to the next loop pass. Cameras and followers stay current with no added latency, and no
   deferral switch was needed, so there is no `PIXELREF_CAMERA_COALESCE`. The bus event is therefore still

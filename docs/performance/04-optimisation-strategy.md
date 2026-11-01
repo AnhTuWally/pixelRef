@@ -17,7 +17,7 @@ a production implementation, not the prototype.
 | 7 | **Refinement priority + allow refinement during slow motion** (`_settle`, `_idle`) | Persistent blur after a jump; time to full quality | Estimate only. Cold jump full quality median 148–439 ms today | Medium | none | Pure Python | Competes with panning for frame time | OK |
 | 8 | **`EventStream` indexed by event type** | Bus cost per emit | Estimate: ~0.05–0.08 ms of ~0.1 ms per `camera.changed` emit | Low–Medium | none | Pure Python | Listener ordering between typed and untyped subscriptions | Good |
 | 9 | **Fewer items painted per tile at far zoom (LOD / cull / proxy)** | 5000-item tile cost (12.5 ms/tile), stress pan at speed | Not prototyped. Per-item cost ≈40 µs; caching `boundingRect` gave nothing | High | small | Pure Python/Qt | Visible change at LOD switch; selection must not use proxies | Adds a path |
-| 10 | **Investigate GL `paintEvent` overhead** (6 ms vs 2 ms for the same blits) | Per-frame cost | Unknown cause | ? | ? | GPU-driver specific | — | — |
+| 10 | **GL `paintEvent` "overhead"** (6 ms vs 2 ms for the same blits): investigated, see [07](07-gl-paint-investigation.md) | Linked-view throughput | No paint cost to remove (blocking wait, 0.2 ms CPU). `QT_WIDGETS_RHI=1`: 4 linked views 41.6 → 45.6 fps, single view unchanged | Low (env switch) | none | Untested outside Windows/D3D11 | `grab`/export through the RHI path unverified | Qt-internal switch |
 | 11 | **Shorter idle slices / pause prefetch during input** | Settled pan p95 28 vs 17 ms | `SLICE_MS` 4/2: p95 28.3/23.7 (single runs, inconclusive) | Low | none | — | Pan prefetch may fall behind | — |
 
 ## 4.2 By category (the requested checklist)

@@ -61,7 +61,8 @@ centre (incorrect), re-tuning the glide timer (already paced). Details in
 
 * Pan at ≥3000 px/s on 5000 items is **not** fixed by anything tested (p95 60–109 ms); that needs fewer items per
   tile at far zoom (Phase 3, unprototyped).
-* GL paint costs ~6 ms vs ~2 ms for the same blits; cause unknown.
+* GL paint "costs" ~6 ms vs ~2 ms for the same blits: explained in [07](07-gl-paint-investigation.md). It is the GUI
+  thread waiting inside `QPainter` begin (0.2 ms CPU), not drawing work; our paint work is ≈1 ms per view.
 * Per-event input pipeline overhead (≈1 ms beyond `pan_by`) was not profiled.
 * The earlier root-level `canvas-navigation-performance.md` is stale (tile gate "300", code says 10) and several of
   its claims were already disproved in `docs/perf-navigation-review.md`; I left both files untouched.
