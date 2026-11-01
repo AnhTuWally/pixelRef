@@ -15,11 +15,16 @@ can replace or extend.
   only by file reference — they're always linked, never embedded.
 - **Mark up** with text notes, rectangles, arrows, the pen, numbered steps,
   and blur or pixelate regions.
-- **Connect** elements with links that follow them around.
+- **Connect** elements with links that follow them around, and jump to the
+  other end of any link.
+- **Find** anything by name, tag, type, note or metadata, with tags you add
+  yourself.
 - **Process** any element with a stack of effects (grayscale, blur, edge
   detect…).
 - **Look** through any number of views, tiled i3-style, with their own
   cameras, value checks and framing guides.
+- **Make it interactive**: click actions and buttons turn a board into a quiz,
+  a before/after or a guided tour.
 - **Automate** with the Script Editor, recorded macros, your own keys and
   plugins.
 
@@ -33,7 +38,11 @@ python -m pixelref                       # the desktop app
 python -m pixelref board.pxref           # open a scene
 ```
 
+New scenes are saved to `Documents/pixelRef` by default, and the *Files* tab
+on the right panel bar switches between the boards open in the window.
+
 To build a standalone executable instead, see [Standalone build](#standalone-build).
+pixelRef tells you when a newer version exists: see [Updates](#updates).
 
 ## A quick tour
 
@@ -131,6 +140,10 @@ at a detail. Drag a selected link's line to add waypoints. The Attribute
 Editor sets the path (straight, curved or elbow), caps, dashes and a label.
 `Ctrl+L` links the selected elements in order.
 
+To find the other end, double-click a link, or click the chip that appears on
+the view's edge for an off-screen linked element. `Alt+Left` / `Alt+Right` go
+back and forward through your jumps.
+
 ![A selected link showing its waypoints and the element it points to](docs/images/links.webp)
 
 ### 7. Add effects
@@ -163,19 +176,33 @@ step one frame back or forward. A paused frame is saved with the scene.
 | `Ctrl+G` / `Ctrl+Shift+G` | group / ungroup |
 | `C` | crop the selected image |
 | `Shift+H` / `Ctrl+R` | flip / rotate 90° |
+| `Alt+'` | snap dragging to the background grid |
+
+*Arrange* also aligns, normalizes sizes and **distributes** items evenly. The
+**Contact Sheet** view lists every image as a grid of thumbnails, and
+*Extract Color Palette* (*Image* menu) turns an image's dominant colours into
+swatches linked to it.
 
 The **Outliner** shows the whole hierarchy. Drag in it to reparent, use the
 eye and lock columns, filter by name, or use the *Types* menu to show, hide,
 isolate or lock every element of one type.
 
-### 10. Find any command
+### 10. Tag and find items
+
+Add **tags** in the Attribute Editor's *Tags* section, for one item or a whole
+selection. Press `Ctrl+F` to open **Find**, which searches names, tags, types,
+notes and metadata as you type. `Enter` glides to a match and `Shift+Enter`
+selects every match. Queries support `#tag`, `type:`, `name:`, `note:`,
+`key:value` and `-term`.
+
+### 11. Find any command
 
 Right-click the canvas and start typing, or press `Ctrl+K`. Every action of
 every plugin can be found here, along with its shortcut.
 
 ![Command search filtering on "grid"](docs/images/command_search.webp)
 
-### 11. Views and workspaces
+### 12. Views and workspaces
 
 Split a view with the buttons in its header, or by dragging one of its corners
 into it. Each view has its own camera and **display preset**: *All*,
@@ -193,7 +220,7 @@ framing guide:
 `J` `K` `L` move the focus, and `1`–`9` switch workspace. Tap `Space` to
 maximise the view under the mouse. Workspaces are saved with the scene.
 
-### 12. Script it
+### 13. Script it
 
 Open the **Script Editor** with ``Ctrl+` ``. With *Echo all commands* turned
 on, everything you do in the UI is printed as the `pxcmd` call behind it.
@@ -221,7 +248,7 @@ window:
 python -m pixelref --batch script.py [scene.pxref] [--save out.pxref]
 ```
 
-### 13. Make it yours
+### 14. Make it yours
 
 - **Record a macro.** Click the red record button in the bottom bar (or press
   `Ctrl+Alt+R`), work as usual, then save. The macro becomes a script in the
@@ -236,22 +263,47 @@ python -m pixelref --batch script.py [scene.pxref] [--save out.pxref]
   trust ([Staying safe](docs/security.md)). Plugins that need Python packages
   install them from the same window.
 
-### 14. Save and export
+### 15. Save and export
 
 - `Ctrl+S` saves a `.pxref` file with a thumbnail. Recent files show up on the
   start panel of an empty board. Autosave writes a recovery copy every minute.
 - `Ctrl+E` renders the selection (or the whole board) to PNG or JPEG.
   `Ctrl+Shift+E` copies the original image files into a folder.
+  PNG exports embed the exported part of the board, so dropping the PNG back
+  onto a board rebuilds the editable objects (`Shift`+drop imports the flat
+  picture). *File → Embed Editable Scene in PNG Exports* turns this off.
 - `Ctrl+T` keeps the window on top, `F11` makes it frameless, and `G` turns
   on ghost mode: a translucent window you can trace over other applications.
   `Ctrl+Shift+T` adds click-through, so the mouse reaches the application
   below.
+
+## Updates
+
+About once a day pixelRef reads GitHub's public release list in the
+background and shows **Update available** in the status bar when there is a
+newer version. It only tells you: it never downloads or installs anything, and
+sends nothing about you or your boards. *Check for Updates…* (canvas menu)
+checks now, and *Update Settings…* (`Ctrl+K`) picks the Stable or Beta channel
+or turns checks off. Automatic install with signed, verified updates is built
+but switched off until the first signed release; see
+[docs/update-architecture.md](docs/update-architecture.md).
+
+> **Work in progress:** the automatic-update system is paused part-way. Update
+> *notification* and portable mode work today; in-app install is disabled and
+> has not yet been run on Windows or GitHub Actions. Status, remaining steps
+> and gotchas are in [UPDATE_HANDOFF.md](UPDATE_HANDOFF.md).
+
+To keep everything beside the program (a USB stick, a shared folder), put a
+`portable.toml` next to `pixelRef.exe`: settings, plugins, caches and boards
+then live in `user-data/`. See
+[Fully portable mode](docs/packaging.md#fully-portable-mode).
 
 ## Documentation
 
 | Read | For |
 | --- | --- |
 | [User guide](docs/user-guide.md) | every feature in detail |
+| [Help and documentation](docs/documentation.md) | the in-app Help browser, `python -m pixelref docs` and the opt-in MCP server for AI agents |
 | [Reference for people and AI agents](docs/reference.md) | the whole application on one page: features, keys, data model, API and recipes for scripts, macros, plugins and effects |
 | [Keyboard shortcuts, scripts and macros](docs/keymap.md) | `keymap.toml`, the scripts folder, recording macros |
 | [Scripting](docs/scripting.md) | `pxcmd`, `pxnode`, the Script Editor, callbacks, batch mode |
@@ -262,7 +314,8 @@ python -m pixelref --batch script.py [scene.pxref] [--save out.pxref]
 | [Staying safe with plugins and scripts](docs/security.md) | what plugins and scripts can do, approving and trusting them, what pixelRef checks |
 | [Architecture](docs/architecture.md) | how the kernel and plugins fit together |
 | [File format](docs/file-format.md) | the `.pxref` scene file |
-| [Packaging](docs/packaging.md) | the standalone build and managed Python packages |
+| [Packaging](docs/packaging.md) | the standalone build, managed Python packages and fully portable mode |
+| [Updates](docs/update-architecture.md) | how update discovery works; see also [security](docs/update-security.md) and the [release process](docs/update-release-process.md) |
 
 ## Extending pixelRef
 
