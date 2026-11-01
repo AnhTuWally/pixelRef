@@ -262,3 +262,49 @@ def test_a_camera_change_is_reported_once():
     finally:
         h.close()
 
+
+def test_pan_input_is_applied_once_per_loop_pass_and_matches_unbatched():
+    from PySide6.QtCore import QPointF
+
+    h = make()
+    try:
+        view = h.view
+        h.add_image("a", 0.0, 0.0)
+        h.refresh()
+        deltas = [QPointF(3.0 + i % 5, -2.0 + i % 3) for i in range(100)]
+        view.set_camera([0.0, 0.0], 1.0, 0.0)
+        for d in deltas:
+            view.pan_by(d)
+        expected = view.camera()["center"]
+
+        view.set_camera([0.0, 0.0], 1.0, 0.0)
+        count = []
+        view.camera_changed.connect(lambda: count.append(1))
+        for d in deltas:
+            view.pan_input(d)
+        assert count == [], "nothing is applied until the loop runs or the camera is read"
+        APP.processEvents()
+        assert len(count) == 1, "one pan_by for the whole pass"
+        assert view.camera()["center"] == expected, "same result as applying every delta"
+
+        # Reading the camera applies what is pending (no waiting for the loop).
+        view.set_camera([0.0, 0.0], 1.0, 0.0)
+        for d in deltas:
+            view.pan_input(d)
+        assert view.camera()["center"] == expected
+        APP.processEvents()
+        assert view.camera()["center"] == expected, "and is applied only once"
+
+        # A scripted camera change after pending input wins; the input does not land afterwards.
+        view.pan_input(QPointF(50.0, 50.0))
+        view.set_camera([10.0, 20.0], 1.0, 0.0)
+        APP.processEvents()
+        assert view.camera()["center"] == [10.0, 20.0]
+
+        # Scripted pans stay immediate.
+        before = view.camera()["center"]
+        view.pan_by(QPointF(10.0, 0.0))
+        assert view.camera()["center"] != before
+    finally:
+        h.close()
+

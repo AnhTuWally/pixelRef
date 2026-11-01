@@ -60,12 +60,13 @@ class NavigationHandler(InputHandler):
                     op["panning"] = True
                     view.viewport().setCursor(Qt.ClosedHandCursor)
                 if op["panning"]:
-                    view.pan_by(e.pos - op["last"])
+                    view.pan_input(e.pos - op["last"])
             else:
-                view.pan_by(e.pos - op["last"])
+                view.pan_input(e.pos - op["last"])
             op["last"] = e.pos
             return HANDLED
         if e.kind == "release":
+            view.flush_pan()
             if op["kind"] == "pan" and e.button == op["button"]:
                 del self.ops[key]
                 if self.space_held:
