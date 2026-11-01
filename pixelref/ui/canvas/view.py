@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import math
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import (QCoreApplication, QEvent, QLineF, QMimeData, QPoint, QPointF, QRect, QRectF, QSize, Qt,
@@ -232,6 +234,7 @@ class CanvasView(QGraphicsView):
         self._content_bounds: QRectF | None = None
         self._bounds_stale = False
         self._bounds_time = 0.0
+        self._camera_batching = 0
 
         viewport = make_viewport()
         if viewport is not None:  # GPU drawing (see .gpu)
@@ -433,8 +436,9 @@ class CanvasView(QGraphicsView):
             self._camera_zoom * (-1.0 if self._camera_flip_y else 1.0),
         )
         self._applying_camera = True
-        self.setTransform(transform)
-        self.centerOn(self._camera_center)
+        with self._camera_batch():
+            self.setTransform(transform)
+            self.centerOn(self._camera_center)
         self._applying_camera = False
         self._camera_moved()
 
@@ -477,7 +481,8 @@ class CanvasView(QGraphicsView):
         self._stop_animation()
         if not around_cursor:
             self.setTransformationAnchor(QGraphicsView.AnchorViewCenter)
-        self.scale(target / current, target / current)
+        with self._camera_batch():
+            self.scale(target / current, target / current)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self._camera_moved(sync_state=True)
 
@@ -520,12 +525,13 @@ class CanvasView(QGraphicsView):
         anchor, scene_point = self._glide_anchor, self._glide_scene
         factor = math.exp(step)
         self.setTransformationAnchor(QGraphicsView.NoAnchor)
-        self.scale(factor, factor)
-        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
-        drift = self.to_viewport(scene_point) - anchor
-        hbar, vbar = self.horizontalScrollBar(), self.verticalScrollBar()
-        hbar.setValue(hbar.value() + round(drift.x()))
-        vbar.setValue(vbar.value() + round(drift.y()))
+        with self._camera_batch():
+            self.scale(factor, factor)
+            self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+            drift = self.to_viewport(scene_point) - anchor
+            hbar, vbar = self.horizontalScrollBar(), self.verticalScrollBar()
+            hbar.setValue(hbar.value() + round(drift.x()))
+            vbar.setValue(vbar.value() + round(drift.y()))
         self._camera_moved(sync_state=True)
         if step == remaining:
             self._glide_timer.stop()
@@ -541,7 +547,8 @@ class CanvasView(QGraphicsView):
         # The stored rotation, not rotation(): a flipped transform reads back as
         # rotation + 180°, which would turn a mirror into an upside-down view.
         rotation = self._camera_rotation
-        self.fitInView(rect.adjusted(-margin, -margin, margin, margin), Qt.KeepAspectRatio)
+        with self._camera_batch():
+            self.fitInView(rect.adjusted(-margin, -margin, margin, margin), Qt.KeepAspectRatio)
         zoom = self.zoom_level()
         if abs(rotation) > 1e-6 or zoom > self.MAX_ZOOM or zoom < self.FLOOR_ZOOM:
             self._apply_camera(rect.center(), max(self.FLOOR_ZOOM, min(self.MAX_ZOOM, zoom)), rotation,
@@ -551,11 +558,25 @@ class CanvasView(QGraphicsView):
     def pan_by(self, delta: QPointF) -> None:
         self._stop_animation()
         hbar, vbar = self.horizontalScrollBar(), self.verticalScrollBar()
-        hbar.setValue(hbar.value() - round(delta.x()))
-        vbar.setValue(vbar.value() - round(delta.y()))
+        with self._camera_batch():
+            hbar.setValue(hbar.value() - round(delta.x()))
+            vbar.setValue(vbar.value() - round(delta.y()))
         self._camera_moved(sync_state=True)
 
+    @contextmanager
+    def _camera_batch(self) -> Iterator[None]:
+        """Scrollbar changes inside do not report a camera change each: the caller reports one when
+        it is done (a pan used to emit ``camera_changed`` three times, and every emission is
+        followed by the bus event, the minimap and every linked view)."""
+        self._camera_batching += 1
+        try:
+            yield
+        finally:
+            self._camera_batching -= 1
+
     def _camera_moved(self, *_args: Any, sync_state: bool = False) -> None:
+        if self._camera_batching and not sync_state:
+            return
         if (sync_state or _args) and not self._applying_camera:
             # Keep stored values aligned with viewport interaction (scroll/pan/zoom).
             self._camera_center = self.center()

@@ -218,3 +218,47 @@ def test_zoom_out_limit_is_not_remeasured_by_repaints():
         assert view.min_zoom() < view.MIN_ZOOM
     finally:
         h.close()
+
+
+def test_a_camera_change_is_reported_once():
+    """Panning moves two scrollbars: each used to report a camera change of its own (three per pan),
+    and every report fans out to the bus, the minimap and all linked views."""
+    from PySide6.QtCore import QPointF
+
+    h = make()
+    try:
+        view = h.view
+        h.add_image("a", 0.0, 0.0)
+        h.refresh()
+        view.set_camera([0.0, 0.0], 1.0, 0.0)
+        count = []
+        view.camera_changed.connect(lambda: count.append(1))
+        before = view.camera()["center"]
+        view.pan_by(QPointF(40.0, 25.0))
+        assert len(count) == 1, "pan_by reports once"
+        moved = view.camera()["center"]
+        assert moved != before, "the camera state is current immediately"
+        count.clear()
+        view.set_camera([5.0, 5.0], 2.0, 0.0)
+        assert len(count) == 1, "set_camera reports once"
+        count.clear()
+        view.zoom_by(0.5)
+        assert len(count) == 1, "zoom_by reports once"
+        count.clear()
+        view.glide_zoom(2.0)
+        assert len(count) >= 1
+        view._glide_timer.stop()
+        count.clear()
+        view._glide_target = 1.0
+        view._glide_step()
+        assert len(count) == 1, "a glide step reports once"
+        count.clear()
+        view.fit_rect(view.scene().itemsBoundingRect())
+        assert len(count) == 1, "fit_rect reports once"
+        count.clear()
+        view.horizontalScrollBar().setValue(view.horizontalScrollBar().value() + 7)
+        assert len(count) == 1, "a scrollbar moved directly still reports"
+        assert abs(view.camera()["center"][0] - view.center().x()) < 0.01
+    finally:
+        h.close()
+
