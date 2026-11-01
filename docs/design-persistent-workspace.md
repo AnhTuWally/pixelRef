@@ -30,10 +30,10 @@ closed without leaving Recent Files. Unsaved work is never lost silently.
    - `list`: restore the Files list, load nothing.
    - `empty`: start with no open files.
 
-   Migration: `session_resume=True` becomes `workspace`; `False` or unset becomes `empty`.
-   **Deviation from the first draft:** the default stays `empty` (today's behaviour) rather than
-   flipping to `workspace`. Flipping it changes the quit prompt for every user and the start
-   screen's resume card; it is one constant (`workspace.DEFAULT_MODE`) once that is approved. The old key is left in place so downgrades keep working.
+   Migration: the old checkbox, if the user ever set it, decides (`True` becomes `workspace`, `False`
+   becomes `empty`); a profile that never chose gets `workspace.DEFAULT_MODE`, which is `workspace`. (An
+   earlier build kept `empty` as the default, and reopening pixelRef then brought nothing back until
+   the user found the checkbox; that was reversed.) The old key is left in place so downgrades keep working.
    The *Resume Last Session on Launch* menu item and start-panel checkbox toggle between
    `workspace` and `empty`.
 2. **Ownership.** The first pixelRef process owns the manifest. Child processes spawned by
@@ -177,5 +177,5 @@ on start-screen cards. Phase 5b (per-document recovery snapshots) is still to do
 - **`test_effects.py::test_slider_drags_process_only_the_last_value`** used to fail about half the time on a
   slower machine: its four simulated drag steps took as long as the 40 ms debounce window, which starts at
   the first request and does not restart. The test now pins a long window (the product behaviour is unchanged).
-- **Default restore mode is `empty`**, not `workspace` as first proposed, so existing users see no change
-  until they turn Session Resume on. Flip `workspace.DEFAULT_MODE` once that is approved.
+- **Restoring is on by default**, so closing with unsaved work in the current board no longer shows a
+  save prompt (the work is kept and offered back next launch). Anyone who turned the checkbox off keeps it off.

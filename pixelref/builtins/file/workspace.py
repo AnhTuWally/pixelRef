@@ -25,7 +25,7 @@ MODE_WORKSPACE = "workspace"  # restore the Files list and load the active board
 MODE_LIST = "list"            # restore the Files list only
 MODE_EMPTY = "empty"          # start with nothing open
 MODES = (MODE_WORKSPACE, MODE_LIST, MODE_EMPTY)
-DEFAULT_MODE = MODE_EMPTY     # what a profile that never chose gets; see docs/design-persistent-workspace.md
+DEFAULT_MODE = MODE_WORKSPACE  # what a profile that never chose gets (an explicit choice always wins)
 
 
 def resolve_mode(settings: Any) -> str:
@@ -34,8 +34,8 @@ def resolve_mode(settings: Any) -> str:
     if isinstance(value, str) and value in MODES:
         return value
     legacy = settings.value(LEGACY_RESUME_SETTING, None)
-    if legacy is not None and str(legacy).lower() in ("true", "1"):
-        return MODE_WORKSPACE
+    if legacy is not None:  # the old Resume Last Session checkbox, set by the user either way
+        return MODE_WORKSPACE if str(legacy).lower() in ("true", "1") else MODE_EMPTY
     return DEFAULT_MODE
 
 

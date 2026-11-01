@@ -18,8 +18,9 @@ EXTS = (".pxref",)
 
 def _clear(*harnesses):
     for key in ("session_resume", "session_resume_state", "last_session_had_content",
-                "workspace_restore", "workspace_manifest", "file_colors"):
+                "workspace_manifest", "file_colors"):
         QSettings().remove(f"plugins/file/{key}")
+    QSettings().setValue("plugins/file/workspace_restore", "empty")  # the baseline: restoring is off
     for h in harnesses:
         if h is not None and not h.app.closed:
             h.service("recovery").purge_all()
@@ -76,15 +77,38 @@ def test_untitled_flag_only_without_an_active_file():
 
 def test_restore_mode_migrates_from_the_session_resume_checkbox():
     settings = MemorySettings()
-    assert ws.resolve_mode(settings) == ws.MODE_EMPTY, "a profile that never chose keeps today's behaviour"
+    assert ws.resolve_mode(settings) == ws.MODE_WORKSPACE, "a profile that never chose restores the workspace"
     settings.setValue("session_resume", True)
     assert ws.resolve_mode(settings) == ws.MODE_WORKSPACE, "Resume on becomes Restore Previous Workspace"
     settings.setValue("session_resume", False)
-    assert ws.resolve_mode(settings) == ws.MODE_EMPTY
+    assert ws.resolve_mode(settings) == ws.MODE_EMPTY, "someone who turned it off keeps it off"
     settings.setValue("workspace_restore", "list")
     assert ws.resolve_mode(settings) == ws.MODE_LIST, "the explicit choice wins"
     settings.setValue("workspace_restore", "bogus")
-    assert ws.resolve_mode(settings) == ws.MODE_EMPTY, "an unknown value falls back"
+    assert ws.resolve_mode(settings) == ws.MODE_EMPTY, "an unknown value falls back to the old checkbox"
+    settings.remove("session_resume")
+    assert ws.resolve_mode(settings) == ws.DEFAULT_MODE
+
+
+def test_a_profile_that_never_chose_restores_the_workspace_on_launch():
+    for key in ("workspace_restore", "session_resume"):
+        QSettings().remove(f"plugins/file/{key}")
+    h = make()
+    try:
+        recovery = h.service("recovery")
+        assert recovery.restore_mode == ws.MODE_WORKSPACE and recovery.resume_enabled
+        h.service("files").restore_workspace()
+        paths = [_board(h, tmp_dir(), n) for n in ("a", "b")]
+        assert h.app.request_close()
+        h2 = make()
+        try:
+            h2.service("recovery").resume()
+            assert h2.service("files").open_files_list() == paths and _current(h2) == paths[-1]
+        finally:
+            h2.close()
+    finally:
+        _clear(h)
+        h.close()
 
 
 def test_owner_lock_is_exclusive_and_takes_over_a_stale_lock():

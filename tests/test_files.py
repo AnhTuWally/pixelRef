@@ -272,14 +272,14 @@ def _clear_resume(h=None):
     # file.toggle_resume's settings live scoped under the file plugin's own prefix.
     QSettings().remove("plugins/file/session_resume")
     QSettings().remove("plugins/file/session_resume_state")
-    QSettings().remove("plugins/file/workspace_restore")
+    QSettings().setValue("plugins/file/workspace_restore", "empty")  # the baseline: resume off
     QSettings().remove("plugins/file/workspace_manifest")
     QSettings().remove("plugins/file/last_session_had_content")
     if h is not None and not h.app.closed:
         _clear_recovery(h)
 
 
-def test_session_resume_disabled_by_default_and_keeps_save_prompt_on_close():
+def test_session_resume_turned_off_keeps_save_prompt_on_close():
     import pixelref.builtins.file as file_plugin
 
     h = make()

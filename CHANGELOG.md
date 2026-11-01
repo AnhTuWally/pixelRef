@@ -46,6 +46,10 @@ All notable changes to pixelRef are documented here.
 
 ### Fixed
 
+- Closing and reopening pixelRef brought back the open files only if you had found and ticked *Resume
+  Last Session on Launch*. Restoring is now on by default (list, order, colours and the board you were
+  on; only that board loads). If you had turned it off yourself it stays off. Because the board on screen
+  is kept for you, closing with unsaved work no longer asks to save: it is offered back next launch.
 - Clicking another file in the Files panel (or *Next Open File*, or a start-screen card for an open
   file) while on an Untitled board with work in it replaced the board without asking. It now asks
   Save / Discard / Cancel first.
