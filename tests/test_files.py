@@ -868,3 +868,21 @@ def test_copy_path_and_open_containing_folder():
     finally:
         QDesktopServices.openUrl = original
         h.close()
+
+
+def test_first_save_of_a_fresh_session_registers_the_file_in_the_files_panel():
+    h = make()
+    try:
+        h.add_image("Img", 0, 0, 300, 200)
+        path = tmp_dir() / "fresh_save.pxref"
+        key = str(path.resolve())
+        assert key not in h.service("files").open_files_list()
+        assert h.save_to(path)
+        assert key in h.service("files").open_files_list(), "a saved file is an open file"
+        panel = h.service("files_panel").panels[0]
+        assert key in [row.path for row in panel.rows], "and the panel lists it"
+        # Saving again does not duplicate the entry.
+        assert h.save_to(path)
+        assert h.service("files").open_files_list().count(key) == 1
+    finally:
+        h.close()

@@ -377,6 +377,9 @@ def activate_ui(ui: Any) -> None:
             _register_open(Path(path))
 
     ui.on("scene.opened", on_opened)
+    # A first save of an untitled scene (or Save As to a new path) creates a file this
+    # window now holds open; without this it never appears in the Files panel.
+    ui.on("scene.saved", on_opened)
 
     def on_replaced(_event: Any) -> None:
         # New / Open restart the revision count at 0: a stale autosaved revision would
