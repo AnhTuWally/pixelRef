@@ -286,7 +286,8 @@ class StartPanel(QFrame):
         self.resume_checkbox = QCheckBox("Resume Last Session on Launch", self)
         self.resume_checkbox.setObjectName("resumeCheckbox")
         self.resume_checkbox.setFocusPolicy(Qt.NoFocus)
-        self.resume_checkbox.setToolTip("Reopen this exact board automatically next time pixelRef starts")
+        self.resume_checkbox.setToolTip(
+            "Reopen the files you had open, and the board you were on, next time pixelRef starts")
         self.resume_checkbox.toggled.connect(lambda checked: ui.app.run_command("file.set_resume_enabled", checked))
         layout.addWidget(self.resume_checkbox)
         self.recent_title = QLabel("Recent", self)
@@ -315,12 +316,11 @@ class StartPanel(QFrame):
         event.accept()
 
     def sync_resume_checkbox(self) -> None:
-        """Reflect the Session Resume setting, and hide the checkbox when there was
-        nothing on the board last time (nothing to resume either way)."""
+        """Reflect the Session Resume setting. It is always shown: this is where someone looking
+        at an empty board for the first time can find (and turn off) restoring their workspace."""
         recovery = self.ui.service("recovery")
         if recovery is None:
             return
-        self.resume_checkbox.setVisible(not recovery.last_session_is_empty())
         blocked = self.resume_checkbox.blockSignals(True)
         self.resume_checkbox.setChecked(recovery.resume_enabled)
         self.resume_checkbox.blockSignals(blocked)

@@ -740,8 +740,8 @@ data, and every other image, import as before.
   Resume on, the list, its order, colours and active file come back at launch;
   only the active board is loaded, the rest load when you select them.
 - **Session Resume.** *File → Resume Last Session on Launch*, or the checkbox
-  on the start panel (on by default; the checkbox only shows once a previous
-  session actually had something on the board), reopens your workspace
+  on the start panel (on by default; the start panel shows the checkbox from the
+  very first launch), reopens your workspace
   exactly as you left it. With a saved file open, closing pixelRef skips the
   save prompt; next launch reopens that file's last saved version, and if you
   had unsaved edits you're asked whether to bring them back. Boards parked in

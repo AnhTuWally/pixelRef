@@ -555,7 +555,8 @@ def test_resume_card_survives_a_later_empty_close_that_never_touched_anything():
         _clear_resume()
 
 
-def test_resume_checkbox_hidden_when_last_session_was_empty():
+def test_resume_checkbox_is_shown_even_when_last_session_was_empty():
+    """The start panel is where the setting is found: it must not wait for a session with content."""
     h = make()
     try:
         _clear_resume(h)
@@ -566,7 +567,8 @@ def test_resume_checkbox_hidden_when_last_session_was_empty():
         try:
             panel = h2.service("start_panel").panels["Main"]
             panel.reload()
-            assert not panel.resume_checkbox.isVisible(), "nothing to resume from an empty last session"
+            assert panel.resume_checkbox.isVisible(), "shown from the very first launch"
+            assert panel.resume_checkbox.isChecked() == h2.service("recovery").resume_enabled
         finally:
             h2.close()
     finally:

@@ -46,6 +46,9 @@ All notable changes to pixelRef are documented here.
 
 ### Fixed
 
+- The *Resume Last Session on Launch* checkbox on the start panel is now always shown, so the setting
+  can be found (and switched off) from the very first launch; it used to appear only after a session
+  that had something on the board.
 - Closing and reopening pixelRef brought back the open files only if you had found and ticked *Resume
   Last Session on Launch*. Restoring is now on by default (list, order, colours and the board you were
   on; only that board loads). If you had turned it off yourself it stays off. Because the board on screen
