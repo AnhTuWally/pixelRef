@@ -11,6 +11,7 @@ Start with the executive summary.
 | [03-benchmark-report.md](03-benchmark-report.md) | Environment, method, validity notes, all result tables, reproduction |
 | [04-optimisation-strategy.md](04-optimisation-strategy.md) | Ranked candidates, trade-offs, rejected ideas |
 | [05-implementation-roadmap.md](05-implementation-roadmap.md) | Phased steps with files, tests, numeric gates, rollback |
+| [06-phase1-results.md](06-phase1-results.md) | Measured results of roadmap Phase 1 (steps 1.1 to 1.3), gates met and not met |
 | `data/` | Raw results (`*.jsonl`), the exact run configurations (`matrix_*.json`), `environment.json`, generated `tables/` |
 
 Tooling (repository root):
