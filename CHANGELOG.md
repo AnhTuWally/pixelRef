@@ -46,6 +46,9 @@ All notable changes to pixelRef are documented here.
 
 ### Fixed
 
+- Clicking another file in the Files panel (or *Next Open File*, or a start-screen card for an open
+  file) while on an Untitled board with work in it replaced the board without asking. It now asks
+  Save / Discard / Cancel first.
 - Memory no longer climbs every time you switch boards or open another file: decoded images of boards
   you had left stayed in memory (about 14 MB per switch with big photos, 1.4 GB after 90 switches in a
   test). With ten large boards it now stays around 240 MB.

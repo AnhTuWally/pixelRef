@@ -1063,3 +1063,95 @@ def test_start_screen_marks_files_already_open_and_switches_instead_of_reloading
     finally:
         _clear(h)
         h.close()
+
+
+# ---- leaving an Untitled board --------------------------------------------------------------------
+
+
+def _untitled_with_work(h):
+    h.run("file.new")
+    h.add_image("draft", 0, 0)
+    h.session.mark_unsaved()
+
+
+def test_switching_away_from_a_dirty_untitled_board_asks_first_and_cancel_keeps_it():
+    h = make()
+    original = file_plugin.QMessageBox
+    try:
+        a, b = _setup(h, ("a", "b"))
+        _untitled_with_work(h)
+        _answering(_Box.Cancel)
+        assert h.run("file.switch_to", a) is False
+        assert _Box.asked, "asked, not silently discarded"
+        assert h.session.scene_path is None and h.session.unsaved and len(h.nodes_of("image")) == 1
+        assert h.service("files").open_files_list() == [a, b], "and the list is untouched"
+    finally:
+        file_plugin.QMessageBox = original
+        _clear(h)
+        h.close()
+
+
+def test_discarding_an_untitled_board_to_switch_also_drops_its_recovery_copy():
+    h = make()
+    original = file_plugin.QMessageBox
+    try:
+        a, b = _setup(h, ("a", "b"))
+        _dirty(h, a)
+        h.run("file.switch_to", b)  # a is parked with unsaved edits: switching back restores it from memory
+        _untitled_with_work(h)
+        recovery = h.service("recovery")
+        assert recovery.autosave() and recovery.pending() is not None
+        _answering(_Box.Discard)
+        h.run("file.switch_to", a)
+        assert _current(h) == a and h.session.unsaved and len(h.nodes_of("image")) == 2
+        assert recovery.pending() is None, "the discarded draft is not offered after a crash"
+    finally:
+        file_plugin.QMessageBox = original
+        _clear(h)
+        h.close()
+
+
+def test_saving_an_untitled_board_to_switch_keeps_the_work_as_a_listed_file():
+    h = make()
+    original, original_dialog = file_plugin.QMessageBox, file_plugin.QFileDialog
+    try:
+        a, b = _setup(h, ("a", "b"))
+        _untitled_with_work(h)
+        saved = tmp_dir() / "draft_saved.pxref"
+
+        class _Save:
+            @staticmethod
+            def getSaveFileName(*_a, **_k):  # noqa: N802
+                return str(saved), ""
+
+        file_plugin.QFileDialog = _Save
+        _answering(_Box.Save)
+        h.run("file.switch_to", a)
+        assert saved.exists() and _current(h) == a
+        key = str(saved.resolve())
+        assert key in h.service("files").open_files_list(), "the draft is a board in the list now"
+        h.run("file.switch_to", key)
+        assert len(h.nodes_of("image")) == 1 and not h.session.unsaved, "with its content"
+    finally:
+        file_plugin.QMessageBox, file_plugin.QFileDialog = original, original_dialog
+        _clear(h)
+        h.close()
+
+
+def test_leaving_an_empty_untitled_board_needs_no_question_and_cycling_asks_like_switching():
+    h = make()
+    original = file_plugin.QMessageBox
+    try:
+        a, b = _setup(h, ("a", "b"))
+        h.run("file.new")  # empty and untouched
+        _answering(_Box.Cancel)
+        h.run("file.switch_to", a)
+        assert not _Box.asked and _current(h) == a
+        _untitled_with_work(h)
+        _answering(_Box.Cancel)
+        h.run("file.cycle")  # the next-file command goes through the same switch
+        assert _Box.asked and h.session.scene_path is None
+    finally:
+        file_plugin.QMessageBox = original
+        _clear(h)
+        h.close()

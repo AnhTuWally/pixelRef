@@ -810,7 +810,8 @@ def activate_ui(ui: Any) -> None:
                             flip_x=cam["flip_x"], flip_y=cam["flip_y"])
 
     def switch_to(path: str) -> bool:
-        """Switch to an open file (no prompt; captures the current state first)."""
+        """Switch to an open file. Files switch without a prompt (the current one is captured first);
+        an Untitled board with work in it is asked about, because it has no file to come back to."""
         target = Path(path).resolve()
         current = session.scene_path
         if current is not None and Path(current).resolve() == target:
@@ -821,6 +822,15 @@ def activate_ui(ui: Any) -> None:
             _mark_missing(entry.path)  # say so quietly, rather than failing with a dialog
             ui.status(f"File not found: {target.name}")
             return False
+
+        left_untitled = False
+        if current is None and (session.unsaved or session.scene.nodes):
+            # An Untitled board cannot be parked, so leaving it discards it: ask first, never silently.
+            ui.canvas.flush_pending()
+            if not confirm_discard():
+                return False
+            left_untitled = session.scene_path is None  # saved: it is a file now, captured below
+            current = session.scene_path
 
         # Capture the current file's state (no prompt)
         if current is not None:
@@ -835,6 +845,8 @@ def activate_ui(ui: Any) -> None:
             if not open_path(str(target), confirm=False, track_recent=False):
                 return False
             apply_saved_camera(str(target))  # a dormant or evicted entry's remembered view
+        if left_untitled:
+            recovery.clear_slot()  # the discarded Untitled board's recovery copy goes with it
         save_workspace()
         return True
 

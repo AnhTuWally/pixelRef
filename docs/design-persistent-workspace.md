@@ -161,9 +161,9 @@ on start-screen cards. Phase 5b (per-document recovery snapshots) is still to do
 
 - **Two windows editing the same file** share one recovery snapshot; the later writer wins and neither is
   told. Rare, and limited to unsaved work in that one file.
-- **Untitled boards** are supported only as the active board (kept in the single recovery slot). Switching
-  away from a dirty Untitled board from the Files panel does not prompt and does not park it, so its edits
-  are lost. This predates the workspace work and is still open.
+- **Untitled boards** are supported only as the active board (kept in the single recovery slot); they cannot
+  be parked. Leaving a dirty Untitled board for a file in the Files list now asks Save / Discard / Cancel
+  (it used to replace the board silently), and discarding also removes its recovery copy.
 - **Dirty boards keep their text in memory** even though a committed snapshot exists. Dropping it (the
   `committed` set is there for it) would save memory but needs a second load path.
 - **Switching to a clean board reads the file** (about twice the time of restoring captured text on the
@@ -174,6 +174,8 @@ on start-screen cards. Phase 5b (per-document recovery snapshots) is still to do
   overwritten (each write re-reads first, but the two writes are not locked).
 - **Not verified**: Linux and macOS, a portable build running the whole flow end to end, and behaviour with
   hundreds of open files (benchmarked to 30 boards).
-- **Unrelated failing test** at the baseline commit: `test_effects.py::test_slider_drags_process_only_the_last_value`.
+- **`test_effects.py::test_slider_drags_process_only_the_last_value`** used to fail about half the time on a
+  slower machine: its four simulated drag steps took as long as the 40 ms debounce window, which starts at
+  the first request and does not restart. The test now pins a long window (the product behaviour is unchanged).
 - **Default restore mode is `empty`**, not `workspace` as first proposed, so existing users see no change
   until they turn Session Resume on. Flip `workspace.DEFAULT_MODE` once that is approved.
