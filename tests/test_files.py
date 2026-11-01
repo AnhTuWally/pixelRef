@@ -192,9 +192,7 @@ def test_export_copy_image_puts_selection_on_clipboard():
 
 
 def _clear_recovery(h):
-    for path in h.service("recovery").recovery_files():
-        if path.exists():
-            path.unlink()
+    h.service("recovery").purge_all()
 
 
 def test_autosave_and_crash_recovery():
@@ -274,6 +272,8 @@ def _clear_resume(h=None):
     # file.toggle_resume's settings live scoped under the file plugin's own prefix.
     QSettings().remove("plugins/file/session_resume")
     QSettings().remove("plugins/file/session_resume_state")
+    QSettings().remove("plugins/file/workspace_restore")
+    QSettings().remove("plugins/file/workspace_manifest")
     QSettings().remove("plugins/file/last_session_had_content")
     if h is not None and not h.app.closed:
         _clear_recovery(h)

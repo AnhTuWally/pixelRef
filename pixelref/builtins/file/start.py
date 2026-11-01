@@ -30,6 +30,8 @@ from PySide6.QtWidgets import (
 from pixelref.plugin_api import APP_VERSION, read_thumbnail
 from pixelref.plugin_api.ui import logo_pixmap
 
+from .workspace import path_key
+
 THUMBNAIL_SIZE = 320       # longest side of the stored thumbnail, in pixels
 CARD_THUMB = QSize(176, 110)
 MAX_CARDS = 6
@@ -107,6 +109,7 @@ class RecentCard(QFrame):
         super().__init__(parent)
         self.path = path
         self.setObjectName("recentCard")
+        self.is_open = False
         self.setCursor(Qt.PointingHandCursor)
         self.setToolTip(f"Open {path}")
         self.setFixedWidth(CARD_THUMB.width() + 16)
@@ -129,10 +132,18 @@ class RecentCard(QFrame):
             when = datetime.fromtimestamp(file.stat().st_mtime).strftime("%d %b %Y, %H:%M")
         except OSError:
             when = ""
+        self.when = when
         self.date = QLabel(when, self)
         self.date.setObjectName("recentPath")
         for widget in (self.thumb, self.name, self.folder, self.date):
             layout.addWidget(widget)
+
+    def set_open(self, is_open: bool) -> None:
+        """Mark a file that is already in this window's Files list: clicking switches to it."""
+        self.is_open = is_open
+        self.date.setText(f"Already open \u00b7 {self.when}" if is_open and self.when
+                          else "Already open" if is_open else self.when)
+        self.setToolTip(f"Switch to {self.path}" if is_open else f"Open {self.path}")
 
     def mousePressEvent(self, event: Any) -> None:  # noqa: N802
         # Take the press: ignored, it would reach the canvas below, which would then
@@ -344,7 +355,9 @@ class StartPanel(QFrame):
         self.cards = []
         self.sync_resume_checkbox()
         self._update_resume_card()
-        files = self.ui.service("files").recent_files()[:MAX_CARDS]
+        files_service = self.ui.service("files")
+        opened = {path_key(p) for p in files_service.open_files_list()}
+        files = files_service.recent_files()[:MAX_CARDS]
         lines = [line for line in self.ui.app.welcome_lines() if line != self.title.text()]
         self.hint.setText(" · ".join(lines) if files else "\n".join(lines))
         viewport = self.view.viewport().rect()
@@ -366,7 +379,8 @@ class StartPanel(QFrame):
         files = files[:rows * columns]
         for index, path in enumerate(files):
             card = RecentCard(path, self.cache.get(path), self.grid_host)
-            card.clicked.connect(lambda p: self.ui.app.run_command("file.open_path", p))
+            card.set_open(path_key(path) in opened)
+            card.clicked.connect(self._open_card)
             self.grid.addWidget(card, index // columns, index % columns)
             # Now, not on the next event loop pass (the layout's default), so the panel's
             # size counts it straight away.
@@ -376,6 +390,11 @@ class StartPanel(QFrame):
         self.grid_host.setVisible(bool(self.cards))
         self.layout().activate()
         self.place()
+
+    def _open_card(self, path: str) -> None:
+        # A file that is already open is switched to, never loaded a second time.
+        opened = {path_key(p) for p in self.ui.service("files").open_files_list()}
+        self.ui.app.run_command("file.switch_to" if path_key(path) in opened else "file.open_path", path)
 
     def _height(self) -> int:
         """The panel's height as laid out now (style sheet fonts included)."""
