@@ -413,7 +413,17 @@ def activate_ui(ui: Any) -> None:
         for widget in live_maps():
             widget.schedule()
 
+    repaint_pending = [False]
+
     def repaint(_event: Any) -> None:
+        # A pan of linked views reports one camera change per view: update the maps once per pass
+        # of the event loop (the paint they cause is deferred anyway).
+        if not repaint_pending[0]:
+            repaint_pending[0] = True
+            QTimer.singleShot(0, repaint_now)
+
+    def repaint_now() -> None:
+        repaint_pending[0] = False
         for widget in live_maps():
             if not widget.isVisible():
                 continue
