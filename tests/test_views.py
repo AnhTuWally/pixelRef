@@ -187,3 +187,34 @@ def test_zoom_out_limit_follows_the_board():
         assert view.camera()["zoom"] == view.FLOOR_ZOOM, "scripts are held only by the hard floor"
     finally:
         h.close()
+
+
+def test_zoom_out_limit_is_not_remeasured_by_repaints():
+    """A decode delivery or GIF frame repaints without moving anything: min_zoom() must not walk
+    every item again for it (42 ms on 5000 items, once per wheel notch), but a refresh that can
+    have moved items is seen at once."""
+    h = make()
+    try:
+        view = h.view
+        h.add_image("near", 0.0, 0.0)
+        h.add_image("far", 400_000.0, 300_000.0)
+        limit = view.min_zoom()
+        measured = view._content_bounds
+        assert measured is not None
+        for _ in range(5):
+            view._on_scene_changed([])
+        view.min_zoom()
+        assert view._content_bounds is measured, "repaint-only changes keep the measured bounds"
+        # Stale bounds are measured again, but not more often than BOUNDS_REMEASURE_S.
+        view._bounds_time -= view.BOUNDS_REMEASURE_S + 0.1
+        view.min_zoom()
+        assert view._content_bounds is not measured and not view._bounds_stale
+        # A geometry change is reflected at once, with no waiting.
+        h.run("delete", ["far"])
+        h.refresh()
+        assert view.min_zoom() == view.MIN_ZOOM and limit < view.MIN_ZOOM
+        h.add_image("far2", 400_000.0, 300_000.0)
+        h.refresh()
+        assert view.min_zoom() < view.MIN_ZOOM
+    finally:
+        h.close()

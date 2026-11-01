@@ -224,7 +224,14 @@ class CanvasView(QGraphicsView):
         self._glide_timer.timeout.connect(self._glide_step)
         self._cameras_of: Any = None
         self._cameras: list[str] = []
-        self._content_bounds: QRectF | None = None  # measured lazily, dropped on scene changes
+        # Board extent for min_zoom(): measured lazily, dropped when geometry may have changed
+        # (invalidate_content_bounds). A repaint-only scene change (decode delivery, GIF frame) only
+        # marks it stale; stale bounds are re-measured at most once per BOUNDS_REMEASURE_S, as a safety
+        # net for geometry changes that bypass the refresh hooks. Measuring walks every item (42 ms on
+        # 5000) and min_zoom() runs once per wheel notch.
+        self._content_bounds: QRectF | None = None
+        self._bounds_stale = False
+        self._bounds_time = 0.0
 
         viewport = make_viewport()
         if viewport is not None:  # GPU drawing (see .gpu)
@@ -249,7 +256,7 @@ class CanvasView(QGraphicsView):
         app.canvas.scene.content_changed.connect(self._on_scene_changed)
 
     def _on_scene_changed(self, rects: list[QRectF]) -> None:
-        self._content_bounds = None
+        self._bounds_stale = True
         self._invalidate_gray_cache()
         self.tiles.invalidate(rects)
 
@@ -324,12 +331,22 @@ class CanvasView(QGraphicsView):
         t = self.transform()
         return math.hypot(t.m11(), t.m12())
 
+    BOUNDS_REMEASURE_S = 3.0
+
+    def invalidate_content_bounds(self) -> None:
+        """The board's geometry may have changed (items added, removed, moved, resized): the next
+        min_zoom() measures it again."""
+        self._content_bounds = None
+
     def min_zoom(self) -> float:
         """How far zooming out may go: MIN_ZOOM, or further until the board fits in
         ZOOM_OUT_FIT of the view (so a board spread wide can still be seen whole)."""
-        if self._content_bounds is None:
+        now = time.monotonic()
+        if self._content_bounds is None or (self._bounds_stale and now - self._bounds_time > self.BOUNDS_REMEASURE_S):
             canvas = self.app.canvas
             self._content_bounds = canvas.scene_bounds(canvas.visible_content_items())
+            self._bounds_stale = False
+            self._bounds_time = now
         bounds = self._content_bounds
         if bounds.isNull() or bounds.width() <= 0.0 or bounds.height() <= 0.0:
             return self.MIN_ZOOM

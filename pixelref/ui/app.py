@@ -837,6 +837,7 @@ class App:
 
     def on_canvas_refreshed(self) -> None:
         for view in self.views.values():
+            view.invalidate_content_bounds()
             if view.display.filters_active:
                 self.update_hidden(view)
         self.update_views()
@@ -851,6 +852,8 @@ class App:
         self.events.emit("ui.selection_changed", {"names": self.session.selection.names})
 
     def on_item_geometry_changed(self, item: Any) -> None:
+        for view in self.views.values():
+            view.invalidate_content_bounds()
         self.events.emit("item.geometry_changed", {"item": item})
 
     def on_focus_changed(self, tile: str) -> None:
