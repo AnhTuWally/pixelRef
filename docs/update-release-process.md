@@ -1,6 +1,8 @@
 # Release signing runbook
 
 Step-by-step instructions for the maintainer. Background and threat model: [update-security.md](update-security.md).
+A copy-paste PowerShell walkthrough of a manual release, plus the road to auto-update, is in
+[update-manual-release-guide.md](update-manual-release-guide.md).
 
 Until step 1 and 2 are done, **no update can be verified** (the app ships with no trusted release key
 and fails closed). Update *discovery* works without them.
