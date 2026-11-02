@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import BinaryIO, Callable
 from urllib.parse import urlparse
 
+from .journal import replace_file
 from .models import Platform
 from .verification import Manifest, safe_relative_path, verify_artifact
 
@@ -119,7 +120,7 @@ def record_sequence(install_root: Path, sequence: int) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     temp = directory / f"accepted.{uuid.uuid4().hex}.tmp"
     temp.write_text(json.dumps({"sequence": max(sequence, read_last_sequence(install_root))}), encoding="utf-8")
-    os.replace(temp, directory / "accepted.json")
+    replace_file(temp, directory / "accepted.json")
 
 
 # ---- Download ------------------------------------------------------------------------------------

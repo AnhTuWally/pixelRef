@@ -430,11 +430,20 @@ def run_activation(root: Path, transaction: str, *, trust: TrustStore, platform:
     with InstallLock(update, alive):
         if not wait_for_exit(pids, wait_timeout, alive):
             raise InstallError("pixelRef did not close; nothing was changed")
-        plan = plan_activation(root, transaction, trust=trust, platform=platform, now=now)
         try:
-            journal = activate(plan, fault=fault, enabled=True)
-        except JournalError as exc:
-            raise InstallError(str(exc)) from exc
+            plan = plan_activation(root, transaction, trust=trust, platform=platform, now=now)
+            try:
+                journal = activate(plan, fault=fault, enabled=True)
+            except JournalError as exc:
+                raise InstallError(str(exc)) from exc
+        except InstallError:
+            # The app was closed for this update and the update did not happen (everything is undone, or was
+            # never started): leave the user with the version they had instead of nothing.
+            try:
+                launcher(root, platform, "")
+            except Exception:  # noqa: BLE001
+                pass
+            raise
         child = launcher(root, platform, journal.startup_token)
         if health_timeout is None:
             return journal

@@ -399,3 +399,37 @@ def test_helper_cli_recover_runs_while_install_is_disabled():
     for command in ("rollback", "activate " + tx):
         done = subprocess.run([sys.executable, str(helper), *command.split()], capture_output=True, text=True, env=env)
         assert done.returncode == 3, command
+
+
+def test_replace_waits_for_a_reader_to_let_go_of_the_file():
+    """Windows refuses to replace a file another process has open (the helper polls the journal while the new app
+    commits to it). The replace is retried briefly, and a lasting refusal still raises."""
+    real, calls = os.replace, []
+
+    def flaky(source, destination):
+        calls.append(1)
+        if len(calls) < 4:
+            raise PermissionError(5, "Access is denied")
+        real(source, destination)
+
+    def always(source, destination):
+        raise PermissionError(5, "Access is denied")
+
+    saved = jr.RETRY_REPLACE, os.replace
+    jr.RETRY_REPLACE = True
+    try:
+        root = tmp_dir()
+        source, destination = root / "a.tmp", root / "a"
+        source.write_text("new")
+        os.replace = flaky
+        jr.replace_file(source, destination, delay=0)
+        os.replace = real
+        assert destination.read_text() == "new" and len(calls) == 4
+        os.replace = always
+        try:
+            jr.replace_file(root / "b.tmp", root / "b", attempts=3, delay=0)
+            raise AssertionError("a lasting refusal must raise")
+        except PermissionError:
+            pass
+    finally:
+        jr.RETRY_REPLACE, os.replace = saved

@@ -1,6 +1,7 @@
 # Update system: handoff
 
-Written at commit `bb2d7fa` (2026-10-31). Read this first when you pick the work up again.
+Written at commit `bb2d7fa` (2026-10-31); §5, §6 item 9 and §7 updated 2026-11-02 after the Windows rehearsal.
+Read this first when you pick the work up again.
 Source plan: "pixelRef — Portable-First Secure Update System", v1.0 (not in the repo; its decisions UPD-001…012
 are reflected below).
 
@@ -21,9 +22,10 @@ are reflected below).
 - The switch: `ASSISTED_INSTALL_ENABLED = False` in `pixelref/core/updates/install.py`. Independently,
   `RELEASE_TRUST` in `verification.py` is empty, so nothing can verify. Both must change before it works.
 
-**Not ready to enable.** See §5 (what has never been seen) and §7 (ordered next steps).
+**Not ready to enable.** The Windows rehearsal (§5) passed, but the real key, the GitHub pipeline and code signing
+have not been done. See §5 (what has never been seen) and §7 (ordered next steps).
 
-## 2. Commits (all on local `main`, **none pushed**: 13 ahead of `origin/main`)
+## 2. Commits (at the time of writing all were local and unpushed; they have since been pushed and merged to `main`)
 
 | Commit | What |
 |---|---|
@@ -91,20 +93,41 @@ Install layout: `<root>/.pixelref-update/{staging,backup,helper}/<transaction-id
 - The sign and verify steps of `release.yml` were run locally against a throwaway key. The frozen helper was built
   with PyInstaller on Linux, bundled, and run (in place and from an install-shaped folder).
 
+**Verified on Windows 10 (2026-11-02, Python 3.14, throwaway key, test builds with the flag on)**
+- The 95 update, portable and workflow tests pass on Windows (97 with the two new ones below).
+- `build_exe.py` is **green on Windows**: the app, the frozen `pixelref-updater.exe`, and all six smoke steps,
+  including 5/6 (the helper). Image formats tiff/webp are present there.
+- **A real update with the real frozen helper:** beta.1 running, then verify, download, stage and preflight, then the
+  helper waits for the app to exit, renames, the new app starts and acknowledges, and the journal reaches
+  `COMMITTED`. `user-data/`, `portable.toml` and `scripts/` are byte-identical afterwards.
+- **A new version that crashes at start** (`os._exit(1)` before the acknowledgment): the health check fails, the old
+  version is restored (same exe hash) and relaunched, the journal says `ROLLED_BACK`, and the user is told why.
+- **A file held open inside `_internal/`** (like an antivirus scan): the rename is refused with `WinError 5`, the
+  update is undone, the install still starts, user files are untouched, and (after fix 2 below) the previous
+  version is relaunched.
+- **Manual rollback, then roll forward**: both `COMMITTED`, the exe hash alternates correctly, user files unchanged.
+- **Helper killed mid-update** (`taskkill /F` at 15 moments across the 2.3 to 3.0 s window; the frozen helper takes
+  about 2.5 s to start, so earlier kills change nothing): kills before the first rename left beta.1 whole; kills
+  during `ACTIVATING` and `PENDING_HEALTH_CHECK` (a half-renamed install) were all recovered by the normal start-up
+  gate to a whole beta.1 with `ROLLED_BACK`. No mixed install, no lost user file. A coarser 14-point sweep from 0
+  to 4 s agreed.
+- Found and fixed by this rehearsal (uncommitted when this was written; see §6, item 9):
+  1. `os.replace` of `journal.json` / `accepted.json` fails with `PermissionError` on Windows while another process
+     has the file open (the helper polls the journal while the new app commits). 43 of 300 writes failed under a
+     polling reader; 0 of 300 after the retry (`journal.replace_file`).
+  2. After an update was undone (rename refused), the helper left the user with **no app running**. It now
+     relaunches the previous version (`install.run_activation`), as the health-check rollback already did.
+
 **Never seen (do not claim these)**
-1. **Anything on Windows.** File locks (an open DLL, antivirus), real `os.rename` on directories, the Windows
-   process check and detached launch are written but only *simulated* with injected `PermissionError`/`OSError`.
-   The Windows `pixelref-updater.exe` has not been built.
-2. **A green `build_exe.py` run on any platform.** On this Linux machine it fails at the *existing* step 3 (image
-   formats `tiff`/`webp` missing: the distro's system PySide6 has no such plugins; unrelated to the update work).
-   The new helper step (5/6) was run by hand against the real build.
-3. **The GitHub workflows.** Parsed and statically tested only (`tests/test_workflows.py`). `actions/*` steps,
+1. **The GitHub workflows.** Parsed and statically tested only (`tests/test_workflows.py`). `actions/*` steps,
    the Windows CI build and `gh release` have never run. Actions are pinned to major versions (`@v4`), not SHAs.
-4. **A real activation with the frozen helper.** Impossible on Linux: flag compiled off, key empty, staging
-   supports only Windows layouts.
-5. **The dialog and rollback UI by eye.** Button visibility and flows are tested with injected helpers and close
-   handlers, not driven by hand.
-6. Authenticode signing of the executables: not done.
+2. **A removable drive pulled mid-update**, **power loss** on real hardware, and **antivirus** other than a plain
+   held file handle. The kill test approximates the process dying, not the disk.
+3. **The dialog and rollback UI by eye.** Button visibility and flows are tested with injected helpers and close
+   handlers, not driven by hand. (The rehearsal drove the real flow functions and the frozen helper, not the dialog.)
+4. **A real release key and a real GitHub release.** Everything above used a throwaway key and local files.
+5. Authenticode signing of the executables: not done.
+6. Any platform other than Windows x64.
 
 ## 6. Things to know
 
@@ -119,7 +142,7 @@ Install layout: `<root>/.pixelref-update/{staging,backup,helper}/<transaction-id
    `builtins/file/__init__.py`, `builtins/effects/ui.py`, `packaging/build_exe.py`, `packaging/pixelref.spec`,
    `docs/packaging.md`). My edit scripts converted them to LF inside commits `89dd00e`, `868fb5d`, `b652088`;
    `bb2d7fa` restored CRLF. The net diff against the original is clean, but `git blame` for those files is noisy.
-   Because nothing is pushed you can still rewrite local history so those seven files only show real changes
+   Before the history was pushed one could have rewritten local history so those seven files only show real changes
    (e.g. an interactive rebase or `git filter-branch`/`git filter-repo` that re-applies CRLF). It is your call; I
    did not do it. **When editing these files, use an editor/tool that preserves line endings, or write in binary
    mode.** New files I added are LF.
@@ -138,6 +161,16 @@ Install layout: `<root>/.pixelref-update/{staging,backup,helper}/<transaction-id
    If you sign anything by hand with a higher number, set the offset variable.
 8. A throwaway venv with PyInstaller was used for experiments in the session scratchpad and is gone; recreate with
    `pip install -r packaging/requirements-build.txt`.
+9. **How the Windows rehearsal was done**, to repeat it: clone the repo to a scratch folder; in the clone only, set
+   `ASSISTED_INSTALL_ENABLED = True`, embed a throwaway public key in `RELEASE_TRUST`, set `__version__` to
+   `1.2.0-beta.N`, and (because smoke step 5/6 asserts "disabled") accept exit 2 / "not inside" there. Build three
+   versions with `build_exe.py` (a crashing one: `os._exit(1)` at the top of `acknowledge_startup`), sign the
+   later two with `sign_release.py sign --inventory --channel beta` (sequences 1, 2). Extract beta.1 into an
+   install folder with a `portable.toml`, `user-data/` and `scripts/`, run it, call `flow.prepare_update` with an
+   opener that serves the local files and `flow.launch_helper(..., bundle=<install>/_internal/updater)`, close the
+   app, wait for the helper to exit and read the journal **afterwards** (a Python reader holding `journal.json`
+   open is exactly what triggered the replace race). `startup_gate` plus the helper's `recover` command exercise
+   the kill-mid-update cases. The scripts lived in a session scratchpad and are not in the repo.
 
 ## 7. Next steps, in order
 
@@ -151,7 +184,9 @@ Do not skip ahead; each depends on the one before. (The same list is in `docs/up
    small fixes. This is also the first Windows build of the app *and* of `pixelref-updater.exe`; confirm
    `build_exe.py` is green there (step 5/6 is the helper check) and that the draft passes `verify_release.py`.
 4. **Pin actions to commit SHAs** (needs network) and enable Dependabot for Actions.
-5. **Real Windows test** with a test build that has the flag on and a test key: update from one beta to the next; a
+5. **Real Windows test: largely done on a developer machine (see §5).** Still to do on a build from the real
+   pipeline: the same list with the real key, plus a removable drive and real antivirus. The original list: with a
+   test build that has the flag on and a test key: update from one beta to the next; a
    deliberately broken new version (health check must roll back and restart the old one); manual rollback and
    roll-forward; a file held open by another program or antivirus; a USB stick removed mid-update; confirm
    `user-data/`, plugins and scripts are untouched. Fix whatever differs from the simulations in

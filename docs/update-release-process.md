@@ -14,7 +14,7 @@ and fails closed). Update *discovery* works without them.
 | **Update notification** (status-bar note, *Check for Updates…*, channel, off switch) | Built, tested, on by default | **Yes.** It only reads GitHub's public release list; it downloads and changes nothing. |
 | Fully portable mode (`portable.toml`) | Built, tested, opt-in | **Yes.** Nothing changes without the file. |
 | Signed manifests, verified download, staging | Built, tested | Library only: nothing is reachable until installing is enabled. |
-| Activation helper (frozen, bundled in the app), health check, recovery, rollback | Built, tested with injected faults; frozen helper run on Linux only | **No.** Disabled by `ASSISTED_INSTALL_ENABLED = False`. |
+| Activation helper (frozen, bundled in the app), health check, recovery, rollback | Built, tested with injected faults; frozen helper built and rehearsed on Windows with a throwaway key (update, crash rollback, held file, manual rollback, kill mid-update) | **No.** Disabled by `ASSISTED_INSTALL_ENABLED = False`. |
 | Release workflows (`.github/workflows`) | Written, parsed, partly dry-run locally | **Never run on GitHub.** Try with a `v…-beta.N` tag first. |
 
 **What users get today:** a quiet "Update available" note and a link to download the new ZIP by hand. There
@@ -32,17 +32,20 @@ All of these, in order. Do not skip one because a later one passed.
    secret, tag protection for `v*`, read-only default token (see *Automated releases*).
 3. **First pipeline run** with a pre-release tag (`v1.2.0-beta.1`). Fix whatever the first real run shows,
    and confirm the draft's files pass `packaging/verify_release.py`.
-4. **Update helper: built and bundled; Windows build not yet seen.** `packaging/updater/helper.spec` builds
+4. **Update helper: built and bundled, and green on Windows.** `packaging/updater/helper.spec` builds
    `dist/pixelref-updater/` (its own Python and `cryptography`, no Qt), `pixelref.spec` bundles it as plain files in
    `_internal/updater/`, and `build_exe.py` builds the helper first and fails the build if it is missing or
-   doesn't run (smoke step 5/6). On Linux the frozen helper was built, bundled and run (see *Verified*); the Windows
-   `.exe` has not been built, so the first Windows build (CI or by hand) is the check. `assist_status` still reports
-   installing unavailable until the flag is on and a release key is embedded.
+   doesn't run (smoke step 5/6). The Windows build, including `pixelref-updater.exe`, was run by hand on 2026-11-02
+   and passed all six smoke steps; the first run of the CI Windows build is still to come. `assist_status` still
+   reports installing unavailable until the flag is on and a release key is embedded.
 5. **Test on a real Windows machine**, from a v1.2.0-beta build to a newer beta, with the flag on in a test
    build: update, a deliberately failing new version (the health check must roll back and restart the
    old one), manual rollback, an open file or antivirus holding a file, a USB stick removed mid-update, and
-   `user-data/` plus your own plugins and scripts untouched afterwards. Only simulated file locks have been
-   run so far.
+   `user-data/` plus your own plugins and scripts untouched afterwards. **Done on a developer machine with a
+   throwaway key** (update, crashing version, held file, manual rollback and roll-forward, helper killed at 15
+   moments mid-update; see `UPDATE_HANDOFF.md` §5). It found two Windows-only bugs (a journal replace failing while
+   another process had the file open; no app relaunched after an undone update), both fixed. Repeat it once on a
+   build from the real pipeline with the real key, and add a removable drive and a real antivirus.
 6. **Code-sign the Windows executables** (Authenticode). Not done; SmartScreen and antivirus distrust
    unsigned builds regardless of the manifest signature.
 7. Only then set `ASSISTED_INSTALL_ENABLED = True` in a commit of its own, and ship it in a beta first.

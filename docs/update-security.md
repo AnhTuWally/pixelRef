@@ -179,10 +179,9 @@ the app; helper-root derivation.
 
 ### Not done / not verified
 
-- **Not tested on Windows.** File-lock behaviour (a rename failing because a DLL is open), the Windows
-  process-liveness check and detached launch are written but only the POSIX paths ran. The helper has not
-  been built as a frozen executable (`helper.spec` does not exist yet), and the helper would currently pull
-  in `pixelref.core` as a whole; slimming that is future work.
+- **Windows (updated 2026-11-02):** this was written when only the POSIX paths had run. The Windows paths have
+  since run for real (see *Windows rehearsal* below). The helper would still pull in `pixelref.core` as a
+  whole; slimming that is future work.
 - The helper is copied from the installed app: it is as trustworthy as the install itself.
 - macOS bundles and Linux layouts are not defined.
 
@@ -238,10 +237,10 @@ journal lock; the helper's `recover` command.
 
 ### Still not done
 
-- **No real Windows run.** The locks are simulated with injected `PermissionError`/`OSError`. Real
-  behaviour (antivirus holding a file, an open DLL, `os.rename` on directories) needs a manual test.
-- **The manual upgrade/rollback demonstration** the release gate requires has not been done: no frozen
-  helper exists, and no release key is embedded.
+- **Windows:** the real-run gap this item described has been closed with a throwaway key (see *Windows
+  rehearsal* below). A run with the real key and a removable drive or real antivirus is still outstanding.
+- **The manual upgrade/rollback demonstration** has been done on Windows with a throwaway key; it has not
+  been done with a real release key.
 - The app does not call `begin_startup` or `acknowledge_health` yet (PR-08), and shows no recovery or
   rollback result UI.
 - A user who starts a pending update by hand (no token) gets 2 starts before startup asks to recover; the
@@ -287,11 +286,34 @@ for the user-visible flow. Security-relevant points:
 - **Checked on every build.** `build_exe.py` runs the bundled helper in place (outside an install it must refuse
   `activate` with exit 3 while installing is disabled) and from an install-shaped folder (it must derive its root
   from its location and `recover` must report nothing to do, with a scrubbed environment).
-- **Verified on Linux, not on Windows.** The frozen helper was built, bundled and run on Linux; a missing helper
-  is caught. The Linux app build then failed an unrelated image-format check of the existing smoke test (the
-  distro's Qt has no tiff/webp plugins), so a full green `build_exe.py` run has **not** been seen on any platform
-  in this work. Check the first Windows build.
-- **Not exercised frozen:** a real activation. The flag is compiled in as off, the release key is empty, and
-  staging only supports Windows layouts, so the frozen helper can't be driven through an update on Linux.
+- **Verified on Linux and, since 2026-11-02, on Windows.** The frozen helper was built, bundled and run on both.
+  On Linux the app build failed an unrelated image-format check (the distro's Qt has no tiff/webp plugins);
+  on Windows `build_exe.py` is green end to end.
+- **Exercised frozen on Windows:** real activations with a test build (flag on, throwaway key). See below.
 - Release inventory covers the helper's files like any other program file (71 files checked), so an update
   replaces them as part of `_internal/`.
+
+## Windows rehearsal (2026-11-02)
+
+Windows 10, Python 3.14, test builds with `ASSISTED_INSTALL_ENABLED = True` and a throwaway release key, driven
+through the real `flow.prepare_update` / `launch_helper` and the **frozen** helper. Outcomes:
+
+| Case | Result |
+|---|---|
+| beta.1 to beta.2, healthy | `COMMITTED`; new version running; user files byte-identical |
+| New version crashes at start | health check fails; previous version restored (same hash) and relaunched; `ROLLED_BACK` |
+| File held open in `_internal/` | rename refused (`WinError 5`); update undone; install intact; previous version relaunched |
+| Manual rollback, then roll forward | both `COMMITTED`; hashes alternate; user files unchanged |
+| Helper killed at 15 moments across the rename window | kills mid-`ACTIVATING` / `PENDING_HEALTH_CHECK` recovered to a whole previous version through the start-up gate; never a mixed install, never a lost user file |
+
+Two Windows-only defects were found and fixed:
+
+- **Replacing a file another process has open fails** (`PermissionError`). The helper polls `journal.json` while the
+  new app writes its acknowledgment to it, so the commit could fail. 43 of 300 writes failed under a polling
+  reader; `journal.replace_file` retries for up to about 2 seconds on Windows, after which 0 of 300 failed. It also
+  guards `accepted.json`. A failure that outlasts the retry still raises, and the update still fails closed.
+- **No app was running after an undone update.** `run_activation` now relaunches the previous version when
+  activation or its preflight fails after the app was closed, as the health-check rollback already did. A failure
+  of that relaunch is ignored (the journal and the next start's notice still explain what happened).
+
+Still not covered: a removable drive pulled mid-update, real power loss, real antivirus products, other platforms.

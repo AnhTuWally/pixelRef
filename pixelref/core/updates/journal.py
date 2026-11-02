@@ -138,6 +138,23 @@ def journal_path(update_dir: Path) -> Path:
     return Path(update_dir) / JOURNAL_NAME
 
 
+RETRY_REPLACE = os.name == "nt"  # only Windows refuses to replace a file that is open elsewhere
+
+
+def replace_file(source: Path, destination: Path, attempts: int = 40, delay: float = 0.05) -> None:
+    """``os.replace`` that tolerates a reader. On Windows, replacing a file that another process (or the
+    helper's own polling) has open fails with PermissionError until that reader closes it, so retry briefly.
+    Anything still failing after ~2 s is a real problem and is raised."""
+    for attempt in range(attempts):
+        try:
+            os.replace(source, destination)
+            return
+        except PermissionError:
+            if not RETRY_REPLACE or attempt == attempts - 1:
+                raise
+            time.sleep(delay)
+
+
 def write_journal(update_dir: Path, journal: Journal) -> None:
     """Durably replace the journal: temp file, fsync, atomic replace, directory sync."""
     validate(journal.to_dict())
@@ -147,7 +164,7 @@ def write_journal(update_dir: Path, journal: Journal) -> None:
         handle.write(json.dumps(journal.to_dict(), indent=1).encode("utf-8"))
         handle.flush()
         os.fsync(handle.fileno())
-    os.replace(temp, journal_path(update_dir))
+    replace_file(temp, journal_path(update_dir))
     if os.name == "posix":
         fd = os.open(update_dir, os.O_RDONLY)
         try:

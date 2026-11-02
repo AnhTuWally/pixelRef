@@ -427,3 +427,21 @@ def test_inventory_round_trip_and_exclusions():
         pass
     else:
         raise AssertionError
+
+
+def test_a_failed_activation_relaunches_the_version_the_user_had():
+    """The app was closed for the update; when the update is undone the user must not be left with nothing."""
+    root = make_install()
+    tx = stage(root)
+    launcher = Launcher()
+
+    def fault(point):
+        if point == "newtop:before_place":
+            raise Fault(point)
+
+    try:
+        run(root, tx, fault=fault, launcher=launcher)
+        raise AssertionError("the activation should have failed")
+    except ins.InstallError:
+        pass
+    assert launcher.calls == [(root, "")], launcher.calls  # relaunched normally: no startup token

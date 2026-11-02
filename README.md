@@ -290,7 +290,7 @@ but switched off until the first signed release; see
 
 > **Work in progress:** the automatic-update system is paused part-way. Update
 > *notification* and portable mode work today; in-app install is disabled and
-> has not yet been run on Windows or GitHub Actions. Status, remaining steps
+> has been rehearsed on Windows with test builds but has not yet run on GitHub Actions or with a real release key. Status, remaining steps
 > and gotchas are in [UPDATE_HANDOFF.md](UPDATE_HANDOFF.md).
 
 To keep everything beside the program (a USB stick, a shared folder), put a
