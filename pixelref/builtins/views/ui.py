@@ -31,6 +31,10 @@ DEFAULT_WORKSPACES = (
                                    "state": {"display": {"preset": "Clean", "show_overlays": False,
                                                          "show_grid": False}}},
                     window_style={"panels": False}),
+    WorkspacePreset(4, "Contact Sheet", {"split": "h", "sizes": [0.62, 0.38], "children": [
+        {"tile": "canvas", "name": "SheetCanvas", "title": "Canvas"},
+        {"tile": "contact_sheet", "name": "ContactSheet", "title": "Contact Sheet"},
+    ]}),
 )
 
 

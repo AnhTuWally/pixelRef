@@ -543,7 +543,7 @@ def activate_text_ui(ui: Any) -> None:
         text = mime.text().strip() if mime.hasText() else ""
         if not text:
             return None
-        session.services.require("notes").create(text, pos.x(), pos.y())
+        session.services.require("notes").create(text, pos.x(), pos.y(), wrap=True)
         return 0, 1
 
     ui.contribute("ingest.handlers", IngestHandler("text.note", 90, lambda m: m.hasText(),
@@ -583,6 +583,20 @@ def activate_text_ui(ui: Any) -> None:
               category="Create")
     ui.bind("T", "text.add")
     ui.menu("canvas", "text.add", group="create", order=20, when="selection.count == 0")
+
+    def choose_default_width() -> None:
+        current = ui.app.run_command("text.default_width") or 0.0
+        width, ok = QInputDialog.getDouble(
+            ui.app.main_window(), "Pasted text width", "Wrap pasted text at this width (0 = don't wrap):",
+            float(current), 0.0, 20000.0, 0)
+        if ok:
+            ui.app.run_command("text.set_default_width", width)
+            ui.toast(f"Pasted text wraps at {width:g}" if width else "Pasted text no longer wraps")
+
+    ui.command("choose_default_width", choose_default_width, undoable=False, echo=False)
+    ui.action("text.default_width", "text.choose_default_width", "Pasted Text Width…",
+              keywords="paste text wrap width default long box", category="Edit")
+    ui.menu("canvas", "text.default_width", path="Text", group="text.settings", order=0)
     ui.contribute("palette.buttons", PaletteButton("text.add", "Text", "text", order=20))
 
     activate_note_extras(ui, service)

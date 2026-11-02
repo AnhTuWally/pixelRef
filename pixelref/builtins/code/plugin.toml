@@ -1,0 +1,6 @@
+id = "code"
+name = "Code blocks"
+version = "1.0.0"
+api = 1
+requires = ["clipboard", "gizmo"]
+description = "Code blocks for showing source code: monospace text with syntax highlighting, optional word wrap and line numbers, light and dark themes, width handles and one-click copy."

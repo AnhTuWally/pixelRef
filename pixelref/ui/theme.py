@@ -257,6 +257,10 @@ QTabBar::tab:selected { background: #1f2229; color: #d5e8ff; border-color: #2e32
 #quickEditBar QWidget { background-color: transparent; }
 #quickEditBar #quickEditDivider { color: #2c313b; }
 #quickEditBar QDoubleSpinBox, #quickEditBar QLineEdit, #quickEditBar QComboBox { background-color: #14161a; }
+#quickEditBar QComboBox QAbstractItemView, #quickEditBar QComboBox QFrame {
+    background-color: #1e2128; color: #d4d8de; border: 1px solid #32363f;
+    selection-background-color: #2e3440; selection-color: #ffffff;
+}
 #consoleOutput, #consoleInput {
     font-family: Consolas, "Courier New", monospace; font-size: 12px; background-color: #121418;
 }

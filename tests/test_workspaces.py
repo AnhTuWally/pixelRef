@@ -15,7 +15,9 @@ def titles(h) -> list[str]:
 def test_builtin_workspaces():
     h = make()
     try:
-        assert titles(h) == ["Board", "Review", "Present"]
+        assert titles(h) == ["Board", "Review", "Present", "Contact Sheet"]
+        sheet = h.app.wm.doc.workspaces()[3]
+        assert [h.app.wm.doc.attr(t, "view_type") for t in h.app.wm.doc.tiles(sheet)] == ["canvas", "contact_sheet"]
     finally:
         h.close()
 
@@ -26,7 +28,7 @@ def test_add_rename_and_delete_workspaces():
         wm, session = h.app.wm, h.session
         session.mark_saved()
         name = h.app.run_command("wm.new_workspace", "Paint-over")
-        assert wm.doc.attr(name, "number") == 4 and wm.doc.attr(name, "title") == "Paint-over"
+        assert wm.doc.attr(name, "number") == 5 and wm.doc.attr(name, "title") == "Paint-over"
         assert wm.focused_workspace() == name, "a new workspace is shown"
         assert [wm.doc.attr(t, "view_type") for t in wm.doc.tiles(name)] == ["canvas"]
         assert session.unsaved, "workspaces belong to the file"
@@ -66,18 +68,18 @@ def test_workspaces_are_saved_with_the_scene_and_restored_on_open():
         path = tmp_dir() / "with_workspaces.pxref"
         assert h.save_to(path)
         section = h.saved_json(path)["workspaces"]
-        assert [w["title"] for w in section["workspaces"]] == ["Board", "Compare", "Present", "Detail"]
+        assert [w["title"] for w in section["workspaces"]] == ["Board", "Compare", "Present", "Contact Sheet", "Detail"]
         assert section["current"] == name
-        detail = section["workspaces"][3]
+        detail = section["workspaces"][4]
         assert detail["root"]["split"] == "h" and len(detail["root"]["children"]) == 2
         assert "camera" in detail["root"]["children"][0]["state"], "each view's camera is kept"
 
         h.session.mark_saved()
         h.run("new_scene")
-        assert titles(h) == ["Board", "Review", "Present"], "a new scene starts with the defaults"
+        assert titles(h) == ["Board", "Review", "Present", "Contact Sheet"], "a new scene starts with the defaults"
 
         assert h.run("file.open_path", str(path), confirm=False)  # (h.open() focuses the Main view)
-        assert titles(h) == ["Board", "Compare", "Present", "Detail"]
+        assert titles(h) == ["Board", "Compare", "Present", "Contact Sheet", "Detail"]
         current = wm.focused_workspace() or wm.doc.attr(wm.doc.primary_output(), "workspace")
         assert wm.doc.attr(current, "title") == "Detail", "the workspace shown when saved is shown"
         assert len([t for t in wm.doc.tiles(current) if wm.doc.attr(t, "view_type") == "canvas"]) == 2

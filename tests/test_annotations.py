@@ -77,6 +77,29 @@ def test_text_paste_and_drop_ingest():
         h.close()
 
 
+def test_pasted_long_text_wraps_at_default_width():
+    h = make()
+    try:
+        mime = QMimeData()
+        mime.setText("word " * 200)
+        h.drop(QPointF(0, 0), mime)
+        name = h.sel()[0]
+        assert h.attr(name, "text_width") == 400.0
+        h.app.run_command("text.set_default_width", 250)
+        mime = QMimeData()
+        mime.setText("word " * 200)
+        h.drop(QPointF(0, 0), mime)
+        assert h.attr(h.sel()[0], "text_width") == 250.0
+        h.app.run_command("text.set_default_width", 0)
+        mime = QMimeData()
+        mime.setText("word " * 200)
+        h.drop(QPointF(0, 0), mime)
+        assert not h.attr(h.sel()[0], "text_width")
+        h.app.run_command("text.set_default_width", 400)
+    finally:
+        h.close()
+
+
 def test_copy_text_puts_note_text_on_clipboard():
     h = make()
     try:

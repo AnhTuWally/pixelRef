@@ -516,7 +516,7 @@ def test_wm_split_tabs_close_and_workspaces():
         assert wm.doc.type_of(wm.doc.parent(tile)) == "wm_tabbed"
         h.app.run_command("wm.close_view", tile)
         assert tile not in h.app.views and not wm.doc.has(tile)
-        for other in ("ReviewColor", "ReviewValue", "Present"):
+        for other in ("ReviewColor", "ReviewValue", "Present", "SheetCanvas"):
             h.app.run_command("wm.close_view", other)
         assert wm.tiles_of_type("canvas") == ["Main"]
         h.app.run_command("wm.close_view", "Main")
@@ -525,7 +525,7 @@ def test_wm_split_tabs_close_and_workspaces():
         wm.apply()
         # The built-in workspaces.
         titles = [wm.doc.attr(w, "title") for w in wm.doc.workspaces()]
-        assert titles == ["Board", "Review", "Present"], titles
+        assert titles == ["Board", "Review", "Present", "Contact Sheet"], titles
         h.app.run_command("wm.workspace", 2)
         assert {"ReviewColor", "ReviewValue"} <= set(wm.visible_tiles())
         assert h.app.views["ReviewValue"].display.grayscale
