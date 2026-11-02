@@ -366,7 +366,7 @@ the rest also work headless (batch mode, scripts).
 | `file.set_resume_enabled(value: bool)` |  |  | Turn Session Resume on or off (the start panel's checkbox). |
 | `file.set_save_dir(path: str)` |  |  | Set the folder new scenes are saved to ("" = the default Documents/pixelRef). |
 | `file.set_watch_mode(mode: str)` |  |  | When the open file changes on disk: "reload" automatically, "notify" with a Reload |
-| `file.switch_to(path: str)` |  |  | Switch to an open file (no prompt; captures the current state first). |
+| `file.switch_to(path: str)` |  |  | Switch to an open file. Files switch without a prompt (the current one is captured first); |
 | `file.thumbnail(path: str \| None = None, save_to: str \| None = None)` |  |  | A scene file's thumbnail (default: the open scene's file): its size and date, |
 | `file.toggle_resume()` |  |  | Switch Session Resume (reopen your last board automatically on launch) on or off. |
 
@@ -549,6 +549,7 @@ the rest also work headless (batch mode, scripts).
 | `navigation.frame_all(view: str \| None = None)` | `frame_all` |  | Fit everything visible in a view (Shift+F, Home). |
 | `navigation.frame_selected(view: str \| None = None)` | `frame_selected` |  | Fit the selection in a view (F); everything when nothing is selected. |
 | `navigation.pan(dx: float, dy: float, view: str \| None = None)` | `view_pan` |  | Pan by screen pixels. |
+| `navigation.progressive_zoom(on: bool \| None = None)` |  |  | Turn progressive zoom rendering on or off (no argument: switch it); returns whether it is on. |
 | `navigation.set_camera(center: Any = None, zoom: float \| None = None, rotation: float \| None = None, view: str \| None = None, animate: bool = False, flip_x: bool \| None = None, flip_y: bool \| None = None)` | `set_camera` |  | Move a view's camera: centre (world point), zoom, rotation and optional mirror flips. |
 | `navigation.world_to_screen(x: float, y: float, view: str \| None = None)` | `world_to_screen` |  | A world point's position in a view's widget coordinates. |
 | `navigation.zoom(level: float, view: str \| None = None)` | `view_zoom` |  | Set a view's zoom level (1.0 = 100%). Not undoable, like all camera moves. |

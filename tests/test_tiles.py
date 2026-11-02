@@ -312,3 +312,37 @@ def test_progressive_redoes_a_changed_tile_at_once_when_not_zooming():
         finally:
             h.close()
 
+
+def test_progressive_zoom_is_on_by_default_and_the_user_can_turn_it_off():
+    from pixelref.ui.canvas import tiles as tile_cache
+
+    forced = os.environ.pop("PIXELREF_TILE_PROGRESSIVE", None)  # a developer's override must not decide this test
+    h = tiled()
+    try:
+        action = h.app.actions.get("navigation.progressive_zoom")
+        assert action is not None and action.isCheckable(), "a checkable View menu item"
+        assert tile_cache.progressive_mode() and action.isChecked(), "on by default"
+        h.add_image("A", -100, -50)
+        paint(h)
+        assert h.view.tiles.tile_count > 0
+        assert h.run("navigation.progressive_zoom", False) is False
+        assert not tile_cache.progressive_mode() and not action.isChecked()
+        assert h.app.settings.value("plugins/navigation/progressive_zoom", None, bool) is False, "remembered"
+        assert h.view.tiles.tile_count == 0 and h.view.tiles.overview is None, "the caches start over"
+        assert is_image(paint(h).pixelColor(h.vp(0, 0))), "and the canvas draws as before"
+        assert h.run("navigation.progressive_zoom") is True, "no argument: switch it"
+        assert tile_cache.progressive_mode() and action.isChecked()
+        assert h.app.settings.value("plugins/navigation/progressive_zoom", None, bool) is True
+        os.environ["PIXELREF_TILE_PROGRESSIVE"] = "0"  # the environment variable wins over the setting
+        assert not tile_cache.progressive_mode()
+        assert h.run("navigation.progressive_zoom", True) is False, "and the command says what is in effect"
+        del os.environ["PIXELREF_TILE_PROGRESSIVE"]
+        assert tile_cache.progressive_mode(), "the setting (on) applies again"
+    finally:
+        h.run("navigation.progressive_zoom", True)
+        if forced is None:
+            os.environ.pop("PIXELREF_TILE_PROGRESSIVE", None)
+        else:
+            os.environ["PIXELREF_TILE_PROGRESSIVE"] = forced
+        h.close()
+

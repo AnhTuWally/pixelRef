@@ -4,7 +4,7 @@ Opens a generated board in a real window and zooms it with the wheel glide: fit 
 (frames are captured mid-glide and once settled), edit an item mid-glide and capture again. Run once
 per setting, then compare the settled frames, which must match, and look at the mid-glide ones:
 
-    .venv\\Scripts\\python.exe -I tools\\validate_progressive.py run --out D:\\prog-off
+    set PIXELREF_TILE_PROGRESSIVE=0 & .venv\\Scripts\\python.exe -I tools\\validate_progressive.py run --out D:\\prog-off
     set PIXELREF_TILE_PROGRESSIVE=1 & .venv\\Scripts\\python.exe -I tools\\validate_progressive.py run --out D:\\prog-on
     .venv\\Scripts\\python.exe -I tools\\validate_progressive.py compare D:\\prog-off D:\\prog-on
 

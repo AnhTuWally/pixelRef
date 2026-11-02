@@ -19,7 +19,8 @@ those tiles are dropped.
 * Only axis-aligned cameras use tiles (rotated or mirrored views paint the
   scene directly, so they never look resampled).
 
-Progressive rendering (``PIXELREF_TILE_PROGRESSIVE``, see ``progressive_mode``): rendering a new
+Progressive rendering (on by default; View > Progressive Zoom Rendering, or ``PIXELREF_TILE_PROGRESSIVE``,
+see ``progressive_mode``): rendering a new
 level inside ``paint`` is what makes zooming stutter on busy boards, so while the zoom is changing
 nothing is rendered there. A coarse *overview* of the whole board, built in idle slices and kept
 beside the levels, is the fallback instead: a zoom shows it (blurry) at once, and the new level
@@ -66,13 +67,22 @@ def tiles_mode() -> str:
     return os.environ.get("PIXELREF_TILES", "").strip()
 
 
+_progressive_enabled = True  # the user's choice (View > Progressive Zoom Rendering); on unless they turn it off
+
+
+def set_progressive_enabled(on: bool) -> None:
+    """Apply the user's choice. ``PIXELREF_TILE_PROGRESSIVE`` still overrides it."""
+    global _progressive_enabled
+    _progressive_enabled = bool(on)
+
+
 def progressive_mode() -> bool:
-    """``PIXELREF_TILE_PROGRESSIVE``: "1" overview level + no synchronous rendering while zooming,
-    "0" the classic behaviour."""
-    return os.environ.get("PIXELREF_TILE_PROGRESSIVE", PROGRESSIVE_DEFAULT).strip() not in ("0", "")
-
-
-PROGRESSIVE_DEFAULT = "0"
+    """Overview level + no synchronous rendering while zooming (on), or the classic behaviour (off).
+    ``PIXELREF_TILE_PROGRESSIVE`` ("1" / "0") overrides the user's setting when it is set."""
+    forced = os.environ.get("PIXELREF_TILE_PROGRESSIVE", "").strip()
+    if forced:
+        return forced != "0"
+    return _progressive_enabled
 
 
 class Level:

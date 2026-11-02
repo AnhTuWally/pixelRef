@@ -1,8 +1,9 @@
 # 8. Phase 2 results: progressive rendering (roadmap steps 2.1 and 2.2)
 
-Implemented behind `PIXELREF_TILE_PROGRESSIVE=1` (default **off**, `PROGRESSIVE_DEFAULT` in `pixelref/ui/canvas/tiles.py`).
+Implemented in `pixelref/ui/canvas/tiles.py`. **On by default**; the user can turn it off in *View → Progressive Zoom Rendering*
+(remembered; command `navigation.progressive_zoom`), and `PIXELREF_TILE_PROGRESSIVE=0` / `=1` overrides the setting.
 Same machine and harness as the baseline ([03](03-benchmark-report.md)): GL viewport, 59.95 Hz, i7-7700 / RTX 4060 Ti, Qt 6.12.
-Baselines below are the **current code with the flag off** (Phase 1 included), measured in the same matrix, not the numbers of
+Baselines below are the **current code with progressive mode off** (Phase 1 included), measured in the same matrix, not the numbers of
 the original report: Phase 1 alone already took stress settled-zoom p95 from about 459 ms to about 105–111 ms.
 
 ## What it does

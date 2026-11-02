@@ -274,12 +274,35 @@ def activate_ui(ui: Any) -> None:
         point = view_of(view).to_viewport(QPointF(float(x), float(y)))
         return [point.x(), point.y()]
 
+    from pixelref.ui.canvas import tiles as tile_cache
+
+    PROGRESSIVE_SETTING = "progressive_zoom"
+    tile_cache.set_progressive_enabled(bool(ui.settings.value(PROGRESSIVE_SETTING, True, type=bool)))
+
+    def progressive_zoom(on: bool | None = None) -> bool:
+        """Turn progressive zoom rendering on or off (no argument: switch it); returns whether it is on.
+
+        While you zoom, the canvas shows a blurry overview of the board and sharpens it once the zoom stops,
+        instead of stalling to draw every step. The choice is remembered."""
+        enabled = (not tile_cache.progressive_mode()) if on is None else bool(on)
+        tile_cache.set_progressive_enabled(enabled)
+        ui.settings.setValue(PROGRESSIVE_SETTING, enabled)
+        for view in app.views.values():  # start over: the classic path needs no overview, the new one builds it when idle
+            view.tiles.clear()
+            view.viewport().update()
+        app.actions.refresh_states()
+        shown = tile_cache.progressive_mode()
+        note = "" if shown == enabled else " (overridden by PIXELREF_TILE_PROGRESSIVE)"
+        ui.status(f"Progressive zoom rendering {'on' if shown else 'off'}{note}")
+        return shown
+
     for name, fn, alias, echo in (
         ("frame", frame, "frame", True), ("frame_all", frame_all, "frame_all", True),
         ("frame_selected", frame_selected, "frame_selected", True), ("zoom", zoom, "view_zoom", True),
         ("zoom_by", zoom_by, "zoom_by", True), ("pan", pan, "view_pan", True),
         ("set_camera", set_camera, "set_camera", True), ("flip", flip, "flip_view", True),
         ("camera", camera, "view_info", False), ("world_to_screen", world_to_screen, "world_to_screen", False),
+        ("progressive_zoom", progressive_zoom, None, True),
     ):
         ui.command(name, fn, alias=alias, undoable=False, echo=echo)
 
@@ -298,6 +321,9 @@ def activate_ui(ui: Any) -> None:
       category="View")
     a("navigation.zoom_out", "navigation.zoom_by", "Zoom Out", args=(1 / 1.25,), keywords="smaller further",
       category="View")
+    a("navigation.progressive_zoom", "navigation.progressive_zoom", "Progressive Zoom Rendering",
+      keywords="smooth zoom blur sharpen overview tiles stutter slow performance", category="View",
+      checked=tile_cache.progressive_mode)
     for key, action in (("F", "navigation.frame_selected"), ("Home", "navigation.frame_all"),
                         ("Shift+F", "navigation.frame_all"), ("Shift+Alt+H", "navigation.flip_h"),
                         ("Shift+Alt+V", "navigation.flip_v"), ("Ctrl+0", "navigation.zoom_actual"),
@@ -305,7 +331,8 @@ def activate_ui(ui: Any) -> None:
                         ("Ctrl++", "navigation.zoom_in"), ("Ctrl+-", "navigation.zoom_out")):
         ui.bind(key, action)
     for group, keys in (("view.frame", ("navigation.frame_all", "navigation.frame_selected")),
-                        ("view.zoom", ("navigation.zoom_in", "navigation.zoom_out", "navigation.zoom_actual")),
+                        ("view.zoom", ("navigation.zoom_in", "navigation.zoom_out", "navigation.zoom_actual",
+                                       "navigation.progressive_zoom")),
                         ("view.flip", ("navigation.flip_h", "navigation.flip_v"))):
         for order, key in enumerate(keys):
             ui.menu("canvas", key, path="View", group=group, order=order)

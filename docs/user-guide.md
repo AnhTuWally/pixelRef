@@ -32,6 +32,12 @@ searches every command.
   to maximise the view.
 - **Zoom controls** in the bar: click the percentage for 100% (`Ctrl+0`), its
   arrow for presets, then − / + / Fit.
+- **Progressive zoom rendering** (*View → Progressive Zoom Rendering*, on by
+  default): on a busy board the canvas keeps zooming smoothly by showing a
+  blurry picture of the board while the zoom changes, then sharpens it once you
+  stop (a fraction of a second). Turn it off if you prefer the picture to stay
+  sharp at every step; zooming then stalls on large boards. The choice is
+  remembered. Scripts: `pxcmd.navigation.progressive_zoom(on=None)`.
 - **Select:** drag a rubber band on empty canvas; `Shift` or `Ctrl` adds to
   the selection.
 - **Transform gizmo** for one or many items: corner handles scale (`Shift`
