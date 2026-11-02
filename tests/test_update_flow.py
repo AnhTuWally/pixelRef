@@ -9,7 +9,8 @@ import os
 import sys
 
 import test_update_install as ti
-from harness import APP, Harness, tmp_dir
+import harness
+from harness import APP, tmp_dir
 from pixelref.core.updates import (Channel, DiscoveryResult, InstallMode, Platform, Release, ReleaseAsset, UpdateState,
                                    Version)
 from pixelref.core.updates import flow, install as ins, journal as jr, recovery as rc, staging as st
@@ -19,6 +20,20 @@ from pixelref.core.updates.verification import RELEASE_TRUST, VerificationError
 WIN, TRUST = ti.WIN, ti.TRUST
 ARCHIVE_URL = "https://github.com/AnhTuWally/pixelRef/releases/download/v1.2.0/pixelRef-v1.2.0-windows-x64.zip"
 MANIFEST_URL = "https://github.com/AnhTuWally/pixelRef/releases/download/v1.2.0/manifest-v1.2.0-windows-x64.json"
+INSTALLED = "1.1.0"  # the version these tests pretend is running; the fixtures' release is 1.2.0, so the real
+#                     app version (which moves with every release) must not leak in.
+_undo: list = []
+
+
+class Harness(harness.Harness):
+    """Undoes the patches Env makes even when a test fails before it reaches Env.close()."""
+
+    def close(self) -> None:
+        while _undo:
+            _undo.pop()()
+        super().close()
+
+
 LATE = {"published_at": "2020-01-01T00:00:00Z", "expires_at": "2099-01-01T00:00:00Z"}  # independent of the clock
 
 
@@ -281,11 +296,18 @@ class Env:
             return helper
 
         s.launch = launch
-        self._flag = ins.ASSISTED_INSTALL_ENABLED
+        import pixelref.builtins.updates as ui_updates
+
+        flag, version = ins.ASSISTED_INSTALL_ENABLED, ui_updates.APP_VERSION
+        _undo.append(self.close)
+        ui_updates.APP_VERSION = INSTALLED
         ins.ASSISTED_INSTALL_ENABLED = True
+        self._saved = (flag, version, ui_updates)
 
     def close(self):
-        ins.ASSISTED_INSTALL_ENABLED = self._flag
+        flag, version, ui_updates = self._saved
+        ins.ASSISTED_INSTALL_ENABLED = flag
+        ui_updates.APP_VERSION = version
 
 
 def test_ui_offers_install_only_when_everything_allows_it():
