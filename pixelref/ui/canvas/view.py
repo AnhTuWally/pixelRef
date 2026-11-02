@@ -16,7 +16,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import (QCoreApplication, QEvent, QLineF, QMimeData, QPoint, QPointF, QRect, QRectF, QSize, Qt,
+from PySide6.QtCore import (QAbstractAnimation, QCoreApplication, QEvent, QLineF, QMimeData, QPoint, QPointF, QRect, QRectF, QSize, Qt,
                             QTimer, QVariantAnimation, Signal)
 from PySide6.QtGui import QColor, QCursor, QGuiApplication, QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsScene, QGraphicsView, QWidget
@@ -236,6 +236,9 @@ class CanvasView(QGraphicsView):
         self._bounds_stale = False
         self._bounds_time = 0.0
         self._camera_batching = 0
+        self._nav_stamp = 0.0  # monotonic time of the last camera movement / zoom change (see zooming())
+        self._zoom_stamp = 0.0
+        self._stamp_zoom = 0.0
         self._pan_pending: QPointF | None = None  # see pan_input
 
         viewport = make_viewport()
@@ -340,8 +343,9 @@ class CanvasView(QGraphicsView):
 
     def invalidate_content_bounds(self) -> None:
         """The board's geometry may have changed (items added, removed, moved, resized): the next
-        min_zoom() measures it again."""
+        min_zoom() measures it again, and the tile cache plans its overview again."""
         self._content_bounds = None
+        self.tiles.content_geometry_changed()
 
     def min_zoom(self) -> float:
         """How far zooming out may go: MIN_ZOOM, or further until the board fits in
@@ -617,6 +621,20 @@ class CanvasView(QGraphicsView):
         finally:
             self._camera_batching -= 1
 
+    ZOOM_QUIET_S = 0.08  # glide steps arrive every frame: this bridges the gaps between discrete zoom steps
+
+    def zooming(self) -> bool:
+        """The zoom is changing: a glide or camera animation runs, or the zoom changed a moment ago.
+        The tile cache does not render new levels synchronously meanwhile (see tiles.TileCache.paint)."""
+        animation = self._animation
+        if self._glide_timer.isActive() or (animation is not None and animation.state() == QAbstractAnimation.Running):
+            return True
+        return time.monotonic() - self._zoom_stamp < self.ZOOM_QUIET_S
+
+    def camera_idle(self, quiet: float = ZOOM_QUIET_S) -> bool:
+        """The camera has not moved for ``quiet`` seconds and is not animating."""
+        return not self.zooming() and time.monotonic() - self._nav_stamp >= quiet
+
     def _camera_moved(self, *_args: Any, sync_state: bool = False) -> None:
         if self._camera_batching and not sync_state:
             return
@@ -626,6 +644,11 @@ class CanvasView(QGraphicsView):
             self._camera_zoom = self.zoom_level()
         self._gray_cache = None
         self._gray_cache_key = None
+        now = time.monotonic()
+        self._nav_stamp = now
+        if abs(self._camera_zoom - self._stamp_zoom) > 1e-9 * max(1.0, self._camera_zoom):
+            self._stamp_zoom = self._camera_zoom
+            self._zoom_stamp = now
         self.camera_changed.emit()
 
     def resizeEvent(self, event) -> None:  # noqa: ANN001

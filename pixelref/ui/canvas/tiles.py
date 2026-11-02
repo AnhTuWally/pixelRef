@@ -18,6 +18,12 @@ those tiles are dropped.
   rendered at once.
 * Only axis-aligned cameras use tiles (rotated or mirrored views paint the
   scene directly, so they never look resampled).
+
+Progressive rendering (``PIXELREF_TILE_PROGRESSIVE``, see ``progressive_mode``): rendering a new
+level inside ``paint`` is what makes zooming stutter on busy boards, so while the zoom is changing
+nothing is rendered there. A coarse *overview* of the whole board, built in idle slices and kept
+beside the levels, is the fallback instead: a zoom shows it (blurry) at once, and the new level
+fills in after the zoom settles.
 """
 
 from __future__ import annotations
@@ -45,6 +51,12 @@ SETTLE_MS = 140  # after the last zoom step, render the new level
 SLICE_MS = 12.0  # idle rendering works in slices this long
 PREFETCH = 1  # tiles pre-rendered around the visible area
 TILE_BYTES = TILE * TILE * 4
+PROGRESSIVE_SETTLE_MS = 40  # progressive mode: _idle waits for the zoom itself, so the settle timer can be short
+OVERVIEW_PIXELS = 3072  # the overview fits the whole board in about this many device pixels (longest side)
+OVERVIEW_SLICE_MS = 6.0  # the overview is built in slices this long
+OVERVIEW_QUIET_S = 0.3  # a stale overview is refreshed after the scene has been still this long
+OVERVIEW_PLAN_S = 0.5  # the board is measured again for the overview at most this often
+OVERVIEW_PATIENCE_S = 2.5  # the view's own tiles pending this long without a pause: build a missing overview anyway
 
 Key = tuple[int, int]
 
@@ -54,17 +66,29 @@ def tiles_mode() -> str:
     return os.environ.get("PIXELREF_TILES", "").strip()
 
 
+def progressive_mode() -> bool:
+    """``PIXELREF_TILE_PROGRESSIVE``: "1" overview level + no synchronous rendering while zooming,
+    "0" the classic behaviour."""
+    return os.environ.get("PIXELREF_TILE_PROGRESSIVE", PROGRESSIVE_DEFAULT).strip() not in ("0", "")
+
+
+PROGRESSIVE_DEFAULT = "0"
+
+
 class Level:
     """The tiles of one zoom level."""
 
-    __slots__ = ("zoom", "dpr", "r", "step", "tiles")
+    __slots__ = ("zoom", "dpr", "r", "step", "tiles", "overview", "stale", "dirty")
 
-    def __init__(self, zoom: float, dpr: float) -> None:
+    def __init__(self, zoom: float, dpr: float, overview: bool = False) -> None:
         self.zoom = zoom
         self.dpr = dpr
         self.r = zoom * dpr  # device pixels per scene unit
         self.step = TILE / self.r  # scene units per tile
         self.tiles: dict[Key, QImage] = {}
+        self.overview = overview
+        self.stale: set[Key] = set()  # overview tiles whose content changed: drawn as they are until redone
+        self.dirty: set[Key] = set()  # tiles dropped by a change (not never rendered): see TileCache.paint
 
     def scene_rect(self, key: Key) -> QRectF:
         return QRectF(key[0] * self.step, key[1] * self.step, self.step, self.step)
@@ -99,20 +123,79 @@ class TileCache:
         self._idle_timer = QTimer(view)
         self._idle_timer.setSingleShot(True)
         self._idle_timer.timeout.connect(self._idle)
+        # The overview (progressive mode): one coarse level over the whole board, outside ``levels`` so
+        # that level eviction never takes it. ``_ov_keys`` are its tiles, centre first.
+        self.overview: Level | None = None
+        self._ov_keys: list[Key] = []
+        self._ov_bounds: QRectF | None = None
+        self._ov_done = False  # nothing missing or stale
+        self._ov_geometry = True  # the board's extent may have changed: plan again
+        self._ov_planned = 0.0
+        self._ov_busy_since = 0.0  # since when the builder has been deferring to the view's own tiles
+        self._ov_changed = 0.0  # when the scene last changed
+        self._ov_timer = QTimer(view)
+        self._ov_timer.setSingleShot(True)
+        self._ov_timer.timeout.connect(self._overview_step)
 
     # ---- State ---------------------------------------------------------------------------
 
     def clear(self) -> None:
         self.levels.clear()
+        self._drop_overview()
+
+    def _drop_overview(self) -> None:
+        self.overview = None
+        self._ov_keys = []
+        self._ov_bounds = None
+        self._ov_done = False
+        self._ov_geometry = True
+        self._ov_timer.stop()
 
     @property
     def tile_count(self) -> int:
         return sum(len(level.tiles) for level in self.levels.values())
 
+    @property
+    def overview_tile_count(self) -> int:
+        return len(self.overview.tiles) if self.overview is not None else 0
+
+    def overview_pending(self) -> int:
+        """Overview tiles still to render (missing or stale): 0 when there is no overview to build."""
+        ov = self.overview
+        if ov is None:
+            return 0
+        return sum(1 for k in self._ov_keys if k not in ov.tiles) + len(ov.stale)
+
+    def content_geometry_changed(self) -> None:
+        """The board's extent may have changed (items added, removed, moved): plan the overview again."""
+        if self.overview is not None or self._ov_keys:
+            self._ov_geometry = True
+            self._ov_done = False
+
     def invalidate(self, rects: Iterable[QRectF]) -> None:
-        """Drop the tiles under scene rects (a change there)."""
+        """Drop the tiles under scene rects (a change there). The overview keeps its tiles, marked stale:
+        a slightly old coarse picture is a better fallback than none."""
         rects = list(rects)
-        if not rects or not self.levels:
+        if not rects:
+            return
+        ov = self.overview
+        if ov is not None and ov.tiles:
+            self._ov_changed = time.monotonic()
+            pad = 2.0 / ov.r
+            for rect in rects:
+                span = ov.index_range(rect.adjusted(-pad, -pad, pad, pad))
+                if span is None:
+                    ov.stale.update(ov.tiles)
+                    break
+                i0, i1, j0, j1 = span
+                if (i1 - i0 + 1) * (j1 - j0 + 1) > len(ov.tiles):
+                    ov.stale.update(k for k in ov.tiles if i0 <= k[0] <= i1 and j0 <= k[1] <= j1)
+                else:
+                    ov.stale.update(k for j in range(j0, j1 + 1) for i in range(i0, i1 + 1)
+                                    if (k := (i, j)) in ov.tiles)
+            if ov.stale:
+                self._ov_done = False
+        if not self.levels:
             return
         for level in self.levels.values():
             tiles = level.tiles
@@ -123,16 +206,19 @@ class TileCache:
             for rect in rects:
                 span = level.index_range(rect.adjusted(-pad, -pad, pad, pad))
                 if span is None:
+                    level.dirty.update(tiles)
                     tiles.clear()
                     break
                 i0, i1, j0, j1 = span
                 if (i1 - i0 + 1) * (j1 - j0 + 1) > len(tiles):
                     for key in [k for k in tiles if i0 <= k[0] <= i1 and j0 <= k[1] <= j1]:
                         del tiles[key]
+                        level.dirty.add(key)
                 else:
                     for j in range(j0, j1 + 1):
                         for i in range(i0, i1 + 1):
-                            tiles.pop((i, j), None)
+                            if tiles.pop((i, j), None) is not None:
+                                level.dirty.add((i, j))
                 if not tiles:
                     break
 
@@ -183,18 +269,42 @@ class TileCache:
             self._hidden = hidden
             self.clear()
         level = self._current_level()
+        progressive = progressive_mode()
+        if progressive and not self._ov_done and not self._ov_timer.isActive():
+            self._ov_timer.start(200)
         visible = self._visible_keys(level)
         missing = [k for k in visible if k not in level.tiles]
         deferred: list[Key] = []
         if missing:
             fallbacks = [lv for lv in self.levels.values() if lv is not level and lv.tiles]
-            now = [k for k in missing if not any(lv.covers(level.scene_rect(k)) for lv in fallbacks)]
+            ov = self.overview if progressive else None
+            if ov is not None and ov.tiles:
+                fallbacks.insert(0, ov)  # oldest: the sharper levels draw over it
+            now = [k for k in missing if not self._covered(level.scene_rect(k), fallbacks)]
+            zooming = progressive and self.view.zooming()
+            if progressive and level.dirty and not zooming:
+                # A tile that had been rendered and was dropped by a change (an edit, an animation frame)
+                # is redone at once, as it always was: showing it from the overview would make animated
+                # images flicker between sharp and blurry. Only tiles never rendered at this zoom wait.
+                redo = [k for k in missing if k in level.dirty and k not in now]
+                now = now + redo
+            if now and ov is not None and zooming:
+                # Tiles the overview does not cover but that touch the board are rendered (it is still being
+                # built). Tiles beyond the board hold nothing but background: rendering them is what makes a
+                # zoom stutter on a big board, so they wait until it settles.
+                board = self._ov_bounds
+                now = [k for k in now if board is not None and level.scene_rect(k).intersects(board)]
             if now:
                 self._render(level, now)
             deferred = [k for k in missing if k not in level.tiles]
             if deferred:
                 self._paint_fallbacks(painter, level, deferred, fallbacks)
-                self._settle.start(SETTLE_MS)
+                if not progressive:
+                    self._settle.start(SETTLE_MS)
+                elif not self._settle.isActive():
+                    # Not restarted by every paint: animated images repaint all the time, and refining would
+                    # never begin. _idle itself waits for a zoom to finish.
+                    self._settle.start(PROGRESSIVE_SETTLE_MS)
         t = view.viewportTransform()
         dpr = level.dpr
         ox, oy = round(t.m31() * dpr), round(t.m32() * dpr)
@@ -209,6 +319,18 @@ class TileCache:
         if not deferred and not self._settle.isActive() and not self._idle_timer.isActive():
             if any(k not in tiles for k in self._visible_keys(level, PREFETCH)):
                 self._idle_timer.start(30)
+
+    def _covered(self, rect: QRectF, fallbacks: list[Level]) -> bool:
+        """Older levels (and the overview, over the board only: a tile that reaches past the board is
+        covered if the part on the board is) show everything of ``rect`` that is more than background."""
+        for lv in fallbacks:
+            if lv.overview:
+                board = self._ov_bounds
+                if board is not None and rect.intersects(board) and lv.covers(rect.intersected(board)):
+                    return True
+            elif lv.covers(rect):
+                return True
+        return False
 
     def _paint_fallbacks(self, painter: QPainter, level: Level, keys: list[Key], fallbacks: list[Level]) -> None:
         """Older levels' tiles, scaled, where the current level isn't rendered yet."""
@@ -254,7 +376,8 @@ class TileCache:
                     self._render_run(level, run[0], j, len(run))
                     run = [i]
             self._render_run(level, run[0], j, len(run))
-        self._enforce_budget(level)
+        if not level.overview:  # the overview's memory is accounted apart
+            self._enforce_budget(level)
 
     def _render_run(self, level: Level, i0: int, j: int, count: int) -> None:
         with perf.span("tiles.render_run"):
@@ -280,11 +403,13 @@ class TileCache:
         painter.end()
         if count == 1:
             level.tiles[(i0, j)] = image
+            level.dirty.discard((i0, j))
             return
         for n in range(count):
             tile = image.copy(n * TILE, 0, TILE, TILE)
             tile.setDevicePixelRatio(dpr)
             level.tiles[(i0 + n, j)] = tile
+            level.dirty.discard((i0 + n, j))
 
     def _enforce_budget(self, current: Level) -> None:
         while self.tile_count * TILE_BYTES > BUDGET_BYTES:
@@ -304,6 +429,10 @@ class TileCache:
         """Render missing tiles of the current level a slice at a time: visible ones, then a ring."""
         view = self.view
         if not view.isVisible() or not view.uses_tiles():
+            return
+        if progressive_mode() and view.zooming():
+            # Tiles of a level the next zoom step abandons are wasted work: refine once the zoom is still.
+            self._settle.start(PROGRESSIVE_SETTLE_MS)
             return
         level = self._current_level()
         visible = self._visible_keys(level)
@@ -326,3 +455,96 @@ class TileCache:
             self._idle_timer.start(0)
         elif repaint:
             self._idle_timer.start(30)  # then the ring around the view
+
+    # ---- Overview (progressive mode) ---------------------------------------------------------------
+
+    def _plan_overview(self) -> None:
+        """Measure the board and (re)create the overview level if it no longer fits."""
+        view = self.view
+        canvas = view.app.canvas
+        self._ov_planned = time.monotonic()
+        bounds = canvas.scene_bounds(canvas.visible_content_items())
+        if bounds.isNull() or bounds.width() <= 0.0 or bounds.height() <= 0.0:
+            self._drop_overview()
+            self._ov_geometry = False
+            self._ov_done = True
+            return
+        dpr = view.devicePixelRatioF()
+        old, ov = self._ov_bounds, self.overview
+        if ov is not None and old is not None and ov.dpr == dpr:
+            margin = 0.05 * max(old.width(), old.height())
+            fits = old.adjusted(-margin, -margin, margin, margin).contains(bounds)
+            tight = bounds.width() * bounds.height() * 2.5 >= old.width() * old.height()
+            if fits and tight:
+                self._ov_geometry = False
+                return
+        r = min(dpr, OVERVIEW_PIXELS / max(bounds.width(), bounds.height()))
+        level = Level(r / dpr, dpr, overview=True)
+        span = level.index_range(bounds)
+        if span is None:
+            self._drop_overview()
+            self._ov_geometry = False
+            self._ov_done = True
+            return
+        i0, i1, j0, j1 = span
+        keys = [(i, j) for j in range(j0, j1 + 1) for i in range(i0, i1 + 1)]
+        ci, cj = (i0 + i1) / 2.0, (j0 + j1) / 2.0
+        keys.sort(key=lambda k: (k[0] - ci) ** 2 + (k[1] - cj) ** 2)
+        self.overview, self._ov_keys, self._ov_bounds = level, keys, QRectF(bounds)
+        self._ov_geometry = False
+
+    def _overview_busy(self, level: Level, stale_only: bool) -> bool:
+        """Navigating, or the view still has its own tiles to render: the overview waits."""
+        view = self.view
+        if not view.camera_idle(0.15):
+            return True
+        # The view's own refinement goes first, but a scene that keeps repainting (animated images) keeps
+        # dropping tiles: after OVERVIEW_PATIENCE_S a missing overview is built anyway.
+        own_work = (self._settle.isActive() or self._idle_timer.isActive()
+                    or any(k not in level.tiles for k in self._visible_keys(level, PREFETCH)))
+        now = time.monotonic()
+        if not own_work:
+            self._ov_busy_since = 0.0
+        else:
+            if not self._ov_busy_since:
+                self._ov_busy_since = now
+            # Refreshing stale tiles never competes with the view's own work; only the first build of a
+            # missing overview gives up waiting (a board of animated images is never without own work).
+            if stale_only or now - self._ov_busy_since < OVERVIEW_PATIENCE_S:
+                return True
+        # Refreshing stale tiles is lower priority than building a missing overview: wait for a still scene.
+        return stale_only and time.monotonic() - self._ov_changed < OVERVIEW_QUIET_S
+
+    def _overview_step(self) -> None:
+        """Build the overview a few milliseconds at a time, only while nothing else needs the GUI thread."""
+        view = self.view
+        if not progressive_mode() or not view.isVisible() or not view.uses_tiles():
+            return
+        level = self._current_level()
+        if self.overview is not None and self.overview.dpr != view.devicePixelRatioF():
+            self._drop_overview()
+        missing_any = self.overview is None or any(k not in self.overview.tiles for k in self._ov_keys)
+        if self._overview_busy(level, stale_only=not missing_any):
+            self._ov_timer.start(150)
+            return
+        if self._ov_geometry or self.overview is None:
+            if time.monotonic() - self._ov_planned < OVERVIEW_PLAN_S and self.overview is not None:
+                self._ov_timer.start(int(OVERVIEW_PLAN_S * 1000))
+                return
+            self._plan_overview()
+        ov = self.overview
+        if ov is None:
+            return
+        todo = [k for k in self._ov_keys if k not in ov.tiles] or [k for k in self._ov_keys if k in ov.stale]
+        if not todo:
+            ov.stale.clear()
+            self._ov_done = True
+            return
+        deadline = time.perf_counter() + OVERVIEW_SLICE_MS / 1000.0
+        for key in todo:
+            self._render(ov, [key])
+            ov.stale.discard(key)
+            if time.perf_counter() >= deadline:
+                break
+        self._ov_timer.start(25)
+
