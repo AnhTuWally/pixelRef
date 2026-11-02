@@ -175,7 +175,8 @@ def activate_ui(ui: Any) -> None:
             ui.bind(ALIGN_SHORTCUTS[key], f"arrange.align_{key}")
     for key in DISTRIBUTE_KINDS:
         a(f"arrange.distribute_{key}", "arrange.distribute", f"Distribute {key.capitalize()}ly", args=(key,),
-          keywords="distribute spacing equal gaps evenly space " + key, category="Arrange")
+          keywords="distribute spacing equal gaps evenly space " + key, category="Arrange",
+          enabled=lambda: len(ui.session.selection.names) >= 3)  # shown from 2 items, greyed until 3
     # Laying out works on the selection or (with nothing selected) everything; matching sizes
     # and aligning need two or more selected items. With one item selected the sub-menu hides.
     order = 0
@@ -184,7 +185,7 @@ def activate_ui(ui: Any) -> None:
                                "selection.count >= 2"),
                               ("a3", ("align_left", "align_hcenter", "align_right", "align_top", "align_vcenter",
                                       "align_bottom"), "selection.count >= 2"),
-                              ("a4", ("distribute_horizontal", "distribute_vertical"), "selection.count >= 3")):
+                              ("a4", ("distribute_horizontal", "distribute_vertical"), "selection.count >= 2")):
         for key in keys:
             ui.menu("canvas", f"arrange.{key}", path="Arrange", group=group, order=order, when=when)
             order += 1

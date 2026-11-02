@@ -188,5 +188,5 @@ def activate_ui(ui: Any) -> None:
     a("snap.to_grid", "snap.to_grid", "Snap Selection to Grid", keywords="align grid line up", category="Transform",
       icon="snap")
     ui.bind("Alt+'", "snap.toggle")
-    ui.menu("canvas", "snap.toggle", path="View/Background", group="bg3", order=3)
+    ui.menu("canvas", "snap.toggle", path="View", group="view.display", order=6)
     ui.menu("canvas", "snap.to_grid", path="Transform", group="transform", order=10, when="selection.count > 0")

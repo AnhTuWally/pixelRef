@@ -495,6 +495,7 @@ def activate_files_panel_ui(ui: Any) -> None:
           keywords=f"jump open file {n} switch", category="File")
 
     ui.menu("canvas", "file.open_in_new_window", path="File", group="file.location", order=4)
+    ui.menu("canvas", "file.cycle", path="File", group="file", order=2.5)  # between Open Recent and Save
     ui.menu("canvas", "file.pref_current", path="File/File Opening", group="file.open_pref", order=0)
     ui.menu("canvas", "file.pref_new", path="File/File Opening", group="file.open_pref", order=1)
 

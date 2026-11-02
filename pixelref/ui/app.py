@@ -583,7 +583,7 @@ class App:
             m("canvas", builder=self._workspace_menu, path="Window", text="Workspaces", icon="split_right",
               group="window", order=1),
             m("canvas", "keymap.mode.window", path="Window", group="window", order=2),
-            m("canvas", "wm.reset_layout", path="Window", group="window", order=3),
+            m("canvas", "wm.reset_layout", path="Window", group="window.panels", order=1),  # with Panels
             m("canvas", "ui.plugins", path="Window", group="window.extras", order=90),
             m("canvas", builder=self._tools_menu, path="Tools", group="tools", when="selection.count == 0"),
             self.menus.place_submenu("canvas", "Tools", "tools", 0, icon="tools"),

@@ -239,5 +239,5 @@ def activate_ui(ui: Any) -> None:
     ui.menu("canvas", "export.originals", path="File", group="file.export", order=1)
     ui.menu("canvas", "export.copy_image", path="File", group="file.export", order=2)
     ui.menu("canvas", "export.embed_scene", path="File", group="file.export", order=3)
-    ui.menu("canvas", "export.image", group="focus", order=20, when="selection.count > 0")
-    ui.menu("canvas", "export.copy_image", group="focus", order=21, when="selection.count > 0")
+    ui.menu("canvas", "export.image", group="export", order=0, when="selection.count > 0")
+    ui.menu("canvas", "export.copy_image", group="export", order=1, when="selection.count > 0")

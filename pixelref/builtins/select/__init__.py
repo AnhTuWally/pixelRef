@@ -259,6 +259,7 @@ def activate_ui(ui: Any) -> None:
     ui.bind("Ctrl+A", "select.all")
     ui.bind("Ctrl+Shift+I", "select.invert")
     ui.menu("canvas", "select.all", group="select", order=0, when="selection.count == 0")
+    ui.menu("canvas", "select.invert", group="select", order=0.1, when="selection.count > 0")
 
     def on_selection(_event: Any) -> None:
         names = ui.session.selection.names

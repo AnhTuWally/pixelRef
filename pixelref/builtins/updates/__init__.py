@@ -424,7 +424,8 @@ def activate_ui(ui: Any) -> None:
               category="Preferences", icon="info")
     ui.action("updates.roll_back", "updates.roll_back", "Roll Back to Previous Version…",
               keywords="update downgrade previous version restore undo update rollback", category="Preferences", icon="info")
-    ui.menu("canvas", "updates.check", group="app", order=-2)
+    ui.menu("canvas", "updates.check", path="Help", group="help.about", order=1)
+    ui.menu("canvas", "updates.settings", path="Help", group="help.about", order=1.5)
 
     # ---- Periodic check: a small delay after start, then re-evaluated every half hour ----------------
 

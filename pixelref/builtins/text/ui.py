@@ -596,7 +596,9 @@ def activate_text_ui(ui: Any) -> None:
     ui.command("choose_default_width", choose_default_width, undoable=False, echo=False)
     ui.action("text.default_width", "text.choose_default_width", "Pasted Text Width…",
               keywords="paste text wrap width default long box", category="Edit")
-    ui.menu("canvas", "text.default_width", path="Text", group="text.settings", order=0)
+    # A setting, not an item to add: beside "Customize Tools Palette…" rather than a one-entry Text menu.
+    ui.menu("canvas", "text.default_width", path="Tools", group="tools.customize", order=1,
+            when="selection.count == 0")
     ui.contribute("palette.buttons", PaletteButton("text.add", "Text", "text", order=20))
 
     activate_note_extras(ui, service)

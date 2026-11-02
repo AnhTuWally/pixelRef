@@ -925,7 +925,9 @@ def test_canvas_context_menu_is_organised_by_what_was_clicked():
         assert empty.index("Paste") < empty.index("Select All") < empty.index("Undo Create image")
         assert empty.index("Undo Create image") < empty.index("Tools") < empty.index("File")
         assert "Copy" not in empty and "Transform" not in empty
-        assert empty[-2].startswith("Keyboard Shortcuts") and empty[-1].startswith("About pixelRef")
+        assert empty[-1] == "Help", "help, updates and About share one sub-menu at the bottom"
+        assert "Text" not in empty and "Click Action" not in empty, "one-entry sub-menus don't clutter an empty canvas"
+        assert empty.index("Backdrop") < empty.index("Select All"), "creating things comes before selecting"
         # The canvas-wide sub-menus sit together, then File, View and Window, without separators.
         start = empty.index("Tools")
         assert empty[start:start + 3] == ["Tools", "Arrange", "Effects"]

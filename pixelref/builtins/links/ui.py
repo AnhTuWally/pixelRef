@@ -1313,7 +1313,7 @@ def activate_links_ui(ui: Any) -> None:
     a("links.reverse", "links.reverse", "Reverse Link", keywords="swap direction flip ends", category="Edit")
     ui.bind("Ctrl+L", "links.connect_selection")
     ui.bind("Ctrl+Shift+L", "links.select_connected")
-    ui.menu("canvas", "links.connect_selection", group="arrange", order=30, when="selection.count > 1")
+    ui.menu("canvas", "links.connect_selection", group="group", order=30, when="selection.count > 1")
     ui.menu("canvas", "links.select_connected", group="select", order=20, when="selection.count > 0")
     ui.menu("canvas", "links.clear_waypoints", group="transform", order=40, when="links.selected")
     ui.menu("canvas", "links.reverse", group="transform", order=41, when="links.selected")
