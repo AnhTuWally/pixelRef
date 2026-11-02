@@ -4,6 +4,19 @@ All notable changes to pixelRef are documented here.
 
 ## [Unreleased]
 
+### Added — Progressive zoom rendering
+
+- **Smooth zooming on busy boards**: while the zoom changes the canvas now shows a coarse overview of the
+  board instead of drawing every zoom step in full, then sharpens it once the zoom stops. On the test
+  boards the frame time while zooming fell from 60-155 ms to about 18-23 ms (5000-item board: 105-111 ms
+  to 18-20 ms). The picture is briefly soft during a zoom, and the background grid may only show near the
+  board until you stop. Turn it off in *View → Progressive Zoom Rendering* (remembered), or with
+  `PIXELREF_TILE_PROGRESSIVE=0`. Memory use rises by roughly 10-50 MB while a busy board is open.
+- Faster panning with linked views and with high-rate mice or trackpads: camera changes are reported once
+  per step, the minimaps update once per pass, and pointer drags are applied once per event-loop pass.
+- Zooming out on boards of thousands of items no longer stalls for ~40 ms per wheel notch.
+  Measurements and method: [docs/performance/](docs/performance/README.md).
+
 ### Added — Persistent Files list (in progress)
 
 - **Restore Previous Workspace**: the Files list, its order and each file's last view are saved and

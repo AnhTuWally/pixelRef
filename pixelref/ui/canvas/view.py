@@ -10,10 +10,13 @@ scene, selection and document.
 from __future__ import annotations
 
 import math
+import os
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import (QCoreApplication, QEvent, QLineF, QMimeData, QPoint, QPointF, QRect, QRectF, QSize, Qt,
+from PySide6.QtCore import (QAbstractAnimation, QCoreApplication, QEvent, QLineF, QMimeData, QPoint, QPointF, QRect, QRectF, QSize, Qt,
                             QTimer, QVariantAnimation, Signal)
 from PySide6.QtGui import QColor, QCursor, QGuiApplication, QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsScene, QGraphicsView, QWidget
@@ -224,7 +227,19 @@ class CanvasView(QGraphicsView):
         self._glide_timer.timeout.connect(self._glide_step)
         self._cameras_of: Any = None
         self._cameras: list[str] = []
-        self._content_bounds: QRectF | None = None  # measured lazily, dropped on scene changes
+        # Board extent for min_zoom(): measured lazily, dropped when geometry may have changed
+        # (invalidate_content_bounds). A repaint-only scene change (decode delivery, GIF frame) only
+        # marks it stale; stale bounds are re-measured at most once per BOUNDS_REMEASURE_S, as a safety
+        # net for geometry changes that bypass the refresh hooks. Measuring walks every item (42 ms on
+        # 5000) and min_zoom() runs once per wheel notch.
+        self._content_bounds: QRectF | None = None
+        self._bounds_stale = False
+        self._bounds_time = 0.0
+        self._camera_batching = 0
+        self._nav_stamp = 0.0  # monotonic time of the last camera movement / zoom change (see zooming())
+        self._zoom_stamp = 0.0
+        self._stamp_zoom = 0.0
+        self._pan_pending: QPointF | None = None  # see pan_input
 
         viewport = make_viewport()
         if viewport is not None:  # GPU drawing (see .gpu)
@@ -249,7 +264,7 @@ class CanvasView(QGraphicsView):
         app.canvas.scene.content_changed.connect(self._on_scene_changed)
 
     def _on_scene_changed(self, rects: list[QRectF]) -> None:
-        self._content_bounds = None
+        self._bounds_stale = True
         self._invalidate_gray_cache()
         self.tiles.invalidate(rects)
 
@@ -324,12 +339,23 @@ class CanvasView(QGraphicsView):
         t = self.transform()
         return math.hypot(t.m11(), t.m12())
 
+    BOUNDS_REMEASURE_S = 3.0
+
+    def invalidate_content_bounds(self) -> None:
+        """The board's geometry may have changed (items added, removed, moved, resized): the next
+        min_zoom() measures it again, and the tile cache plans its overview again."""
+        self._content_bounds = None
+        self.tiles.content_geometry_changed()
+
     def min_zoom(self) -> float:
         """How far zooming out may go: MIN_ZOOM, or further until the board fits in
         ZOOM_OUT_FIT of the view (so a board spread wide can still be seen whole)."""
-        if self._content_bounds is None:
+        now = time.monotonic()
+        if self._content_bounds is None or (self._bounds_stale and now - self._bounds_time > self.BOUNDS_REMEASURE_S):
             canvas = self.app.canvas
             self._content_bounds = canvas.scene_bounds(canvas.visible_content_items())
+            self._bounds_stale = False
+            self._bounds_time = now
         bounds = self._content_bounds
         if bounds.isNull() or bounds.width() <= 0.0 or bounds.height() <= 0.0:
             return self.MIN_ZOOM
@@ -347,6 +373,8 @@ class CanvasView(QGraphicsView):
         return math.degrees(math.atan2(t.m12(), t.m11()))
 
     def center(self) -> QPointF:
+        if self._pan_pending is not None:
+            self.flush_pan()
         if self._pending_camera is not None:
             return QPointF(self._pending_camera[0])
         # QRectF centre (w/2, h/2), not QRect's ((w-1)/2): reading the camera back
@@ -359,12 +387,16 @@ class CanvasView(QGraphicsView):
         return {v.view_name for v in self.app.linked_views(self)}
 
     def camera(self) -> dict[str, Any]:
+        if self._pan_pending is not None:
+            self.flush_pan()
         return {"center": [round(self._camera_center.x(), 3), round(self._camera_center.y(), 3)],
                 "zoom": round(self._camera_zoom, 6), "rotation": round(self._camera_rotation, 4),
                 "flip_x": self._camera_flip_x, "flip_y": self._camera_flip_y}
 
     def set_camera(self, center: Any = None, zoom: float | None = None, rotation: float | None = None,
                    animate: bool = False, flip_x: bool | None = None, flip_y: bool | None = None) -> None:
+        if self._pan_pending is not None:
+            self.flush_pan()
         target_center = QPointF(float(center[0]), float(center[1])) if center is not None else self._camera_center
         target_zoom = max(self.FLOOR_ZOOM, min(self.MAX_ZOOM, float(zoom))) if zoom is not None else self._camera_zoom
         target_rotation = float(rotation) if rotation is not None else self._camera_rotation
@@ -382,6 +414,8 @@ class CanvasView(QGraphicsView):
         self._apply_camera(target_center, target_zoom, target_rotation, target_flip_x, target_flip_y)
 
     def flip(self, horizontal: bool = True, vertical: bool = False) -> dict[str, Any]:
+        if self._pan_pending is not None:
+            self.flush_pan()
         self._camera_flip_x = self._camera_flip_x ^ bool(horizontal)
         self._camera_flip_y = self._camera_flip_y ^ bool(vertical)
         self._apply_camera(self._camera_center, self._camera_zoom, self._camera_rotation,
@@ -404,6 +438,8 @@ class CanvasView(QGraphicsView):
 
     def _apply_camera(self, center: QPointF, zoom: float, rotation: float,
                       flip_x: bool = False, flip_y: bool = False) -> None:
+        if self._pan_pending is not None:
+            self.flush_pan()
         self._camera_center = QPointF(center)
         self._camera_zoom = max(self.FLOOR_ZOOM, min(self.MAX_ZOOM, float(zoom)))
         self._camera_rotation = float(rotation)
@@ -416,8 +452,9 @@ class CanvasView(QGraphicsView):
             self._camera_zoom * (-1.0 if self._camera_flip_y else 1.0),
         )
         self._applying_camera = True
-        self.setTransform(transform)
-        self.centerOn(self._camera_center)
+        with self._camera_batch():
+            self.setTransform(transform)
+            self.centerOn(self._camera_center)
         self._applying_camera = False
         self._camera_moved()
 
@@ -453,6 +490,8 @@ class CanvasView(QGraphicsView):
         animation.start()
 
     def zoom_by(self, factor: float, around_cursor: bool = True) -> None:
+        if self._pan_pending is not None:
+            self.flush_pan()
         current = self.zoom_level() or 1.0
         target = self._clamp_zoom_out(current * factor, current)
         if abs(target - current) < 1e-12:
@@ -460,7 +499,8 @@ class CanvasView(QGraphicsView):
         self._stop_animation()
         if not around_cursor:
             self.setTransformationAnchor(QGraphicsView.AnchorViewCenter)
-        self.scale(target / current, target / current)
+        with self._camera_batch():
+            self.scale(target / current, target / current)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self._camera_moved(sync_state=True)
 
@@ -474,6 +514,8 @@ class CanvasView(QGraphicsView):
 
     def glide_zoom(self, factor: float, pos: QPointF | None = None) -> None:
         """Zoom by ``factor`` smoothly about ``pos`` (viewport coordinates; default: the centre)."""
+        if self._pan_pending is not None:
+            self.flush_pan()
         if self._animation is not None:
             self._animation.stop()
         start = self._glide_target if self._glide_target is not None else (self.zoom_level() or 1.0)
@@ -503,12 +545,13 @@ class CanvasView(QGraphicsView):
         anchor, scene_point = self._glide_anchor, self._glide_scene
         factor = math.exp(step)
         self.setTransformationAnchor(QGraphicsView.NoAnchor)
-        self.scale(factor, factor)
-        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
-        drift = self.to_viewport(scene_point) - anchor
-        hbar, vbar = self.horizontalScrollBar(), self.verticalScrollBar()
-        hbar.setValue(hbar.value() + round(drift.x()))
-        vbar.setValue(vbar.value() + round(drift.y()))
+        with self._camera_batch():
+            self.scale(factor, factor)
+            self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+            drift = self.to_viewport(scene_point) - anchor
+            hbar, vbar = self.horizontalScrollBar(), self.verticalScrollBar()
+            hbar.setValue(hbar.value() + round(drift.x()))
+            vbar.setValue(vbar.value() + round(drift.y()))
         self._camera_moved(sync_state=True)
         if step == remaining:
             self._glide_timer.stop()
@@ -518,13 +561,16 @@ class CanvasView(QGraphicsView):
         self.set_camera(zoom=level)
 
     def fit_rect(self, rect: QRectF, margin: float = 40.0) -> None:
+        if self._pan_pending is not None:
+            self.flush_pan()
         if rect.isNull() or rect.width() <= 0.0 or rect.height() <= 0.0:
             return
         self._stop_animation()
         # The stored rotation, not rotation(): a flipped transform reads back as
         # rotation + 180°, which would turn a mirror into an upside-down view.
         rotation = self._camera_rotation
-        self.fitInView(rect.adjusted(-margin, -margin, margin, margin), Qt.KeepAspectRatio)
+        with self._camera_batch():
+            self.fitInView(rect.adjusted(-margin, -margin, margin, margin), Qt.KeepAspectRatio)
         zoom = self.zoom_level()
         if abs(rotation) > 1e-6 or zoom > self.MAX_ZOOM or zoom < self.FLOOR_ZOOM:
             self._apply_camera(rect.center(), max(self.FLOOR_ZOOM, min(self.MAX_ZOOM, zoom)), rotation,
@@ -532,19 +578,77 @@ class CanvasView(QGraphicsView):
         self._camera_moved(sync_state=True)
 
     def pan_by(self, delta: QPointF) -> None:
+        if self._pan_pending is not None:
+            self.flush_pan()
         self._stop_animation()
         hbar, vbar = self.horizontalScrollBar(), self.verticalScrollBar()
-        hbar.setValue(hbar.value() - round(delta.x()))
-        vbar.setValue(vbar.value() - round(delta.y()))
+        with self._camera_batch():
+            hbar.setValue(hbar.value() - round(delta.x()))
+            vbar.setValue(vbar.value() - round(delta.y()))
         self._camera_moved(sync_state=True)
 
+    PAN_COALESCE = os.environ.get("PIXELREF_PAN_COALESCE", "1").strip() != "0"
+
+    def pan_input(self, delta: QPointF) -> None:
+        """Pan by a pointer drag. Deltas arriving within one pass of the event loop are applied
+        together by one ``pan_by``: each costs ~2.4 ms, so a mouse reporting faster than ~400 Hz
+        would otherwise queue events faster than they can be handled. The camera is brought up to
+        date before anything reads or sets it (``flush_pan``); scripts use ``pan_by``, which is
+        immediate."""
+        if not self.PAN_COALESCE:
+            self.pan_by(delta)
+            return
+        if self._pan_pending is None:
+            self._pan_pending = QPointF(delta)
+            QTimer.singleShot(0, self, self.flush_pan)
+        else:
+            self._pan_pending += delta
+
+    def flush_pan(self) -> None:
+        """Apply the pan deltas collected by ``pan_input``."""
+        delta, self._pan_pending = self._pan_pending, None
+        if delta is not None:
+            self.pan_by(delta)
+
+    @contextmanager
+    def _camera_batch(self) -> Iterator[None]:
+        """Scrollbar changes inside do not report a camera change each: the caller reports one when
+        it is done (a pan used to emit ``camera_changed`` three times, and every emission is
+        followed by the bus event, the minimap and every linked view)."""
+        self._camera_batching += 1
+        try:
+            yield
+        finally:
+            self._camera_batching -= 1
+
+    ZOOM_QUIET_S = 0.08  # glide steps arrive every frame: this bridges the gaps between discrete zoom steps
+
+    def zooming(self) -> bool:
+        """The zoom is changing: a glide or camera animation runs, or the zoom changed a moment ago.
+        The tile cache does not render new levels synchronously meanwhile (see tiles.TileCache.paint)."""
+        animation = self._animation
+        if self._glide_timer.isActive() or (animation is not None and animation.state() == QAbstractAnimation.Running):
+            return True
+        return time.monotonic() - self._zoom_stamp < self.ZOOM_QUIET_S
+
+    def camera_idle(self, quiet: float = ZOOM_QUIET_S) -> bool:
+        """The camera has not moved for ``quiet`` seconds and is not animating."""
+        return not self.zooming() and time.monotonic() - self._nav_stamp >= quiet
+
     def _camera_moved(self, *_args: Any, sync_state: bool = False) -> None:
+        if self._camera_batching and not sync_state:
+            return
         if (sync_state or _args) and not self._applying_camera:
             # Keep stored values aligned with viewport interaction (scroll/pan/zoom).
             self._camera_center = self.center()
             self._camera_zoom = self.zoom_level()
         self._gray_cache = None
         self._gray_cache_key = None
+        now = time.monotonic()
+        self._nav_stamp = now
+        if abs(self._camera_zoom - self._stamp_zoom) > 1e-9 * max(1.0, self._camera_zoom):
+            self._stamp_zoom = self._camera_zoom
+            self._zoom_stamp = now
         self.camera_changed.emit()
 
     def resizeEvent(self, event) -> None:  # noqa: ANN001

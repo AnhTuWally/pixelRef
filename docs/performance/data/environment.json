@@ -1,0 +1,21 @@
+{
+  "os": "Windows-10-10.0.19045-SP0",
+  "python": "3.14.10",
+  "pyside6": "6.12.0",
+  "qt": "6.12.0",
+  "qpa": "windows",
+  "cpu": "Intel64 Family 6 Model 158 Stepping 9, GenuineIntel",
+  "cores": 8,
+  "gl_renderer": "NVIDIA GeForce RTX 4060 Ti/PCIe/SSE2",
+  "gl_used": true,
+  "screen": {
+    "name": "DELL U2410",
+    "size": [
+      1920,
+      1200
+    ],
+    "refresh_hz": 59.95,
+    "dpr": 1.0
+  },
+  "glide_interval_ms": 17
+}

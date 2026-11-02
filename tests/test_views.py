@@ -187,3 +187,124 @@ def test_zoom_out_limit_follows_the_board():
         assert view.camera()["zoom"] == view.FLOOR_ZOOM, "scripts are held only by the hard floor"
     finally:
         h.close()
+
+
+def test_zoom_out_limit_is_not_remeasured_by_repaints():
+    """A decode delivery or GIF frame repaints without moving anything: min_zoom() must not walk
+    every item again for it (42 ms on 5000 items, once per wheel notch), but a refresh that can
+    have moved items is seen at once."""
+    h = make()
+    try:
+        view = h.view
+        h.add_image("near", 0.0, 0.0)
+        h.add_image("far", 400_000.0, 300_000.0)
+        limit = view.min_zoom()
+        measured = view._content_bounds
+        assert measured is not None
+        for _ in range(5):
+            view._on_scene_changed([])
+        view.min_zoom()
+        assert view._content_bounds is measured, "repaint-only changes keep the measured bounds"
+        # Stale bounds are measured again, but not more often than BOUNDS_REMEASURE_S.
+        view._bounds_time -= view.BOUNDS_REMEASURE_S + 0.1
+        view.min_zoom()
+        assert view._content_bounds is not measured and not view._bounds_stale
+        # A geometry change is reflected at once, with no waiting.
+        h.run("delete", ["far"])
+        h.refresh()
+        assert view.min_zoom() == view.MIN_ZOOM and limit < view.MIN_ZOOM
+        h.add_image("far2", 400_000.0, 300_000.0)
+        h.refresh()
+        assert view.min_zoom() < view.MIN_ZOOM
+    finally:
+        h.close()
+
+
+def test_a_camera_change_is_reported_once():
+    """Panning moves two scrollbars: each used to report a camera change of its own (three per pan),
+    and every report fans out to the bus, the minimap and all linked views."""
+    from PySide6.QtCore import QPointF
+
+    h = make()
+    try:
+        view = h.view
+        h.add_image("a", 0.0, 0.0)
+        h.refresh()
+        view.set_camera([0.0, 0.0], 1.0, 0.0)
+        count = []
+        view.camera_changed.connect(lambda: count.append(1))
+        before = view.camera()["center"]
+        view.pan_by(QPointF(40.0, 25.0))
+        assert len(count) == 1, "pan_by reports once"
+        moved = view.camera()["center"]
+        assert moved != before, "the camera state is current immediately"
+        count.clear()
+        view.set_camera([5.0, 5.0], 2.0, 0.0)
+        assert len(count) == 1, "set_camera reports once"
+        count.clear()
+        view.zoom_by(0.5)
+        assert len(count) == 1, "zoom_by reports once"
+        count.clear()
+        view.glide_zoom(2.0)
+        assert len(count) >= 1
+        view._glide_timer.stop()
+        count.clear()
+        view._glide_target = 1.0
+        view._glide_step()
+        assert len(count) == 1, "a glide step reports once"
+        count.clear()
+        view.fit_rect(view.scene().itemsBoundingRect())
+        assert len(count) == 1, "fit_rect reports once"
+        count.clear()
+        view.horizontalScrollBar().setValue(view.horizontalScrollBar().value() + 7)
+        assert len(count) == 1, "a scrollbar moved directly still reports"
+        assert abs(view.camera()["center"][0] - view.center().x()) < 0.01
+    finally:
+        h.close()
+
+
+def test_pan_input_is_applied_once_per_loop_pass_and_matches_unbatched():
+    from PySide6.QtCore import QPointF
+
+    h = make()
+    try:
+        view = h.view
+        h.add_image("a", 0.0, 0.0)
+        h.refresh()
+        deltas = [QPointF(3.0 + i % 5, -2.0 + i % 3) for i in range(100)]
+        view.set_camera([0.0, 0.0], 1.0, 0.0)
+        for d in deltas:
+            view.pan_by(d)
+        expected = view.camera()["center"]
+
+        view.set_camera([0.0, 0.0], 1.0, 0.0)
+        count = []
+        view.camera_changed.connect(lambda: count.append(1))
+        for d in deltas:
+            view.pan_input(d)
+        assert count == [], "nothing is applied until the loop runs or the camera is read"
+        APP.processEvents()
+        assert len(count) == 1, "one pan_by for the whole pass"
+        assert view.camera()["center"] == expected, "same result as applying every delta"
+
+        # Reading the camera applies what is pending (no waiting for the loop).
+        view.set_camera([0.0, 0.0], 1.0, 0.0)
+        for d in deltas:
+            view.pan_input(d)
+        assert view.camera()["center"] == expected
+        APP.processEvents()
+        assert view.camera()["center"] == expected, "and is applied only once"
+
+        # A scripted camera change after pending input wins; the input does not land afterwards.
+        view.pan_input(QPointF(50.0, 50.0))
+        view.set_camera([10.0, 20.0], 1.0, 0.0)
+        APP.processEvents()
+        assert view.camera()["center"] == [10.0, 20.0]
+
+        # Scripted pans stay immediate.
+        before = view.camera()["center"]
+        view.pan_by(QPointF(10.0, 0.0))
+        assert view.camera()["center"] != before
+    finally:
+        h.close()
+

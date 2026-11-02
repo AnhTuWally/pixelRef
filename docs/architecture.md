@@ -249,6 +249,7 @@ anything. Decisions and measurements: [design-find.md](design-find.md).
 | `PIXELREF_SCRIPT_PATH` | extra folders for scripts and `userSetup.py` ([scripting.md](scripting.md#usersetuppy), [keymap.md](keymap.md#scripts)) |
 | `PIXELREF_PACKAGES_DIR` | replaces the managed Python package folder ([packaging.md](packaging.md#the-managed-package-folder)) |
 | `PIXELREF_TILES` | the canvas tile cache: `1` always on, `0` off, unset: scenes of 10+ items |
+| `PIXELREF_TILE_PROGRESSIVE` | progressive zoom rendering (overview level, no tile rendering while the zoom changes): `1` on, `0` off, unset: the *View → Progressive Zoom Rendering* setting (on by default). Design and measurements: [performance/08-phase2-results.md](performance/08-phase2-results.md) |
 
 ## Goals and non-goals
 
