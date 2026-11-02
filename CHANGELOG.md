@@ -4,6 +4,32 @@ All notable changes to pixelRef are documented here.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-02
+
+### Added — Code blocks
+
+- **Code blocks** (new built-in plugin): a canvas item for showing source code, with a monospace font,
+  syntax highlighting (Python, JavaScript, TypeScript, JSON, C, C++, C# and more), optional word wrap and
+  line numbers, light and dark themes, width handles and one-click copy. A new block starts with a
+  "Hello, World!" line to replace.
+
+### Added — Pasted text and workspaces
+
+- **Long pasted text wraps.** Text pasted onto the canvas wraps at a default width (400) instead of
+  running on as one long line; short text keeps its natural size. Change the width with *Pasted Text
+  Width…* in the canvas menu (Text submenu) or command search; 0 turns wrapping off. The setting is
+  remembered.
+- **Contact Sheet workspace.** A new default workspace pairs the canvas with a contact sheet. Existing
+  boards keep the workspaces they already have.
+- The quick-edit bar's dropdown lists now follow the dark theme instead of showing a white popup.
+
+### Fixed — Updates (preparation; installing is still off)
+
+- Found while rehearsing an update on Windows: the update journal could fail to save while another
+  process had it open, and an update that was undone left no pixelRef running. Both are fixed. In-app
+  installing remains disabled in this release; the status-bar "Update available" note is unchanged.
+
+
 ### Added — Progressive zoom rendering
 
 - **Smooth zooming on busy boards**: while the zoom changes the canvas now shows a coarse overview of the
