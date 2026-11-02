@@ -100,10 +100,12 @@ class TrustStore:
     revoked: frozenset[str] = frozenset()
 
 
-# The embedded application release key(s). Intentionally empty until the maintainer generates the
-# release key offline (``python packaging/sign_release.py generate-key``) and pastes the PUBLIC key
-# here. While empty, every verification fails closed. The private key is never in this repository.
-RELEASE_TRUST = TrustStore()
+# The embedded application release key(s): PUBLIC keys only, generated offline with
+# ``python packaging/sign_release.py generate-key``. The private key is never in this repository.
+# Key id 3787a25031bc4804656e3325bd66d6856ea3506caa5b9fdb775eb76a79f3b31a
+RELEASE_TRUST = TrustStore(keys=(
+    TrustedKey(base64.b64decode("Y4drb4xfxSNNe/sNYEeHjzsTTt/XuaPNtK6EpgTeprk=")),
+))
 
 
 # ---- Manifest ----------------------------------------------------------------------------------

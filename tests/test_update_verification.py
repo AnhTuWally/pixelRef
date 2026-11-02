@@ -84,7 +84,10 @@ def test_any_tampered_field_breaks_the_signature():
 
 def test_wrong_missing_revoked_and_expired_keys_fail():
     fails(lambda: verify(sign_manifest(payload(), OTHER)), "signature")
-    fails(lambda: verify(sign_manifest(payload(), KEY), trust=RELEASE_TRUST), "no release key")
+    fails(lambda: verify(sign_manifest(payload(), KEY), trust=TrustStore()), "no release key")
+    # the shipped store trusts exactly the real release key, never a test key
+    assert len(RELEASE_TRUST.keys) == 1 and KEY.public_key().public_bytes_raw() != RELEASE_TRUST.keys[0].public_key
+    fails(lambda: verify(sign_manifest(payload(), KEY), trust=RELEASE_TRUST), "signature")
     revoked = TrustStore(TRUST.keys, frozenset({TRUST.keys[0].id}))
     fails(lambda: verify(sign_manifest(payload(), KEY), trust=revoked), "signature")
     old = TrustStore((TrustedKey(KEY.public_key().public_bytes_raw(), "2026-06-01T00:00:00Z"),))

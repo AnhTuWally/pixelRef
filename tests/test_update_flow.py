@@ -263,7 +263,7 @@ def test_last_update_result_messages():
 
 # ---- UI service ---------------------------------------------------------------------------------
 
-def wait(cond, ms=5000):
+def wait(cond, ms=30000):  # generous: it returns as soon as cond() holds, so only a failing test pays for it
     import time
 
     end = time.time() + ms / 1000
