@@ -280,7 +280,7 @@ def install(variant: str, overrides: list[str]) -> None:
             cur = REC.cur or {}
             REC.frames.append((self.view_name, t0, t1, (t1 - t0) * 1000.0, cur.get("visible", 0),
                                cur.get("sync", 0), cur.get("sync_ms", 0.0), cur.get("fallback", 0),
-                               cur.get("blank", 0), cur.get("mag", 1.0)))
+                               cur.get("blank", 0), cur.get("mag", 1.0), cur.get("uncovered", 0)))
         REC.cur = None
 
     CanvasView.paintEvent = paint_event
@@ -317,6 +317,9 @@ def install(variant: str, overrides: list[str]) -> None:
         if REC.cur is not None:
             REC.cur["fallback"] += len(keys)
             have = [lv for lv in fallbacks if lv.tiles]
+            # "uncovered": tiles no fallback level covers completely (background only, or partly so)
+            REC.cur["uncovered"] = REC.cur.get("uncovered", 0) + sum(
+                1 for k in keys if not any(lv.covers(level.scene_rect(k)) for lv in have))
             if not have:
                 REC.cur["blank"] += len(keys)
             else:  # magnification of the closest fallback level (1.0 = same zoom, 8 = drawn 8x too small)
@@ -496,6 +499,8 @@ def quality(view, with_overview: bool = True) -> tuple[int, int, int]:
     cache = view.tiles
     ov = getattr(cache, "_ov", None)  # prototype overview level (bench_variants): unfinished = pending work
     ov_missing = sum(1 for k in cache._ov_keys if k not in ov.tiles) if (ov is not None and with_overview) else 0
+    if with_overview and tilemod.progressive_mode():  # production overview: missing or stale tiles
+        ov_missing += cache.overview_pending() + (0 if cache._ov_done else 1)
     zoom = view.viewportTransform().m11()
     key = (round(zoom, 9), round(view.devicePixelRatioF(), 4))
     level = cache.levels.get(key)
@@ -695,10 +700,13 @@ def run(args: argparse.Namespace) -> dict:
     input_times = sorted(t for t, _m, _k in REC.handler_ms)
     pres_sorted = sorted(present)
     active_iv = []
+    worst_active = []  # (seconds since the first input, interval ms, seconds since the last input)
     for a, b in zip(pres_sorted, pres_sorted[1:]):
         k = bisect.bisect_right(input_times, a) - 1
         if k >= 0 and a - input_times[k] < 0.30:
             active_iv.append((b - a) * 1000.0)
+            worst_active.append((round(a - input_times[0], 3), round((b - a) * 1000.0, 1), round(a - input_times[k], 3)))
+    worst_active = sorted(worst_active, key=lambda w: -w[1])[:4]
     gaps = REC.tick_gaps
     blocked = [g for g in gaps if g > 8.0]
     dropped = sum(max(0, round(i / period) - 1) for i in intervals if i > 1.5 * period)
@@ -706,6 +714,7 @@ def run(args: argparse.Namespace) -> dict:
     sync_tiles = sum(f[5] for f in frames)
     fb_tiles = sum(f[7] for f in frames)
     blank = sum(f[8] for f in frames)
+    uncovered = sum(f[10] for f in frames)
     mags = [f[9] for f in frames if f[7]]
     cache = view.tiles
     mem1 = rss_mb()
@@ -720,7 +729,7 @@ def run(args: argparse.Namespace) -> dict:
         "frames": {"painted": len(frames), "paints_all_views": all_paints,
                    "active_s": round(result["duration"], 2),
                    "fps_paint": round(len(frames) / max(result["duration"], 1e-9), 1),
-                   "present_interval_ms": dist(intervals), "present_interval_active_ms": dist(active_iv),
+                   "present_interval_ms": dist(intervals), "present_interval_active_ms": dist(active_iv), "worst_active": worst_active,
                    "active_late": sum(1 for i in active_iv if i > period * 1.01),
                    "active_gt_2x": sum(1 for i in active_iv if i > period * 2.0),
                    "active_gt_4x": sum(1 for i in active_iv if i > period * 4.0),
@@ -736,7 +745,8 @@ def run(args: argparse.Namespace) -> dict:
                        "main_thread_cpu_share": round(result["thread"] / max(result["wall"], 1e-9), 3),
                        "process_cores_busy": round(result["cpu"] / max(result["wall"], 1e-9), 2)},
         "tiles": {"visible_tiles_painted": vis, "hit": vis - sync_tiles - fb_tiles, "sync_rendered": sync_tiles,
-                  "fallback": fb_tiles, "blank": blank,
+                  "fallback": fb_tiles, "blank": blank, "uncovered": uncovered,
+                  "uncovered_share": round(uncovered / max(1, vis), 4),
                   "hit_rate": round((vis - sync_tiles - fb_tiles) / max(1, vis), 4),
                   "sync_render_ms_total": round(sum(f[6] for f in frames), 1),
                   "frames_with_sync_render": sum(1 for f in frames if f[5]),
@@ -768,6 +778,7 @@ def run(args: argparse.Namespace) -> dict:
     if result["jumps"]:
         out["jumps"] = {"first_frame_ms": dist([j["first"] * 1000 for j in result["jumps"] if j["first"] is not None]),
                         "full_quality_ms": dist([j["exact"] * 1000 for j in result["jumps"] if j["exact"] is not None]),
+                        "full_quality_each_ms": [None if j["exact"] is None else round(j["exact"] * 1000) for j in result["jumps"]],
                         "never_full": sum(1 for j in result["jumps"] if j["exact"] is None)}
     if REC.extra:
         out["extra"] = dict(REC.extra)

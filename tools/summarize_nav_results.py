@@ -90,6 +90,7 @@ COLUMNS = {
         ("blurry fr", lambda r: f(g(r, "tiles.frames_visibly_blurry"))),
         ("mag p50", lambda r: f(g(r, "tiles.fallback_magnification.p50"), 2)),
         ("blank", lambda r: f(g(r, "tiles.blank"))),
+        ("uncovered %", lambda r: f(100 * (g(r, "tiles.uncovered_share") or 0), 1)),
         ("idle sl", lambda r: f(g(r, "tiles.idle_slices"))),
         ("idle@input", lambda r: f(g(r, "tiles.idle_slices_during_input"))),
         ("idle max ms", lambda r: f(g(r, "tiles.idle_slice_ms.max"))),
@@ -138,6 +139,8 @@ def label(row):
         bits.append("sw")
     if env.get("QT_QPA_PLATFORM") == "offscreen":
         bits.append("offscreen")
+    if env.get("PIXELREF_TILE_PROGRESSIVE") not in (None, "", "0"):
+        bits.append("progressive")
     return " / ".join(bits)
 
 
