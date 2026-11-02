@@ -83,9 +83,10 @@ def run(argv: list[str] | None = None) -> int:
     restored = False
     recovery = app.session.services.get("recovery")
     if recovery is not None:
-        # Session Resume (if turned on) reopens the last board; offer() is the
-        # separate crash-recovery safety net, which still applies either way.
-        restored = recovery.resume() or recovery.offer()
+        # Session Resume (if turned on) reopens the last workspace; offer() is the separate
+        # crash-recovery safety net, which still applies either way (and asks only once).
+        restored = recovery.resume()
+        restored = recovery.offer() or restored
     if not restored and scene_args and scene_args[0].exists():
         app.run_command("open_scene", str(scene_args[0]))
     elif not restored:

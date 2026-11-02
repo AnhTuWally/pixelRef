@@ -724,15 +724,30 @@ data, and every other image, import as before.
   If the file is deleted or moved, your open copy is kept and the toast offers
   **Save** to write it back.
 - **Autosave and recovery.** Unsaved work (images included) is written to a
-  recovery copy every minute. After a crash, the next start offers to restore
-  it.
+  recovery copy every minute, one per board. A board you switch away from with
+  unsaved edits is copied at that moment, so a crash cannot lose it. After a
+  crash, the next start offers every board with recoverable work in **one
+  dialog** (tick the ones to restore; *Discard All*; or *Decide Later*, which
+  keeps everything for next time). Restored boards come back as unsaved work,
+  never written over the file: if the file changed on disk since, the dialog
+  says so. A copy that cannot be read is set aside in the `corrupt` folder next
+  to the recovery files instead of being deleted.
+- **The Files list.** The Files panel lists the files open in this window. Close
+  one with its **×** (or right-click: *Close*, *Close Others*, *Close All*;
+  `Ctrl+Shift+W` closes the current file); it stays in Recent Files. Right-click
+  also sets a colour label, and a file that has gone missing shows a warning
+  sign and can be pointed at its new place with *Locate File…*. With Session
+  Resume on, the list, its order, colours and active file come back at launch;
+  only the active board is loaded, the rest load when you select them.
 - **Session Resume.** *File → Resume Last Session on Launch*, or the checkbox
-  on the start panel (off by default; the checkbox only shows once a previous
-  session actually had something on the board), reopens your workspace
+  on the start panel (on by default; the start panel shows the checkbox from the
+  very first launch), reopens your workspace
   exactly as you left it. With a saved file open, closing pixelRef skips the
   save prompt; next launch reopens that file's last saved version, and if you
-  had unsaved edits you're asked whether to bring them back. With an Untitled
-  board, your unsaved draft reopens automatically, no prompt needed.
+  had unsaved edits you're asked whether to bring them back. Boards parked in
+  the Files list with unsaved edits are kept the same way (no prompt on quit)
+  and offered back in the same single question. With an Untitled board, your
+  unsaved draft reopens automatically, no prompt needed.
 - **Resuming an Untitled draft without turning Session Resume on.** Closing an
   Untitled board with unsaved work (even if you choose Discard) still keeps a
   thumbnailed copy of it. Next time you see the start panel, a *Resume Last

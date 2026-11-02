@@ -96,6 +96,61 @@ def test_picture_budget_never_evicts_what_is_on_screen():
     assert 0 in small.levels, "small levels stay: decoding one again costs more than keeping it"
 
 
+def test_picture_store_does_not_keep_unused_handles_alive():
+    """A handle nothing shows (its document was replaced; a late decode still delivered into it)
+    must be freed with its pixels: the store used to hold every board ever visited."""
+    import gc
+    import weakref
+
+    from PySide6.QtCore import QSize
+    from PySide6.QtGui import QImageReader, QPixmap
+
+    from pixelref.builtins.image.source import ImageHandle, PictureStore
+
+    store = PictureStore(limit=10**12)
+    old = ImageHandle("old", lambda: QImageReader(), QSize(512, 512), False, False)
+    picture = QPixmap(512, 512)
+    old.levels[0] = picture
+    store.add(old, 0, picture)
+    assert store.bytes > 0
+    ref = weakref.ref(old)
+    del old, picture
+    gc.collect()
+    assert ref() is None, "the store must not keep a handle alive"
+    keep = ImageHandle("keep", lambda: QImageReader(), QSize(64, 64), False, False)
+    keep.levels[0] = QPixmap(64, 64)
+    store.add(keep, 0, keep.levels[0])  # adding purges what died
+    assert len(store.entries) == 1 and store.bytes == 64 * 64 * max(1, keep.levels[0].depth() // 8)
+
+
+def test_a_decode_finishing_after_the_cache_was_cleared_leaves_nothing_behind():
+    """Switching boards clears the image cache while decodes are still running; their results used to
+    land in the store through the forgotten handle and stay there (about 14 MB per switch)."""
+    import gc
+    import weakref
+
+    from pixelref.builtins.image.source import DECODER, STORE
+
+    h = make()
+    try:
+        photo = _photo("late_decode.jpg", 1600, 800)
+        cache = h.session.services.get("image_cache")
+        handle = cache.handle({"path": str(photo)})
+        key = handle.key
+        handle.request(1)  # decoding on a worker thread...
+        cache.clear()  # ...when another board is opened
+        ref = weakref.ref(handle)
+        del handle
+        DECODER.wait()  # the late result is delivered
+        APP.processEvents()
+        gc.collect()
+        assert ref() is None, "nothing may keep the forgotten handle (and its pixels) alive"
+        resolved = [e[0]() if isinstance(e[0], weakref.ref) else e[0] for e in STORE.entries.values()]
+        assert not [x for x in resolved if x is not None and x.key == key]
+    finally:
+        h.close()
+
+
 def test_moving_keeps_items_and_never_rebuilds_the_board():
     h = make()
     try:

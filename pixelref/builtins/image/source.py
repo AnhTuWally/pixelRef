@@ -27,6 +27,7 @@ from __future__ import annotations
 import math
 import os
 import time
+import weakref
 from collections import OrderedDict
 from typing import Any, Callable
 
@@ -260,12 +261,30 @@ class Decoder:
 
 
 class PictureStore:
-    """Every handle's decoded levels, least recently drawn first, within MEMORY_LIMIT."""
+    """Every handle's decoded levels, least recently drawn first, within MEMORY_LIMIT.
+
+    It refers to handles weakly: a handle nothing shows any more (its document was replaced; a
+    decode finishing after the cache was cleared still delivers into it) must die with its levels
+    and with the file bytes its reader holds. A strong reference here kept every board ever
+    visited alive, up to the whole budget.
+    """
 
     def __init__(self, limit: int = MEMORY_LIMIT) -> None:
         self.limit = limit
-        self.entries: OrderedDict[tuple[int, int], tuple[ImageHandle, int, float]] = OrderedDict()
+        # (id(handle), level) -> (weakref to handle, bytes, last drawn)
+        self.entries: OrderedDict[tuple[int, int], tuple[Any, int, float]] = OrderedDict()
         self.bytes = 0
+
+    @staticmethod
+    def _handle(ref: Any) -> ImageHandle | None:
+        return ref() if isinstance(ref, weakref.ref) else ref
+
+    def _purge(self) -> None:
+        """Forget the levels of handles that no longer exist."""
+        for key, (ref, size, _used) in list(self.entries.items()):
+            if self._handle(ref) is None:
+                del self.entries[key]
+                self.bytes -= size
 
     @staticmethod
     def _size(picture: QPixmap) -> int:
@@ -277,7 +296,8 @@ class PictureStore:
         if old is not None:
             self.bytes -= old[1]
         size = self._size(picture)
-        self.entries[key] = (handle, size, time.monotonic())
+        self._purge()
+        self.entries[key] = (weakref.ref(handle), size, time.monotonic())
         self.bytes += size
         self.trim()
 
@@ -296,19 +316,24 @@ class PictureStore:
     def trim(self) -> None:
         if self.bytes <= self.limit:
             return
+        self._purge()
         now = time.monotonic()
-        for key, (handle, size, used) in list(self.entries.items()):
+        for key, (ref, size, used) in list(self.entries.items()):
             if self.bytes <= self.limit or now - used < RECENT_S:
                 break  # the rest was drawn just now (on screen): go over the budget rather than thrash
             if size < KEEP_BYTES:
                 continue
             del self.entries[key]
             self.bytes -= size
-            handle.levels.pop(key[1], None)
+            handle = self._handle(ref)
+            if handle is not None:
+                handle.levels.pop(key[1], None)
 
     def clear(self) -> None:
-        for handle, _size, _used in list(self.entries.values()):
-            handle.levels.clear()
+        for ref, _size, _used in list(self.entries.values()):
+            handle = self._handle(ref)
+            if handle is not None:
+                handle.levels.clear()
         self.entries.clear()
         self.bytes = 0
 

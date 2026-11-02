@@ -4,6 +4,64 @@ All notable changes to pixelRef are documented here.
 
 ## [Unreleased]
 
+### Added — Persistent Files list (in progress)
+
+- **Restore Previous Workspace**: the Files list, its order and each file's last view are saved and
+  come back on launch. Only the active board loads; the rest stay dormant until selected. Design and
+  phases: [docs/design-persistent-workspace.md](docs/design-persistent-workspace.md).
+- Startup restore now has three modes (`workspace`, `list`, `empty`). *Resume Last Session on Launch*
+  maps to `workspace`; the default is unchanged.
+- Only the first pixelRef window saves the workspace; windows from *Open in New Window* and a second
+  launch never overwrite it.
+
+- **Close files**: a small × on each Files row, plus Close, Close Others and Close All in the row's
+  right-click menu and the File menu (`Ctrl+Shift+W` closes the current file). Closing only removes a
+  file from the Files list (it stays in Recent Files); unsaved boards are asked about first, with
+  one dialog for several, and Cancel or a failed save closes nothing.
+
+- **Colour labels**: right-click a file in the Files panel > *Set Colour* (blue, green, yellow, orange,
+  purple, pink) or *Remove Colour*; also in command search (*Colour File: ...*). A narrow strip on the
+  row shows it, separate from the active highlight and the unsaved border. Labels are remembered per
+  file path in your settings (never inside a `.pxref`), so they survive closing, reopening and restarts.
+
+- **Lighter parked boards**: switching away from a board with no unsaved changes no longer serializes
+  it or keeps a copy in memory (with embedded photos that was the whole file, per board); it reloads
+  from disk when selected. Boards with unsaved changes still keep theirs. Switching between files in
+  the list no longer reorders Recent Files.
+
+- **Missing files**: a listed file that no longer exists (unplugged drive, moved folder) shows a warning
+  sign and a muted name, stays in the list and in the saved workspace, and never blocks startup. Existence
+  is checked in the background and not more than every 30 seconds. Selecting one says so quietly instead
+  of showing an error. Right-click > *Locate File...* points the entry at the file's new location, keeping
+  its place and colour.
+- The start screen marks recent files that are **already open**; clicking one switches to it instead of
+  opening it again.
+
+- **Unsaved work in every open board is protected.** Each board with a file keeps its own recovery
+  copy, so a board you switched away from with unsaved edits survives a crash too (before, only the
+  board on screen did). After a crash, one dialog offers every board with recoverable work. With
+  Session Resume on, quitting no longer asks about such boards: they are kept and offered back at the
+  next launch. A file that changed on disk since is flagged and is never overwritten by a restore;
+  an unreadable copy is set aside, not deleted.
+
+### Fixed
+
+- The *Resume Last Session on Launch* checkbox on the start panel is now always shown, so the setting
+  can be found (and switched off) from the very first launch; it used to appear only after a session
+  that had something on the board.
+- Closing and reopening pixelRef brought back the open files only if you had found and ticked *Resume
+  Last Session on Launch*. Restoring is now on by default (list, order, colours and the board you were
+  on; only that board loads). If you had turned it off yourself it stays off. Because the board on screen
+  is kept for you, closing with unsaved work no longer asks to save: it is offered back next launch.
+- Clicking another file in the Files panel (or *Next Open File*, or a start-screen card for an open
+  file) while on an Untitled board with work in it replaced the board without asking. It now asks
+  Save / Discard / Cancel first.
+- Memory no longer climbs every time you switch boards or open another file: decoded images of boards
+  you had left stayed in memory (about 14 MB per switch with big photos, 1.4 GB after 90 switches in a
+  test). With ten large boards it now stays around 240 MB.
+- Quitting with Session Resume on silently dropped unsaved edits in boards parked in the Files list.
+  It now asks (the current board is still kept by Session Resume without a prompt).
+
 ### Added — Fully portable mode
 
 - A `portable.toml` beside `pixelRef.exe` keeps settings, plugins, recovery files, caches, managed

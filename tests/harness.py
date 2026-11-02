@@ -39,6 +39,9 @@ QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, str(TMP / "settings"
 APP = QApplication.instance() or QApplication([])
 APP.setApplicationName("pixelRef")
 APP.setOrganizationName("pixelRef")
+# Restoring the workspace is on for a profile that never chose; the tests that are not about it run
+# as if the user had turned it off (the ones that are about it set or clear this themselves).
+QSettings().setValue("plugins/file/workspace_restore", "empty")
 # The offscreen platform's clipboard crashes Qt at interpreter exit if it still holds data
 # (a PySide/Qt issue, not pixelRef's: the windows platform is fine), so empty it first.
 atexit.register(lambda: QApplication.clipboard().clear())
