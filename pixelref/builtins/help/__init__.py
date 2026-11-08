@@ -202,11 +202,13 @@ def activate_ui(ui: Any) -> None:
     ui.action("help.getting_started", "help.getting_started", "Getting Started…",
               keywords="tutorial onboarding welcome guide tour learn introduction help basics", category="Window",
               icon="info")
-    ui.menu("canvas", "help.getting_started", group="app", order=-1)
-    ui.menu("canvas", "help.shortcuts", group="app", order=0)
+    # One Help sub-menu: learn (Getting Started, search, shortcuts), then safety, updates and About.
+    ui.place_submenu("canvas", "Help", "app", 0, icon="info")
+    ui.menu("canvas", "help.getting_started", path="Help", group="help.learn", order=0)
+    ui.menu("canvas", "help.shortcuts", path="Help", group="help.learn", order=2)
     ui.action("help.about", "help.show_about", "About pixelRef…", keywords="version info credits", category="Window",
               icon="info")
-    ui.menu("canvas", "help.about", group="app", order=1)
+    ui.menu("canvas", "help.about", path="Help", group="help.about", order=2)
 
     # ---- The Help browser (searchable documentation of everything) ----------------------------------
 
@@ -282,8 +284,8 @@ def activate_ui(ui: Any) -> None:
                        "context help explain", category="Window", icon="info",
               tip="Search every tool, command, attribute and guide; over a button or field, shows its help")
     ui.bind("Shift+F1", "help.docs")
-    ui.menu("canvas", "help.docs", group="app", order=-0.5)
+    ui.menu("canvas", "help.docs", path="Help", group="help.learn", order=1)
     ui.action("help.security", "help.docs", "Staying Safe with Plugins & Scripts…", args=("guide:security",),
               keywords="security safety trust malicious plugins scripts packages risk warning approve",
               category="Window", icon="info")
-    ui.menu("canvas", "help.security", group="app", order=-0.25)
+    ui.menu("canvas", "help.security", path="Help", group="help.about", order=0)

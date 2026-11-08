@@ -122,6 +122,25 @@ def test_inspector_multi_selection_summary_and_align():
         h.close()
 
 
+def test_distribute_actions_and_inspector_buttons():
+    h = make()
+    try:
+        for name, x in (("A", 0), ("B", 20), ("C", 300)):
+            h.add_image(name, x, 0, w=100, h=50)
+        h.select(["A", "B", "C"])
+        menu = next(a.menu() for a in h.app.menus.build("canvas").actions() if a.text() == "Arrange")
+        assert {"Distribute Horizontally", "Distribute Vertically"} <= {a.text() for a in menu.actions()}
+        assert h.section("arrange")._distribute_buttons
+        before = h.item("A").scene_content_rect().left(), h.item("C").scene_content_rect().right()
+        QTest.mouseClick(h.section("arrange")._distribute_buttons[0], Qt.LeftButton)
+        a, b, c = (h.item(n).scene_content_rect() for n in "ABC")
+        assert abs((b.left() - a.right()) - (c.left() - b.right())) < 0.01
+        assert (a.left(), c.right()) == before
+        assert h.app.actions.get("arrange.distribute_vertical") is not None
+    finally:
+        h.close()
+
+
 def test_attribute_editor_is_generated_from_the_schema():
     from pixelref.plugin_api import Attr
 
@@ -344,13 +363,13 @@ def test_panels_live_outside_the_tiling_layout():
         wm, panels = h.app.wm, h.app.panels
         assert wm.doc.tiles(wm.doc.tiling_root(wm.focused_workspace())) == ["Main"], "Board is just the canvas"
         assert not any(wm.doc.attr(t, "view_type") in panels.types for t in wm.doc.tiles())
-        assert [p["id"] for p in h.run("panels.list")] == ["tool_palette", "outliner", "inspector", "files", "pages", "docs"]
+        assert [p["id"] for p in h.run("panels.list")] == ["tool_palette", "outliner", "inspector", "files", "pages", "find", "docs"]
         sidebar = panels.sidebar
         assert sidebar.isVisible() and sidebar.parentWidget() is h.window.body
         assert h.window.body.indexOf(sidebar) > h.window.body.indexOf(h.window.area), "right of the tiles"
         assert h.inspector.isVisible() and h.outliner.isVisible() and h.palette.isVisible()
         rail = panels.rail
-        assert rail.isVisible() and list(rail.tabs) == ["tool_palette", "outliner", "inspector", "files", "pages", "docs"]
+        assert rail.isVisible() and list(rail.tabs) == ["tool_palette", "outliner", "inspector", "files", "pages", "find", "docs"]
         assert rail.minimumSizeHint().height() < 100, "the tabs scroll: they never keep the window tall"
         row = h.window.middle.layout()
         assert row.indexOf(rail) == row.count() - 1, "the tabs sit on the outer edge, beyond the sidebar"
@@ -497,7 +516,7 @@ def test_wm_split_tabs_close_and_workspaces():
         assert wm.doc.type_of(wm.doc.parent(tile)) == "wm_tabbed"
         h.app.run_command("wm.close_view", tile)
         assert tile not in h.app.views and not wm.doc.has(tile)
-        for other in ("ReviewColor", "ReviewValue", "Present"):
+        for other in ("ReviewColor", "ReviewValue", "Present", "SheetCanvas"):
             h.app.run_command("wm.close_view", other)
         assert wm.tiles_of_type("canvas") == ["Main"]
         h.app.run_command("wm.close_view", "Main")
@@ -506,7 +525,7 @@ def test_wm_split_tabs_close_and_workspaces():
         wm.apply()
         # The built-in workspaces.
         titles = [wm.doc.attr(w, "title") for w in wm.doc.workspaces()]
-        assert titles == ["Board", "Review", "Present"], titles
+        assert titles == ["Board", "Review", "Present", "Contact Sheet"], titles
         h.app.run_command("wm.workspace", 2)
         assert {"ReviewColor", "ReviewValue"} <= set(wm.visible_tiles())
         assert h.app.views["ReviewValue"].display.grayscale
@@ -906,7 +925,9 @@ def test_canvas_context_menu_is_organised_by_what_was_clicked():
         assert empty.index("Paste") < empty.index("Select All") < empty.index("Undo Create image")
         assert empty.index("Undo Create image") < empty.index("Tools") < empty.index("File")
         assert "Copy" not in empty and "Transform" not in empty
-        assert empty[-2].startswith("Keyboard Shortcuts") and empty[-1].startswith("About pixelRef")
+        assert empty[-1] == "Help", "help, updates and About share one sub-menu at the bottom"
+        assert "Text" not in empty and "Click Action" not in empty, "one-entry sub-menus don't clutter an empty canvas"
+        assert empty.index("Backdrop") < empty.index("Select All"), "creating things comes before selecting"
         # The canvas-wide sub-menus sit together, then File, View and Window, without separators.
         start = empty.index("Tools")
         assert empty[start:start + 3] == ["Tools", "Arrange", "Effects"]
@@ -926,6 +947,7 @@ def test_canvas_context_menu_is_organised_by_what_was_clicked():
         assert "Arrange" in layout(two)
         arrange = next(a.menu() for a in two.actions() if a.text() == "Arrange")
         assert "Align Left" in layout(arrange)
+        assert "Distribute Horizontally" not in layout(arrange), "distributing needs three items"
     finally:
         h.close()
 

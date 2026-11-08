@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelref.core import paths
 from pixelref.plugin_api import CAP_CONTAINER, Attr
 from pixelref.plugin_api.contracts import InspectorSection, SelectionInfo
 from pixelref.plugin_api.ui import widgets as w
@@ -30,6 +31,8 @@ SECTION_ORDER = 35  # after Image (30), before the generated attributes
 
 
 def cache_folder() -> Path:
+    if (portable := paths.portable()) is not None:
+        return portable.cache / "effects"
     base = QStandardPaths.writableLocation(QStandardPaths.CacheLocation) or str(Path.home() / ".cache" / "pixelRef")
     return Path(base) / "effects"
 
@@ -420,7 +423,7 @@ def activate_effects_ui(ui: Any) -> None:
                 args=(effect_type.name,), category="Effects",
                 keywords=f"effect filter {effect_type.name.replace('_', ' ')} {effect_type.doc}"))
             menu_disposables.append(ui.app.menus.add("canvas", key, plugin=ui.plugin_id,
-                                                     path=f"Effects/Add/{effect_type.category}", group="effects",
+                                                     path=f"Effects/Add/{effect_type.category}", group="effects.add",
                                                      order=order, when=has_selection))
 
     add_type_actions()
@@ -433,13 +436,13 @@ def activate_effects_ui(ui: Any) -> None:
         ("effects.mute", "effects.mute", "Mute Effects", "effect mute bypass disable off hide keep", 5),
     ):
         ui.action(key, command, text, keywords=keywords, category="Effects")
-        ui.menu("canvas", key, path="Effects", group="stack", order=order, when=has_selection)
+        ui.menu("canvas", key, path="Effects", group="effects.stack", order=order, when=has_selection)
     ui.action("effects.show", "effects.show", "Show Effects", keywords="effect mute bypass before after compare",
               category="Effects", checked=lambda: engine.show_effects)
-    ui.menu("canvas", "effects.show", path="Effects", group="show", order=0)
+    ui.menu("canvas", "effects.show", path="Effects", group="effects.show", order=0)
     ui.action("effects.save_in_scene", "effects.save_in_scene", "Keep Processed Effects in Scene File",
               keywords="effect cache save embed", category="Effects", checked=lambda: engine.save_in_scene)
     ui.action("effects.clear_cache", "effects.clear_cache", "Forget Processed Effects",
               keywords="effect cache clear smaller file", category="Effects")
-    ui.menu("canvas", "effects.save_in_scene", path="Effects", group="cache", order=0)
-    ui.menu("canvas", "effects.clear_cache", path="Effects", group="cache", order=1)
+    ui.menu("canvas", "effects.save_in_scene", path="Effects", group="effects.cache", order=0)
+    ui.menu("canvas", "effects.clear_cache", path="Effects", group="effects.cache", order=1)

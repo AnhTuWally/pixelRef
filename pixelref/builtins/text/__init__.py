@@ -25,6 +25,7 @@ DEFAULT_STYLE_KEYS = (
     "text_width",
 )
 FILL_STYLES = ("solid", "dense", "sparse", "diagonal", "cross", "horizontal", "vertical", "grid", "none")
+DEFAULT_PASTE_WIDTH = 400.0  # where pasted text wraps until the user picks another width
 LINE_STYLES = ("solid", "dash", "dot", "dashdot", "none")
 
 TEXT_PRESETS: dict[str, dict[str, Any]] = {
@@ -178,11 +179,31 @@ def activate(ctx: Any) -> None:
                     continue
         return style
 
+    def default_width() -> float:
+        """Width pasted text wraps at (0 = never wrap); kept across restarts."""
+        try:
+            return max(0.0, float(ctx.settings.value("default_width", DEFAULT_PASTE_WIDTH)))
+        except (TypeError, ValueError):
+            return DEFAULT_PASTE_WIDTH
+
+    def set_default_width(width: float) -> float:
+        """Set the width pasted text wraps at; 0 lets pasted text grow as long as it is."""
+        width = max(0.0, float(width))
+        ctx.settings.setValue("default_width", width)
+        return width
+
     class Notes:
-        def create(self, text: str, x: float, y: float, parent: str | None = None) -> str:
+        def create(self, text: str, x: float, y: float, parent: str | None = None, wrap: bool = False) -> str:
+            """``wrap``: pasted text; a long note gets the default width so it wraps instead of running on."""
             name = scene.unique_name("Note")
             attrs = {"color": [220, 220, 220], **default_style(), "text": text,
                      "translate": [round(x, 3), round(y, 3)]}
+            width = default_width()
+            if wrap and width > 0 and not attrs.get("text_width"):
+                size = float(attrs.get("font_size", 14))
+                longest = max((len(line) for line in text.splitlines()), default=0)
+                if longest * size * 0.6 > width:  # short text keeps its natural size
+                    attrs["text_width"] = width
             scene.create_node("annotation_text", name, parent=parent, attrs=attrs)
             return name
 
@@ -327,6 +348,8 @@ def activate(ctx: Any) -> None:
     ctx.command("save_default_style", save_default_style, undoable=False)
     ctx.command("clear_default_style", clear_default_style, undoable=False)
     ctx.command("default_style", default_style, undoable=False, echo=False)
+    ctx.command("default_width", default_width, undoable=False, echo=False)
+    ctx.command("set_default_width", set_default_width, undoable=False)
     ctx.command("set_attrs", set_text_attrs, label=lambda updates, nodes=None, strip=(), label="Edit text": label)
     ctx.command("commit", commit_text, label="Edit text")
     ctx.command("apply_preset", apply_preset, label=lambda preset, nodes=None: f"Style preset: {preset}")

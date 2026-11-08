@@ -5,10 +5,14 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from PySide6.QtCore import QMimeData, QPointF
+from pathlib import Path
+
+from PySide6.QtCore import QMimeData, QPointF, QRectF, Qt, QTimer, QUrl
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication
 
 from pixelref.plugin_api import CommandError
+from pixelref.plugin_api.contracts import IngestHandler
 
 from . import NODES_MIME, instantiate, serialize_subtrees
 
@@ -52,8 +56,11 @@ class IngestService:
         created = [name for name in session.scene.nodes if name not in before]
         if created:
             self.ui.app.run_command("select", created)
-            images, notes = result if isinstance(result, tuple) else (0, 0)
-            self.ui.status(f"{label}: {images} image(s), {notes} note(s)")
+            if isinstance(result, str) and result != "handled":
+                self.ui.status(result)  # a handler that words its own report
+            else:
+                images, notes = result if isinstance(result, tuple) else (0, 0)
+                self.ui.status(f"{label}: {images} image(s), {notes} note(s)")
         elif result != "handled":
             self.ui.status(f"{label} ignored: no supported image/text content")
         return created
@@ -85,9 +92,9 @@ def activate_clipboard_ui(ui: Any) -> None:
         if copy():
             ui.run("clipboard.delete")
 
-    def paste_payload(payload: dict[str, Any], scene_pos: QPointF) -> list[str]:
-        roots = instantiate(session, payload)
-        canvas.refresh(force=True)  # the copies' bounds come from their items
+    def center_on(roots: list[str], scene_pos: QPointF) -> QRectF:
+        """Move new top-level nodes (as one group) so their bounds are centred on ``scene_pos``."""
+        canvas.refresh(force=True)  # the new nodes' bounds come from their items
         items = [canvas.item(n) for n in roots]
         items = [i for i in items if i is not None and i.is_content]
         bounds = canvas.scene_bounds(items)
@@ -98,6 +105,12 @@ def activate_clipboard_ui(ui: Any) -> None:
                 node = session.scene.get_node(name)
                 if "translate" in node.attrs:
                     session.run("set_transform", name, translate=[dx, dy], relative=True, world_space=True)
+            bounds.translate(dx, dy)
+        return bounds
+
+    def paste_payload(payload: dict[str, Any], scene_pos: QPointF) -> list[str]:
+        roots = instantiate(session, payload)
+        center_on(roots, scene_pos)
         session.selection.set(roots)
         canvas.refresh(force=True)
         return roots
@@ -122,6 +135,26 @@ def activate_clipboard_ui(ui: Any) -> None:
         """Add copied nodes (a clipboard payload) centred on ``position``; returns the new root names."""
         return paste_payload(payload, QPointF(float(position[0]), float(position[1])))
 
+    def import_png_scene(path: str, position: Any) -> list[str]:
+        """Add the editable scene embedded in an exported PNG, centred on ``position`` (one undo step).
+
+        The embedded scene is validated into a scratch scene first, so a bad file changes nothing.
+        """
+        from pixelref.core import scene_embed
+        from pixelref.core.scene_merge import merge_scene
+
+        other = scene_embed.read_png_scene(path, session.types)
+        if other is None:
+            raise CommandError(f"{Path(path).name} has no embedded scene")
+        if not other.nodes:
+            raise CommandError(f"{Path(path).name}: the embedded scene is empty")
+        roots = merge_scene(session.scene, other, strip_paths=True)
+        center_on(roots, QPointF(float(position[0]), float(position[1])))
+        session.selection.set(roots)
+        canvas.refresh(force=True)
+        return roots
+
+    ui.command("import_png_scene", import_png_scene, label="Import editable PNG", echo=False)
     ui.command("copy", copy, alias="copy", undoable=False)
     ui.command("cut", cut, alias="cut", undoable=False)
     ui.command("paste", paste, alias="paste", undoable=False)
@@ -144,3 +177,70 @@ def activate_clipboard_ui(ui: Any) -> None:
                                  "clipboard.delete")):
         ui.menu("canvas", key, group="clipboard", order=order, when="selection.count > 0")
     ui.menu("canvas", "clipboard.paste", group="create", order=0, when="selection.count == 0")
+
+
+    # ---- Dropped PNGs that carry an editable scene ---------------------------------------------
+
+    def local_pngs(mime: QMimeData) -> list[Path]:
+        if not mime.hasUrls():
+            return []
+        return [Path(u.toLocalFile()) for u in mime.urls()
+                if u.isLocalFile() and Path(u.toLocalFile()).suffix.lower() == ".png"]
+
+    def scene_pngs(mime: QMimeData) -> list[Path]:
+        from pixelref.core.scene_embed import has_embedded_scene
+
+        # Holding Shift imports the flat picture instead (the image plugin takes it from here).
+        if QGuiApplication.keyboardModifiers() & Qt.ShiftModifier:
+            return []
+        return [p for p in local_pngs(mime) if has_embedded_scene(str(p))]
+
+    def describe_scene_pngs(mime: QMimeData) -> str | None:
+        found = scene_pngs(mime)
+        if not found:
+            return None
+        return f"Drop to add the editable scene from {found[0].name} (hold Shift for the flat image)"
+
+    def ingest_scene_pngs(view: Any, pos: QPointF, mime: QMimeData) -> Any:
+        from pixelref.core.scene_embed import EmbedError
+
+        found = scene_pngs(mime)
+        if not found:
+            return None
+        added: list[str] = []
+        failed: list[str] = []
+        flat: list[Path] = []
+        x = pos.x()
+        for path in found:
+            try:
+                roots = session.run("clipboard.import_png_scene", str(path), [x, pos.y()])
+            except (EmbedError, CommandError) as exc:
+                failed.append(f"{path.name}: {exc}")
+                flat.append(path)
+                continue
+            added.extend(roots)
+            bounds = canvas.scene_bounds([i for i in (canvas.item(n) for n in roots) if i is not None])
+            if not bounds.isNull():
+                x += bounds.width() + 8.0
+        # Whatever was not an editable scene (other files in the drop, unusable scenes) is imported normally.
+        taken = {p for p in found if p not in flat}
+        rest = [u for u in mime.urls() if not (u.isLocalFile() and Path(u.toLocalFile()) in taken)]
+        rest_result: Any = None
+        if rest:
+            others = QMimeData()
+            others.setUrls(rest)
+            for handler in ingest.handlers():
+                if handler.name != "clipboard.scene_png" and handler.accepts(others):
+                    rest_result = handler.ingest(view, QPointF(x, pos.y()), others)
+                    if rest_result is not None:
+                        break
+        if failed:
+            note = f"Editable scene not used, imported flat: {failed[0]}"
+            QTimer.singleShot(0, lambda: ui.status(note))
+        if not added:
+            return rest_result
+        return f"Added {len(added)} item(s) from {len(found) - len(flat)} editable PNG(s)"
+
+    ui.contribute("ingest.handlers", IngestHandler("clipboard.scene_png", 5, lambda m: bool(scene_pngs(m)),
+                                                  describe_scene_pngs, ingest_scene_pngs),
+                  order=5)

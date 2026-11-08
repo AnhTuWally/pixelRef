@@ -47,6 +47,36 @@ def arrange_column(rects: list[Rect], gap: float = 0.0) -> list[Point]:
     return result
 
 
+def _distribute(rects: list[Rect], axis: int) -> list[Point]:
+    """Equal edge gaps along ``axis`` (0 = x, 1 = y); the outer edges and the other axis stay put."""
+    if not rects:
+        return []
+    other = 1 - axis
+    order = sorted(range(len(rects)), key=lambda i: (rects[i][axis], rects[i][other], i))
+    result: list[Point] = [(r[0], r[1]) for r in rects]
+    if len(rects) < 3:
+        return result
+    first, last = rects[order[0]], rects[order[-1]]
+    start = first[axis]
+    span = last[axis] + last[axis + 2] - start
+    gap = (span - sum(r[axis + 2] for r in rects)) / (len(rects) - 1)
+    pos = start
+    for i in order:
+        result[i] = (pos, rects[i][1]) if axis == 0 else (rects[i][0], pos)
+        pos += rects[i][axis + 2] + gap
+    return result
+
+
+def distribute_horizontal(rects: list[Rect]) -> list[Point]:
+    """Equal horizontal gaps between neighbours; the leftmost left and rightmost right edges stay."""
+    return _distribute(rects, 0)
+
+
+def distribute_vertical(rects: list[Rect]) -> list[Point]:
+    """Equal vertical gaps between neighbours; the topmost top and bottommost bottom edges stay."""
+    return _distribute(rects, 1)
+
+
 def arrange_grid(rects: list[Rect], gap: float = 0.0, columns: int | None = None) -> list[Point]:
     """Uniform cells in reading order; each item is centred in its cell."""
     if not rects:

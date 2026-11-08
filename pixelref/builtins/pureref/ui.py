@@ -10,24 +10,24 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QPointF, Qt, QTimer
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtWidgets import QCheckBox, QFileDialog, QMessageBox
 
 from pixelref.plugin_api import CommandError
-from pixelref.plugin_api.contracts import IngestHandler
+from pixelref.plugin_api.contracts import FileOpener, IngestHandler
 
 from . import PUR_EXT
 
 PUR_FILTER = f"PureRef Board (*{PUR_EXT})"
 DROP_GAP = 64.0
 NOTICE_SETTING = "one_way_notice_hidden"
-NOTICE_TITLE = "PureRef boards are import-only"
+NOTICE_TITLE = "Opened a PureRef board as a new scene"
 NOTICE_TEXT = (
-    "pixelRef reads PureRef boards but can't save them back as PureRef files.\n\n"
-    "Your work is saved as a pixelRef scene (.pxref). The original .pur file is left exactly as it was, "
-    "so changes you make here won't show up in PureRef."
+    "pixelRef converted this PureRef board into a new, unsaved scene and works with it as usual.\n\n"
+    "Save (Ctrl+S) creates a pixelRef scene (.pxref). pixelRef can't write PureRef files, so the "
+    "original .pur file is left exactly as it was and your changes won't show up in PureRef."
 )
-REMINDER = "import only: save as a pixelRef scene (.pxref)"
+REMINDER = "opened as a new scene: Save creates a .pxref"
 
 
 def activate_pureref_ui(ui: Any) -> None:
@@ -86,25 +86,16 @@ def activate_pureref_ui(ui: Any) -> None:
         "hidden": staticmethod(notice_hidden),
     })())
 
-    def start_dir() -> str:
-        return str(session.base_dir())
-
-    def open_dialog() -> None:
-        """Choose a PureRef board to open as a new scene (asks about unsaved changes first)."""
-        files = session.services.get("files")
-        if files is not None and not files.may_discard():
-            return
-        path, _ = QFileDialog.getOpenFileName(app.main_window(), "Open PureRef Board", start_dir(), PUR_FILTER)
-        if path and app.run_command("pureref.open", path) is not None:
-            def framed() -> None:
-                app.run_command("navigation.frame_all")
-                show_report("Opened", one_way=True)  # after framing, which sets its own status
-
-            QTimer.singleShot(0, framed)
+    # File > Open, Recent, the command line and drops open boards through the file plugin.
+    ui.contribute("file.openers", FileOpener(
+        "pureref", (PUR_EXT,), "PureRef Board",
+        open=lambda path: app.run_command("pureref.open", path) is not None,
+        opened=lambda _path: show_report("Opened", one_way=True)))
 
     def import_dialog() -> None:
         """Choose a PureRef board to add to this one, at the view centre."""
-        path, _ = QFileDialog.getOpenFileName(app.main_window(), "Import PureRef Board", start_dir(), PUR_FILTER)
+        path, _ = QFileDialog.getOpenFileName(app.main_window(), "Import PureRef Board",
+                                              str(session.base_dir()), PUR_FILTER)
         if not path:
             return
         view = app.active_view()
@@ -112,13 +103,9 @@ def activate_pureref_ui(ui: Any) -> None:
         if app.run_command("pureref.import_file", path, [center.x(), center.y()]) is not None:
             show_report("Imported")
 
-    ui.command("open_dialog", open_dialog, undoable=False)
     ui.command("import_dialog", import_dialog, undoable=False)
-    ui.action("pureref.open", "pureref.open_dialog", "Open PureRef Board (Import Only)…", icon="folder",
-              keywords="pur pureref load board convert read-only one way", category="File")
     ui.action("pureref.import", "pureref.import_dialog", "Import PureRef Board…", icon="image",
               keywords="pur pureref add insert merge board convert read-only one way", category="File")
-    ui.menu("canvas", "pureref.open", path="File", group="file", order=1.5)
     ui.menu("canvas", "pureref.import", path="File", group="file.import", order=5)
 
     # ---- Dropped .pur files ----------------------------------------------------------------------

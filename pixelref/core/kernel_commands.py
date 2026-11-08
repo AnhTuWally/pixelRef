@@ -19,6 +19,16 @@ if TYPE_CHECKING:
     from .session import Session
 
 
+def clean_tags(tags: Iterable[Any]) -> list[str]:
+    """Tags as stored: trimmed text, no empty ones, no repeats, first spelling and order kept."""
+    out: list[str] = []
+    for tag in tags:
+        text = str(tag).strip()
+        if text and text not in out:
+            out.append(text)
+    return out
+
+
 def register_kernel_commands(session: "Session") -> None:
     scene = session.scene
     reg = session.commands.register
@@ -70,24 +80,11 @@ def register_kernel_commands(session: "Session") -> None:
     def import_scene(path: str) -> list[str]:
         """Add the nodes of another scene file to this one; returns the new root names."""
         from .scene import SceneGraph
+        from .scene_merge import merge_scene
 
         other = SceneGraph(session.types)
         session.format.load_into_scene(other, session.format.read_text(path))
-        renamed: dict[str, str] = {}
-        roots: list[str] = []
-        for asset_id, asset in other.assets.items():
-            scene.assets.setdefault(asset_id, asset)
-        for node in other.iter_nodes():
-            new_name = scene.unique_name(node.name)
-            renamed[node.name] = new_name
-            parent = renamed.get(node.parent) if node.parent else None
-            # Keep the ids (node_ref attributes point at them) unless already in use.
-            node_id = node.id if node.id and node.id not in scene.by_id else None
-            scene.create_node(node.node_type, new_name, parent=parent, attrs=fast_copy(node.attrs),
-                              node_id=node_id, strict=False, dynamic=dict(node.dynamic))
-            if parent is None:
-                roots.append(new_name)
-        return roots
+        return merge_scene(scene, other)
 
     def scene_info() -> dict[str, Any]:
         """Summary of the open scene."""
@@ -406,6 +403,74 @@ def register_kernel_commands(session: "Session") -> None:
     reg("delete_attr", delete_attr, label="Delete attribute")
     reg("attrs", attrs, undoable=False, echo=False)
     reg("attr_info", attr_info, undoable=False, echo=False)
+
+    # ---- Tags ------------------------------------------------------------------------------------
+    #
+    # ``tags`` is the one attribute every node has. These edit it on many nodes at once (one undo
+    # step), touching only the nodes whose tags change. Tags are trimmed; empty ones are dropped.
+
+    def tag_list(tags: Any) -> list[str]:
+        if isinstance(tags, str):
+            tags = [tags]
+        return clean_tags(tags or [])
+
+    def tag_targets(nodes: Any, tags: Any) -> tuple[list[str], list[str]]:
+        wanted = tag_list(tags)
+        names = names_of(nodes)
+        if not names:
+            raise CommandError("Nothing selected")
+        return names, wanted
+
+    def write_tags(name: str, new: list[str]) -> bool:
+        if list(scene.get_node(name).attrs.get("tags") or []) == new:
+            return False
+        scene.set_attr(name, "tags", new)
+        return True
+
+    def add_tags(tags: Any, nodes: Any = None) -> list[str]:
+        """Add tags to nodes (default: the selection), keeping their other tags.
+        Returns the nodes that changed."""
+        names, wanted = tag_targets(nodes, tags)
+        if not wanted:
+            raise CommandError("No tags given")
+        return [name for name in names
+                if write_tags(name, clean_tags(list(scene.get_node(name).attrs.get("tags") or []) + wanted))]
+
+    def remove_tags(tags: Any, nodes: Any = None) -> list[str]:
+        """Remove tags from nodes (default: the selection). Returns the nodes that changed."""
+        names, wanted = tag_targets(nodes, tags)
+        if not wanted:
+            raise CommandError("No tags given")
+        doomed = set(wanted)
+        return [name for name in names
+                if write_tags(name, [t for t in scene.get_node(name).attrs.get("tags") or [] if t not in doomed])]
+
+    def set_tags(tags: Any, nodes: Any = None) -> list[str]:
+        """Replace the tags of nodes (default: the selection); ``[]`` clears them.
+        Returns the nodes that changed."""
+        names, wanted = tag_targets(nodes, tags)
+        return [name for name in names if write_tags(name, wanted)]
+
+    def list_tags(nodes: Any = None) -> dict[str, int]:
+        """Every tag in the scene (or on ``nodes``) with how many nodes carry it, by name."""
+        names = names_of(nodes) if nodes is not None else None
+        pool = (scene.get_node(n) for n in names) if names is not None else scene.nodes.values()
+        counts: dict[str, int] = {}
+        for node in pool:
+            for tag in node.attrs.get("tags") or []:
+                counts[tag] = counts.get(tag, 0) + 1
+        return dict(sorted(counts.items(), key=lambda kv: kv[0].lower()))
+
+    def tags_label(verb: str) -> Callable[..., str]:
+        def label(tags: Any, *_a: Any, **_k: Any) -> str:
+            given = tag_list(tags)
+            return f"{verb} tag {given[0]}" if len(given) == 1 else f"{verb} tags"
+        return label
+
+    reg("add_tags", add_tags, label=tags_label("Add"))
+    reg("remove_tags", remove_tags, label=tags_label("Remove"))
+    reg("set_tags", set_tags, label="Set tags")
+    reg("list_tags", list_tags, undoable=False, echo=False)
 
     # ---- Transforms ---------------------------------------------------------------------------
 

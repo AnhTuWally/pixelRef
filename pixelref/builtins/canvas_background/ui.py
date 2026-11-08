@@ -107,11 +107,29 @@ class CanvasPanel(QWidget):
         self.bg_pattern_auto_btn.clicked.connect(lambda: run("canvas_background.set", pattern_color=None))
         form.addRow("Pattern color", w.hrow(self, self.bg_pattern_color_btn, self.bg_pattern_auto_btn))
         layout.addLayout(form)
+        self.form = form
+        self.extra_rows: list[QWidget] = []
+        self.rebuild_rows()
         hint = QLabel("Saved with the scene · new scenes start with your last choice", self)
         hint.setObjectName("pathLabel")
         hint.setWordWrap(True)
         layout.addWidget(hint)
         self.refresh()
+
+    def rebuild_rows(self) -> None:
+        """Rows other plugins add (``canvas_background.rows``), below the background settings."""
+        for widget in self.extra_rows:
+            self.form.removeRow(widget)
+        self.extra_rows = []
+        for row in sorted(self.ui.contributions("canvas_background.rows"), key=lambda r: r.order):
+            try:
+                widget = row.build(self)
+            except Exception:  # noqa: BLE001
+                self.ui.log.exception("Building canvas row %s failed", row.key)
+                continue
+            widget.setObjectName(f"canvasRow_{row.key}")
+            self.form.addRow(row.label, widget)
+            self.extra_rows.append(widget)
 
     def _on_pattern(self, _index: int) -> None:
         if not self._updating:
@@ -132,6 +150,8 @@ class CanvasPanel(QWidget):
             self.bg_pattern_auto_btn.setChecked(spec.pattern_color is None)
         finally:
             self._updating = False
+        for widget in self.extra_rows:
+            widget.refresh()
 
 
 def activate_background_ui(ui: Any) -> None:
@@ -147,7 +167,18 @@ def activate_background_ui(ui: Any) -> None:
         panel.destroyed.connect(lambda *_a, p=panel: p in panels and panels.remove(p))
         return panel
 
+    # Declared before the panel exists: the inspector builds it as soon as it's contributed.
+    ui.declare_extension_point("canvas_background.rows", "CanvasRow: settings rows in the Canvas panel")
     ui.contribute("inspector.empty_panels", EmptyPanel("canvas", 0, make_panel))
+
+    def rebuild_rows() -> None:
+        for panel in list(panels):
+            try:
+                panel.rebuild_rows()
+            except RuntimeError:
+                panels.remove(panel)
+
+    ui.track(ui.session.extensions.watch("canvas_background.rows", rebuild_rows))
 
     def sync(_event: Any = None) -> None:
         if service.changed():

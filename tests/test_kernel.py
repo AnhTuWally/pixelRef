@@ -120,6 +120,90 @@ def test_layout_algorithms():
             assert not overlap, (a, b)
 
 
+def test_distribute_layout():
+    from pixelref.builtins.arrange import layout
+
+    rects = [(0, 0, 10, 10), (50, 5, 20, 10), (14, 3, 6, 4), (100, 0, 10, 30)]
+    pos = layout.distribute_horizontal(rects)
+    assert pos[0] == (0, 0) and pos[3] == (100, 0), "outer edges stay"
+    assert [p[1] for p in pos] == [r[1] for r in rects], "perpendicular axis is untouched"
+    order = sorted(range(4), key=lambda i: pos[i][0])
+    assert order == [0, 2, 1, 3]
+    gaps = [pos[b][0] - (pos[a][0] + rects[a][2]) for a, b in zip(order, order[1:])]
+    assert all(abs(g - gaps[0]) < 1e-9 for g in gaps) and abs(gaps[0] - 64 / 3) < 1e-9
+    assert abs(sum(gaps) - (110 - 46)) < 1e-9
+    assert layout.distribute_horizontal(list(reversed(rects))) == list(reversed(pos)), "selection order is irrelevant"
+    col = layout.distribute_vertical([(0, 0, 5, 10), (3, 90, 5, 10), (7, 20, 5, 30)])
+    assert col == [(0, 0), (3, 90), (7, 35)]
+    assert layout.distribute_horizontal([(0, 0, 10, 10), (30, 0, 10, 10), (60, 0, 10, 10)]) == [(0, 0), (30, 0), (60, 0)]
+    overlap = layout.distribute_horizontal([(0, 0, 50, 5), (10, 0, 50, 5), (20, 0, 50, 5)])
+    assert overlap[0][0] == 0 and overlap[2][0] == 20 and overlap[1][0] == 10
+    assert layout.distribute_horizontal([]) == [] and layout.distribute_horizontal(rects[:2]) == [(0, 0), (50, 5)]
+    tied = layout.distribute_horizontal([(0, 0, 10, 10)] * 3)
+    assert tied == [(0, 0)] * 3, "identical rects stay put"
+
+
+def test_distribute_command():
+    from pixelref import pxcmd
+    from pixelref.core.errors import CommandError
+
+    session = headless()
+    pxcmd.create_node("group", "G", translate=[100, 50])
+    for name, x, y, w in (("A", 0, 0, 10), ("B", 12, 20, 30), ("C", 60, 5, 20), ("D", 200, 0, 10)):
+        pxcmd.create_node("annotation_rect", name, parent="G" if name == "C" else None,
+                          translate=[x - 100 if name == "C" else x, y - 50 if name == "C" else y], size=[w, 10])
+    pxcmd.select(["A", "B"])
+    for bad in (lambda: pxcmd.distribute("horizontal"), lambda: pxcmd.distribute("diagonal")):
+        try:
+            bad()
+        except CommandError:
+            pass
+        else:
+            raise AssertionError("fewer than three items / bad mode is an error")
+    pxcmd.select([])
+    try:
+        pxcmd.distribute("horizontal")
+    except CommandError:
+        pass
+    else:
+        raise AssertionError("never falls back to everything")
+
+    def bounds(n):
+        return session.world_bounds(n)
+
+    before = {n: bounds(n) for n in "ABCD"}
+    pxcmd.select(["D", "A", "C", "B"])
+    labels = len(session.undo.stack.labels())
+    assert sorted(pxcmd.distribute("horizontal")) == list("ABCD")
+    assert len(session.undo.stack.labels()) == labels + 1, "one undo step"
+    after = {n: bounds(n) for n in "ABCD"}
+    assert after["A"][0] == 0 and after["D"][0] + after["D"][2] == 210, "anchors"
+    order = sorted("ABCD", key=lambda n: after[n][0])
+    assert order == ["A", "B", "C", "D"]
+    gaps = [after[b][0] - after[a][0] - after[a][2] for a, b in zip(order, order[1:])]
+    assert max(gaps) - min(gaps) < 2e-3, gaps  # attributes are stored to 3 decimals
+    assert all(after[n][1] == before[n][1] and after[n][2:] == before[n][2:] for n in "ABCD")
+    snapshot = after
+    pxcmd.distribute("horizontal")
+    assert all(max(abs(a - b) for a, b in zip(bounds(n), snapshot[n])) < 2e-3 for n in "ABCD"), "no drift"
+    pxcmd.undo()  # the repeat moved nothing, so it left no step of its own
+    assert all(bounds(n) == before[n] for n in "ABCD")
+    pxcmd.redo()
+    assert bounds("B")[0] == snapshot["B"][0]
+    # Locked and hidden items are excluded.
+    pxcmd.set_attr("B.locked", 1)
+    pxcmd.select(["A", "B", "C", "D"])
+    pxcmd.distribute("vertical")
+    assert bounds("B")[1] == snapshot["B"][1]
+    pxcmd.set_attr("C.visibility", 0)
+    try:
+        pxcmd.distribute("vertical")
+    except CommandError:
+        pass
+    else:
+        raise AssertionError("two eligible items is not enough")
+
+
 # ---- pxcmd -----------------------------------------------------------------------------------------
 
 

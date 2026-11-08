@@ -298,6 +298,15 @@ def test_previews_never_wait_for_heavy_effects_but_exports_do():
 
 
 def test_slider_drags_process_only_the_last_value():
+    import pixelref.builtins.effects.engine as engine_module
+
+    # The debounce window starts at the first request. Four simulated drag steps (each a full refresh
+    # and paint) take about as long as the real 40 ms window on a slow or busy machine, so the window
+    # can close mid-drag and an intermediate value gets processed: the test would pass or fail with
+    # the machine's speed. A window far longer than the whole drag makes "a drag faster than the
+    # debounce" true everywhere.
+    real_window = engine_module.DEBOUNCE_MS
+    engine_module.DEBOUNCE_MS = 10_000
     h = app()
     try:
         h.add_image("Img", -50, -30, w=100, h=60)
@@ -308,9 +317,10 @@ def test_slider_drags_process_only_the_last_value():
             h.run("effects.set", "Img", "blur", radius=radius)
             h.refresh()
             paint_views(h)
-        assert engine.wait()
+        assert engine.wait()  # wait() runs what is still pending: the last value only
         assert engine.stats["computed"] == 1, engine.stats
     finally:
+        engine_module.DEBOUNCE_MS = real_window
         h.close()
 
 

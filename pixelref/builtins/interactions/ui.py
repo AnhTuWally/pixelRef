@@ -940,12 +940,14 @@ def activate_interactions_ui(ui: Any) -> None:
         ui.menu("canvas", key, path="Click Action", group="make", order=order, when=when)
     a("interactions.log", "interactions.show_log", "Click Action Log…",
       keywords="button click failed error skipped problems history log", category="Interactions", icon="inspector")
-    ui.menu("canvas", "interactions.log", path="Click Action", group="log", order=0)
+    # A log of past clicks is app-wide, not about the selection: it lives with the other tools in Window.
+    ui.menu("canvas", "interactions.log", path="Window", group="window.extras", order=10)
     ui.place_submenu("canvas", "Click Action", "state", 8, icon="play")
 
     a("interactions.place_button", "interactions.place_button", "Insert Button",
       keywords="button interactive click create new", category="Interactions", icon="play")
-    ui.menu("canvas", "interactions.place_button", group="create", order=40, when=not_demo)
+    ui.menu("canvas", "interactions.place_button", group="create", order=40,
+            when=f"selection.count == 0 && {not_demo}")  # with a selection, Click Action > Make … Button
     a("interactions.done", "interactions.finish_ui", "Finish Demonstrating", keywords="done save click action",
       category="Interactions", icon="record")
     a("interactions.cancel", "interactions.finish", "Cancel Demonstrating", kwargs={"cancel": True},

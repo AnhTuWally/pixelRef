@@ -349,3 +349,174 @@ def test_any_link_end_has_a_handle_even_unselected():
         assert not h.app.input._capture, "the drag ended cleanly"
     finally:
         h.close()
+
+
+# ---- Finding the other end -----------------------------------------------------------------------
+
+
+def _far(h):
+    h.add_image("A", 0, 0)          # 200 x 100
+    h.add_image("B", 6000, 3000)    # far off-screen
+    h.refresh()
+    return h.run("links.connect", "A", "B", routing="straight")
+
+
+def _settle():
+    from PySide6.QtTest import QTest
+
+    QTest.qWait(400)  # camera glides take 280 ms
+    APP.processEvents()
+
+
+def _center(h):
+    return h.view.camera()["center"]
+
+
+def _finder(h):
+    return next(x for x in h.app.input.handlers() if type(x).__name__ == "LinkFinder")
+
+
+def test_go_to_follow_back_and_forward():
+    h = make()
+    try:
+        link = _far(h)
+        h.select(["A"])
+        assert h.run("links.go_to", "B") == "B"
+        _settle()
+        cx, cy = _center(h)
+        assert abs(cx - 6100) < 1 and abs(cy - 3050) < 1, _center(h)
+        assert abs(h.view.zoom_level() - 1.0) < 1e-6, "an element that fits keeps the zoom"
+        assert h.sel() == ["B"]
+        h.run("links.back")
+        _settle()
+        assert abs(_center(h)[0]) < 1 and h.sel() == ["A"], "back restores the camera and the selection"
+        h.run("links.forward")
+        _settle()
+        assert abs(_center(h)[0] - 6100) < 1 and h.sel() == ["B"]
+        # follow: by default the end farther from the view's centre (here: A).
+        assert h.run("links.follow", link) == "A"
+        _settle()
+        assert abs(_center(h)[0] - 100) < 1
+        # Something too big for the view is zoomed out to fit.
+        h.add_image("Huge", 20000, 0, w=8000, h=4000)
+        h.refresh()
+        h.run("links.go_to", "Huge")
+        _settle()
+        assert h.view.zoom_level() < 0.2
+    finally:
+        h.close()
+
+
+def test_double_clicking_a_link_goes_to_its_far_end():
+    h = make()
+    try:
+        link = _far(h)
+        h.select([])
+        h.refresh()
+        start, _end = _ends(h, link)
+        near = h.view.to_viewport(start + QPointF(40, 20)).toPoint()  # on the line, near A
+        h.set_tool("select")
+        h.click(near)
+        h.mouse("double", near)
+        h.mouse("release", near)
+        _settle()
+        assert abs(_center(h)[0] - 6100) < 1 and h.sel() == ["B"], (_center(h), h.sel())
+        assert not h.app.input._capture
+        # Double-clicking a selected link's end handle goes to the other end.
+        h.run("links.back")
+        _settle()
+        h.select([link])
+        h.refresh()
+        start, _end = _ends(h, link)
+        handle = h.view.to_viewport(start).toPoint()
+        h.mouse("double", handle)
+        h.mouse("release", handle)
+        _settle()
+        assert abs(_center(h)[0] - 6100) < 1 and h.sel() == ["B"], (_center(h), h.sel())
+    finally:
+        h.close()
+
+
+def test_edge_chips_badges_and_hover():
+    from PySide6.QtCore import Qt
+
+    h = make()
+    try:
+        _far(h)
+        h.set_tool("select")
+        h.select(["A"])
+        assert not h.grab().isNull()
+        finder = _finder(h)
+        chips = finder.chips[id(h.view)]
+        assert [c.target.name for c in chips] == ["B"], "an off-screen linked element gets a chip"
+        chip = chips[0]
+        room = h.view.viewport().rect()
+        assert chip.rect.right() >= room.right() - 20 or chip.rect.bottom() >= room.bottom() - 20, chip.rect
+        assert chip.direction.x() > 0 and chip.direction.y() > 0, "it points toward B"
+        badges = finder.badges[id(h.view)]
+        assert [name for _r, name in badges] == ["A"], "the selected element shows its link count"
+        h.click(chip.rect.center().toPoint())
+        _settle()
+        assert h.sel() == ["B"] and abs(_center(h)[0] - 6100) < 1
+        assert not h.app.input._capture
+        # On screen: no chip.
+        h.run("links.back")
+        _settle()
+        h.select(["A"])
+        h.run("set_attrs", "B", {"translate": [400.0, 0.0]})
+        h.refresh()
+        h.grab()
+        assert finder.chips[id(h.view)] == []
+        # Hovering an element highlights its links.
+        h.select([])
+        h.grab()
+        h.mouse("move", h.vp(100, 50), buttons=Qt.NoButton)
+        assert finder.hovered is not None and finder.hovered[1] == "A"
+        h.grab()
+        assert [name for _r, name in finder.badges[id(h.view)]] == ["A"]
+        h.run("links.set_hover_highlight", False)
+        h.mouse("move", h.vp(110, 50), buttons=Qt.NoButton)
+        assert finder.hovered is None
+        h.run("links.set_hover_highlight", True)
+    finally:
+        h.close()
+
+
+def test_linked_to_menu_and_links_section():
+    from PySide6.QtWidgets import QMenu
+
+    from pixelref.builtins.links.nav import fill_linked_menu
+
+    h = make()
+    try:
+        link = _far(h)
+        h.add_image("C", 0, 400)
+        h.refresh()
+        h.run("links.connect", "C", "A")
+        h.run("links.connect", "A", [900.0, -300.0])
+        h.refresh()
+        h.select(["A"])
+        assert h.session.context.evaluate("links.connected > 0")
+        nav = h.service("links.nav")
+        menu = QMenu()
+        fill_linked_menu(nav, menu, ["A"], h.view)
+        texts = [a.text() for a in menu.actions()]
+        assert texts[0] == "→  B" and texts[1] == "←  C" and texts[2].startswith("→  free end"), texts
+        menu.actions()[1].trigger()
+        _settle()
+        assert h.sel() == ["C"]
+        h.select(["A"])
+        APP.processEvents()
+        section = h.section("links")
+        assert section is not None and section.isVisible()
+        assert [b.text() for b in section.buttons] == ["→  B", "←  C", "→  free end"]
+        section.buttons[0].click()
+        _settle()
+        assert h.sel() == ["B"]
+        # A link lists its own ends; the link's style editor is still there.
+        h.select([link])
+        APP.processEvents()
+        assert [b.text() for b in h.section("links").buttons] == ["from  A", "to  B"]
+        assert h.section("attributes").isVisible()
+    finally:
+        h.close()

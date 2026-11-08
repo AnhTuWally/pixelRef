@@ -21,6 +21,7 @@ from PySide6.QtGui import QColor, QCursor
 from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox, QWidget
 from shiboken6 import isValid
 
+from ..core import paths
 from ..core.events import EventStream
 from ..core.extensions import Disposable
 from ..core.session import Session
@@ -166,11 +167,15 @@ class App:
 
     @staticmethod
     def config_dir() -> Path:
+        if (portable := paths.portable()) is not None:
+            return portable.config
         base = QStandardPaths.writableLocation(QStandardPaths.AppConfigLocation) or str(Path.home() / ".pixelref")
         return Path(base)
 
     @staticmethod
     def data_dir() -> Path:
+        if (portable := paths.portable()) is not None:
+            return portable.local_data
         base = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation) or str(Path.home() / ".pixelref")
         return Path(base)
 
@@ -578,7 +583,7 @@ class App:
             m("canvas", builder=self._workspace_menu, path="Window", text="Workspaces", icon="split_right",
               group="window", order=1),
             m("canvas", "keymap.mode.window", path="Window", group="window", order=2),
-            m("canvas", "wm.reset_layout", path="Window", group="window", order=3),
+            m("canvas", "wm.reset_layout", path="Window", group="window.panels", order=1),  # with Panels
             m("canvas", "ui.plugins", path="Window", group="window.extras", order=90),
             m("canvas", builder=self._tools_menu, path="Tools", group="tools", when="selection.count == 0"),
             self.menus.place_submenu("canvas", "Tools", "tools", 0, icon="tools"),
@@ -832,6 +837,7 @@ class App:
 
     def on_canvas_refreshed(self) -> None:
         for view in self.views.values():
+            view.invalidate_content_bounds()
             if view.display.filters_active:
                 self.update_hidden(view)
         self.update_views()
@@ -846,6 +852,8 @@ class App:
         self.events.emit("ui.selection_changed", {"names": self.session.selection.names})
 
     def on_item_geometry_changed(self, item: Any) -> None:
+        for view in self.views.values():
+            view.invalidate_content_bounds()
         self.events.emit("item.geometry_changed", {"item": item})
 
     def on_focus_changed(self, tile: str) -> None:

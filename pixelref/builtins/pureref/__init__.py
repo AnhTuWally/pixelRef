@@ -31,6 +31,7 @@ from .purformat import PurBoard, PurDrawing, PureRefError, PurGroup, PurImage, P
 
 PUR_EXT = ".pur"
 CROP_TOLERANCE = 0.5  # px: a crop this close to the whole image is no crop
+BACKDROP_PADDING = 12.0  # px around a group's members for its background
 PT_PER_PX = 0.75  # pixelRef note sizes are points (96 dpi), PureRef 2's are pixels
 TEXT_STYLES = ("bold", "italic", "underline", "strike", "font_size", "color", "highlight_color")
 
@@ -117,9 +118,10 @@ class PureRefImporter:
         """Create the board's nodes in the current scene; returns the top-level names."""
         scene = self.session.scene
         self.types = {name: scene.types.get(name) is not None
-                      for name in ("annotation_text", "group", "annotation_drawing", "annotation_path")}
+                      for name in ("annotation_text", "group", "annotation_drawing", "annotation_path", "backdrop")}
         report = {"file": file.as_posix(), "version": board.version, "images": 0, "linked": 0, "missing": 0,
-                  "notes": 0, "drawings": 0, "groups": 0, "skipped": {}, "warnings": list(board.warnings)}
+                  "notes": 0, "drawings": 0, "groups": 0, "backdrops": 0, "simplified_crops": 0,
+                  "skipped": {}, "warnings": list(board.warnings)}
         self.report, self.file, self.board = report, file, board
         parent = None
         if group and self.types["group"]:
@@ -132,6 +134,9 @@ class PureRefImporter:
             roots = []
         if translate is not None and roots:
             self.move_to(roots, float(translate[0]), float(translate[1]))
+        if report["simplified_crops"]:
+            report["warnings"].append(
+                f"{report['simplified_crops']} free-form crop(s) became rectangular crops")
         for kind, count in report["skipped"].items():
             report["warnings"].append(f"{count} {kind}(s) skipped: the plugin for them is off")
         self.last_report = report
@@ -191,11 +196,32 @@ class PureRefImporter:
                 continue
             made.append(name)
             self.add_items(item.children, name, inside)
-            if isinstance(item, PurGroup) and not self.session.scene.children_of(name):
-                self.session.scene.delete_node(name)
-                made.remove(name)
-                self.report["groups"] -= 1
+            if isinstance(item, PurGroup):
+                if not self.session.scene.children_of(name):
+                    self.session.scene.delete_node(name)
+                    made.remove(name)
+                    self.report["groups"] -= 1
+                elif item.background[3] > 0:
+                    self.add_group_backdrop(item, name)
         return made
+
+    def add_group_backdrop(self, group: PurGroup, name: str) -> None:
+        """PureRef paints a tinted rectangle behind a group's members: a backdrop at the back of the group."""
+        if not self.types["backdrop"]:
+            return
+        rect = self.session.local_bounds(name)
+        if not rect or rect[2] <= 0 or rect[3] <= 0:
+            return
+        scene = self.session.scene
+        r, g, b, a = group.background
+        pad = BACKDROP_PADDING
+        backdrop = scene.unique_name(f"{name} background")
+        scene.create_node("backdrop", backdrop, parent=name, attrs={
+            "translate": [round(rect[0] - pad, 3), round(rect[1] - pad, 3)],
+            "size": [round(rect[2] + 2 * pad, 3), round(rect[3] + 2 * pad, 3)],
+            "title": "", "color": [r, g, b], "fill_opacity": round(a / 255.0, 3)})
+        scene.reorder([backdrop], "back")
+        self.report["backdrops"] += 1
 
     def create(self, node_type: str, name: str, parent: str | None, item: PurItem, matrix: xform.Matrix,
                attrs: dict[str, Any]) -> None:
@@ -227,6 +253,8 @@ class PureRefImporter:
         crop = self.crop_for(image, attrs)
         if crop is not None:
             attrs["crop"] = crop
+            if image.freeform_crop:
+                report["simplified_crops"] += 1
         name = scene.unique_name(image.name or Path(source_name).stem or "Image")
         self.create("image", name, parent, image, pixel_matrix(image) @ matrix, attrs)
         return name
@@ -280,6 +308,8 @@ class PureRefImporter:
                 attrs["runs"] = runs
         if text.width > 0:
             attrs["text_width"] = round(text.width, 3)
+        if text.align != "left":
+            attrs["align"] = text.align
         name = self.session.scene.unique_name(text.name or "Note")
         self.create("annotation_text", name, parent, text, matrix, attrs)
         self.report["notes"] += 1
@@ -306,6 +336,10 @@ class PureRefImporter:
             }
             if stroke.color[3] < 255:
                 attrs["opacity"] = round(stroke.color[3] / 255.0, 4)
+            if stroke.arrow:
+                attrs["arrow"] = 1
+            if stroke.dashed:
+                attrs["stroke_style"] = "dash"
             scene.create_node("annotation_path", scene.unique_name("Stroke"), parent=name, attrs=attrs)
         self.report["drawings"] += 1
         return name

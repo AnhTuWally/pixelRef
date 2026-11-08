@@ -8,9 +8,11 @@ Extension point             Declared by        Contribution
 ``inspector.sections``      inspector          :class:`InspectorSection`
 ``inspector.rows``          inspector          :class:`InspectorRows`
 ``inspector.empty_panels``  inspector          :class:`EmptyPanel`
+``canvas_background.rows``  canvas_background  :class:`CanvasRow`
 ``quick_edit.sections``     quick_edit         :class:`QuickSection`
 ``ingest.handlers``         clipboard          :class:`IngestHandler`
 ``image.decoders``          image              :class:`ImageDecoder`
+``file.openers``            file               :class:`FileOpener`
 ``clipboard.exporters``     clipboard          callable(names, QMimeData) adding formats
 ``palette.buttons``         tool_palette       :class:`PaletteButton`
 ``stroke.styles``           brush              :class:`StrokeStyle`
@@ -111,6 +113,32 @@ class EmptyPanel:
     key: str
     order: float
     build: Callable[[Any, Any], Any]  # -> widget with refresh()
+
+
+@dataclass
+class CanvasRow:
+    """A labelled setting in the Attribute Editor's Canvas panel (shown when nothing is selected)."""
+
+    key: str
+    label: str
+    order: float
+    build: Callable[[Any], Any]  # build(parent) -> widget with refresh()
+
+
+@dataclass
+class FileOpener:
+    """Lets File > Open, recent files, the command line and drops open a foreign file type.
+
+    ``open(path)`` replaces the board and returns something truthy on success (a falsy
+    result means it failed and already told the user). ``opened(path)`` runs after the
+    view is framed, for reports and notices. Foreign files open as new, unsaved scenes.
+    """
+
+    name: str
+    extensions: tuple[str, ...]
+    label: str
+    open: Callable[[str], Any]
+    opened: Callable[[str], None] | None = None
 
 
 @dataclass

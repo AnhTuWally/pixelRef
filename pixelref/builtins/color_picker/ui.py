@@ -357,6 +357,8 @@ def activate_picker_ui(ui: Any) -> None:
     ui.action("color_picker.pick_screen", "color_picker.pick_screen", "Pick Color from Screen", icon="pick",
               keywords="eyedropper sample colour color screen desktop outside other app", category="Tools")
     ui.bind("Ctrl+Alt+I", "color_picker.pick_screen")
+    ui.menu("canvas", "color_picker.pick_screen", path="Tools", group="tools", order=100,
+            when="selection.count == 0")  # after the tool list
     ui.on_ui("camera.changed", tool.schedule_refresh)
     ui.on_ui("canvas.refreshed", tool.schedule_refresh)
     ui.on_ui("ui.selection_changed", tool.refresh_panels)

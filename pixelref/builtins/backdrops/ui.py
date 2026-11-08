@@ -468,7 +468,7 @@ def activate_backdrops_ui(ui: Any) -> None:
 
     ui.action("backdrops.toggle", "backdrops.toggle", "Act as Backdrop", keywords="frame host stack tray contain",
               category="Create", dynamic_text=toggle_text)
-    ui.menu("canvas", "backdrops.toggle", group="arrange", order=23, when="selection.count > 0")
+    ui.menu("canvas", "backdrops.toggle", group="group", order=23, when="selection.count > 0")
 
     def after_toggle_mode() -> None:
         mode = ui.app.run_command("backdrops.toggle_mode")
@@ -486,7 +486,7 @@ def activate_backdrops_ui(ui: Any) -> None:
     ui.menu("canvas", "backdrops.free", path="View", group="view.display", order=5)
     ui.action("backdrops.settle", "backdrops.settle", "Settle Backdrops",
               keywords="join leave adopt release refresh membership", category="Create", icon="backdrop")
-    ui.menu("canvas", "backdrops.settle", group="arrange", order=24, when="selection.count > 0")
+    ui.menu("canvas", "backdrops.settle", group="group", order=24, when="selection.count > 0")
 
     # ---- Attribute Editor: the "Act as backdrop" switch -----------------------------------------
 
@@ -534,5 +534,6 @@ def activate_backdrops_ui(ui: Any) -> None:
         applies=lambda info: bool(info.nodes) and all(engine.policy(n.get("type", "")) is not None
                                                       for n in info.nodes),
         build=lambda parent, _inspector: BackdropSection(parent)))
-    ui.menu("canvas", "backdrops.make", group="arrange", order=22)
+    ui.menu("canvas", "backdrops.make", group="create", order=35, when="selection.count == 0")  # a new one
+    ui.menu("canvas", "backdrops.make", group="group", order=22, when="selection.count > 0")  # around these
     ui.contribute("palette.buttons", PaletteButton("backdrops.make", "Backdrop", "backdrop", order=31))

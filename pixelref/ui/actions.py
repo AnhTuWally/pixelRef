@@ -683,16 +683,23 @@ class Keymap:
 
 # Where each group sits in a menu (groups not listed sit at 70, sorted by name). The context
 # menu goes from what was clicked on (the selection, or creating things on an empty canvas),
-# through selecting and showing everything, undo and the canvas-wide sub-menus (Tools, Arrange,
-# Effects), to the app-wide sub-menus (File, View, Window, Scripts) and help. Nested groups
-# order the View, File and Window sub-menus.
+# through selecting and showing everything, exporting the selection, undo and the canvas-wide
+# sub-menus (Tools, Arrange, Effects), to the app-wide sub-menus (File, View, Window, Scripts)
+# and the Help sub-menu. Nested groups order the View, File, Window, Scripts and Effects sub-menus.
 GROUP_ORDER = {
     "header": 0, "clipboard": 10, "create": 12, "state": 20, "transform": 30, "drawing": 32,
-    "arrange": 40, "group": 42, "select": 45, "reveal": 47, "focus": 50, "history": 55, "tools": 58,
-    "menus": 65, "view": 70, "file": 75, "window": 80, "app": 90,
+    "arrange": 40, "group": 42, "select": 45, "reveal": 47, "focus": 50, "export": 52, "history": 55,
+    "tools": 58, "menus": 65, "view": 70, "file": 75, "window": 80, "app": 90,
+    # Scripts and Effects sub-menus: the list or the stack first, the housekeeping last.
+    "scripts.list": 66.1, "scripts.record": 66.2, "scripts.manage": 66.3,
+    "effects.add": 66.4, "effects.stack": 66.5, "effects.show": 66.6, "effects.cache": 66.7,
     "view.frame": 71, "view.zoom": 72, "view.flip": 73, "view.display": 74, "view.background": 75,
-    "file.location": 75.5, "file.import": 76, "file.export": 77, "file.storage": 78,
+    # File: the document (new, open, save), closing, where it lives, in, out, then the settings.
+    "file.close": 75.2, "file.location": 75.5, "file.import": 76, "file.export": 77, "file.storage": 78,
+    "file.session": 78.5, "file.open_pref": 78.6, "file.watch": 78.7,
     "window.panels": 81, "w_modes": 82, "window.extras": 83,
+    # Help: learn first, then safety, updates and About.
+    "help.learn": 91, "help.about": 92,
 }
 
 
@@ -797,7 +804,10 @@ class MenuRegistry:
         for group, _order, _serial, entry in entries:
             separator = None
             if last_group is not None and group != last_group and added:
-                separator = menu.addSeparator()
+                actions = menu.actions()
+                # A title (section) already draws its own rule: no separator right under it.
+                if not (actions and actions[-1].isSeparator() and actions[-1].text()):
+                    separator = menu.addSeparator()
             if isinstance(entry, str):
                 sub = menu.addMenu(entry)
                 if icon_name := self.submenu_icons.get((menu_id, path + (entry,))):

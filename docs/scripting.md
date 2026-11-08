@@ -33,9 +33,17 @@ pxcmd.add_attr(img, "rating", "int", 3, minimum=0, maximum=5)   # a dynamic attr
 pxcmd.set_transform(img, translate=[10, 0], relative=True)
 pxcmd.get_transform(img, world_space=True)   # {"translate", "rotate", "scale", "world_bounds"}
 
+# Tags (one undo step each; nodes default to the selection)
+pxcmd.add_tags(["lighting", "v2"], [img])    # keeps the other tags
+pxcmd.remove_tags("v2", [img])
+pxcmd.set_tags([], [img])                    # replace; [] clears
+pxcmd.list_tags()                            # {"lighting": 3, …}
+
 # Finding things
 pxcmd.ls(type="image")                       # type includes subtypes
 pxcmd.ls(tags="lighting", visible=True)
+pxcmd.find("#lighting -#done note:fix")      # the Find panel's search: best first, with where it matched
+pxcmd.find.select("type:image shot:010")     # select every match (key:value looks in metadata)
 pxcmd.ls(pattern="Shot_*", roots=True)
 pxcmd.children(folder)                       # all_descendants=True, type="image"
 pxcmd.parent_of(img)                         # None for a top-level node

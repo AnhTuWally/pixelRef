@@ -165,6 +165,7 @@ script = "tidy.py"
 | `wm.focused_view_type` | the view type of the focused tile (`canvas`, `console`…) |
 | `pen.session_active` | true while a pen drawing is open |
 | `links.selected` | the selected links (true when there are any) |
+| `links.connected` | how many elements (and free ends) the selection is linked to; 0 when more than 6 items are selected |
 | `playback.selected` | how many animated images are selected |
 
 Combine them with `==`, `!=`, `<`, `>`, `<=`, `>=`, `&&`, `||` and `!`

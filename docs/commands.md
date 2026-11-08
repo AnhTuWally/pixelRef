@@ -13,6 +13,7 @@ the rest also work headless (batch mode, scripts).
 | --- | --- | --- | --- |
 | `add_attr(node: str, name: Any, type: str = 'any', default: Any = None, value: Any = None, **spec: Any)` |  | yes | Add a dynamic attribute to one node (saved with the scene); ``name`` may also be an ``Attr``. |
 | `add_plugin_source(path: str, label: str = '', policy: str = 'ask')` |  |  | Look for plugins in another folder too (remembered); its plugins still need approving. |
+| `add_tags(tags: Any, nodes: Any = None)` |  | yes | Add tags to nodes (default: the selection), keeping their other tags. |
 | `add_trusted_publisher(public_key: str, name: str = '')` |  |  | Trust a publisher's signing key: a ``*.pub.toml`` file or the base64 key itself. |
 | `attr_info(node: str, attr: str)` |  |  | The specification of one attribute. |
 | `attrs(node: str, computed: bool = True, hidden: bool = True)` |  |  | Attribute names of a node. |
@@ -34,6 +35,7 @@ the rest also work headless (batch mode, scripts).
 | `inherits(node: str, base: str)` |  |  | Whether a node (or a node type, by name) is ``base`` or derives from it. |
 | `list_commands(pattern: str \| None = None)` |  |  | Command names, optionally filtered by a glob pattern such as ``pen.*``. |
 | `list_plugins()` |  |  | Every discovered plugin with its status, version and dependencies. |
+| `list_tags(nodes: Any = None)` |  |  | Every tag in the scene (or on ``nodes``) with how many nodes carry it, by name. |
 | `load_plugin(plugin_id: str)` |  |  | Enable a plugin (remembered between sessions). |
 | `ls(type: str \| list[str] \| None = None, tags: str \| list[str] \| None = None, selection: bool = False, visible: bool \| None = None, pattern: str \| None = None, roots: bool = False)` |  |  | List nodes in scene order, optionally filtered. |
 | `move_nodes(nodes: Any, parent: str \| None = None, anchor: str \| None = None, place: str = 'end')` |  | yes | Reparent (keeping canvas placement) and position among the new siblings. |
@@ -72,6 +74,7 @@ the rest also work headless (batch mode, scripts).
 | `redo()` |  |  | Redo the last undone change; returns its label. |
 | `reload_plugin(plugin_id: str)` |  |  | Re-import a plugin's code (for plugin development). |
 | `remove_plugin_source(path: str)` |  |  | Stop looking for plugins in a folder you added. |
+| `remove_tags(tags: Any, nodes: Any = None)` |  | yes | Remove tags from nodes (default: the selection). Returns the nodes that changed. |
 | `remove_trusted_publisher(key_id: str)` |  |  | Stop trusting a publisher's key (its plugins then need approving one by one). |
 | `rename(node: str, new_name: str)` |  | yes | Rename a node. Names are unique: renaming to a taken name is an error. |
 | `reorder(nodes: Any = None, mode: str = 'front')` |  | yes | Change stacking: front, back, forward or backward (within each parent). |
@@ -84,6 +87,7 @@ the rest also work headless (batch mode, scripts).
 | `set_attr(target: str, *values: Any)` |  | yes | ``set_attr("Node.attr", value)`` or ``set_attr("Node", "attr", value)``. |
 | `set_attrs(node: str, attrs: dict[str, Any])` |  | yes | Set several attributes of one node. |
 | `set_plugin_source(path: str, enabled: bool \| None = None, policy: str \| None = None, label: str \| None = None)` |  |  | Switch a source on or off, or change its policy: "ask", "signed_only" or "trust_all". |
+| `set_tags(tags: Any, nodes: Any = None)` |  | yes | Replace the tags of nodes (default: the selection); ``[]`` clears them. |
 | `set_transform(nodes: Any = None, translate: Iterable[float] \| None = None, rotate: float \| None = None, scale: Iterable[float] \| float \| None = None, pivot: Iterable[float] \| None = None, relative: bool = False, world_space: bool = False)` |  | yes | Set the core transform attributes. |
 | `trusted_publishers()` |  |  | Publishers whose signed plugins load without asking. |
 | `undo()` |  |  | Undo the last change; returns its label. |
@@ -182,6 +186,7 @@ the rest also work headless (batch mode, scripts).
 | `arrange.align(edge: str = 'left', nodes: Any = None)` | `align` | yes | Align edges or centres: left, right, top, bottom, hcenter, vcenter. |
 | `arrange.arrange(mode: str = 'optimal', nodes: Any = None, gap: float = 8.0)` | `arrange` | yes | Lay items out: optimal (pack), horizontal (row), vertical (column) or grid. |
 | `arrange.arrange_ui(mode: str)` |  |  | Arrange the selection (or everything) and frame the result in the active view. |
+| `arrange.distribute(mode: str = 'horizontal', nodes: Any = None)` | `distribute` | yes | Equalize the gaps between 3+ items, horizontally or vertically; the outer edges stay put. |
 | `arrange.normalize(mode: str = 'size', nodes: Any = None)` | `normalize` | yes | Make items the same height, width or size (area), about their centres. |
 
 ## arrow
@@ -243,8 +248,28 @@ the rest also work headless (batch mode, scripts).
 | `clipboard.cut()` | `cut` |  | Copy the selection to the clipboard, then delete it. |
 | `clipboard.delete(nodes: Any = None)` | `delete_selected` | yes | Delete the selected nodes (with their children). |
 | `clipboard.duplicate(nodes: Any = None)` | `duplicate_selected` | yes | Duplicate the selection, offset a little, and select the copies. |
+| `clipboard.import_png_scene(path: str, position: Any)` |  | yes | Add the editable scene embedded in an exported PNG, centred on ``position`` (one undo step). |
 | `clipboard.paste()` | `paste` |  | Paste nodes copied in pixelRef, or images/text from other apps. |
 | `clipboard.paste_nodes(payload: dict[str, Any], position: Any)` |  | yes | Add copied nodes (a clipboard payload) centred on ``position``; returns the new root names. |
+
+## code
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `code.add(from_clipboard: bool = False)` |  |  | Add a block at the mouse with a Python hello world, or with the clipboard text when asked. |
+| `code.add_from_clipboard()` |  |  |  |
+| `code.copy(names: list[str] \| None = None)` |  |  | Copy the selected code block's text to the clipboard (``names``: the block the copy badge is on). |
+| `code.create(code: str = '', translate: Any = None, language: str = 'python', **attrs: Any)` | `create_code` | yes | Create a code block at ``translate``; extra keyword arguments are attributes (wrap, theme…). |
+| `code.edit(name: str \| None = None)` |  |  |  |
+| `code.get_code(nodes: Any = None)` |  |  | Plain code of the selected blocks, for the clipboard (the UI puts it there). |
+| `code.set_attrs(updates: dict[str, Any], nodes: Any = None, label: str = 'Edit code')` |  | yes |  |
+| `code.set_code(name: str, code: str)` |  | yes |  |
+
+## color_palette
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `color_palette.extract(image: Any = None, count: int \| None = None)` | `extract_palette` | yes | Extract the dominant colors of an image, or of a group/backdrop and every image inside it |
 
 ## color_picker
 
@@ -317,7 +342,9 @@ the rest also work headless (batch mode, scripts).
 | `export.dialog()` |  |  | Ask where to save, then render the selection (or the whole board) to PNG/JPEG. |
 | `export.originals(folder: str, nodes: Any = None)` | `export_original_images` |  | Copy the selected (or all) images' original files into a folder. |
 | `export.originals_dialog()` |  |  | Ask for a folder, then write the original image files of the selection (or of every image). |
-| `export.render(path: str, nodes: Any = None, opaque: bool \| None = None)` | `render_image` |  | Render nodes (default: the selection, else everything) to PNG/JPEG at 1:1. Returns [w, h]. |
+| `export.render(path: str, nodes: Any = None, opaque: bool \| None = None, embed_scene: bool \| None = None)` | `render_image` |  | Render nodes (default: the selection, else everything) to PNG/JPEG at 1:1. Returns [w, h]. |
+| `export.set_embed_scene_metadata(enabled: bool)` |  |  | Turn embedding the scene in exported PNGs on or off (a saved preference). |
+| `export.toggle_embed_scene_metadata()` |  |  |  |
 
 ## exr
 
@@ -335,31 +362,47 @@ the rest also work headless (batch mode, scripts).
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
 | `file.check_external()` |  |  | Look at the open file on disk now; returns "changed", "missing" or None. |
+| `file.clear_color(path: str \| None = None)` |  |  | Remove a file's colour label (default: the current file). |
 | `file.clear_recent()` |  |  | Forget the recent files list. |
+| `file.close(path: str \| None = None)` |  |  | Close a file (default: the current one). Unsaved changes are asked about first; if the |
+| `file.close_all()` |  |  | Close every file, leaving the empty board and start screen. |
+| `file.close_others(path: str \| None = None)` |  |  | Close every file except ``path`` (default: the current one). |
 | `file.copy_folder()` |  |  | Copy the path of the folder holding the open scene file to the clipboard. |
 | `file.copy_path()` |  |  | Copy the open scene file's full path to the clipboard. |
 | `file.cycle(direction: int = 1)` |  |  | Cycle to the next/previous open file (current window). |
 | `file.jump(n: int)` |  |  | Jump to the n-th open file (1-based). |
 | `file.new()` |  |  | New, empty scene (asks about unsaved changes). |
-| `file.open()` |  |  | Choose a scene file to open (asks about unsaved changes first). |
+| `file.open()` |  |  | Choose a scene or board file to open (asks about unsaved changes first). |
 | `file.open_folder()` |  |  | Open the folder holding the open scene file in the system file browser. |
 | `file.open_in_new_window(path: str \| None = None)` |  |  | Open a scene file in its own window (a new pixelRef process). |
-| `file.open_path(path: str, confirm: bool = True)` |  |  | Open a scene file (asks about unsaved changes unless confirm=False). |
+| `file.open_path(path: str, confirm: bool = True, track_recent: bool = True)` |  |  | Open a scene file (asks about unsaved changes unless confirm=False). Switching between |
 | `file.pick_save_dir()` |  |  | Choose the folder new scenes are saved to. |
 | `file.reload()` |  |  | Reload the open scene from disk (asks before discarding unsaved changes). |
+| `file.relocate(old_path: str, new_path: str \| None = None)` |  |  | Point a listed (typically missing) file at its new location, keeping its place in the |
 | `file.reorder_open_files(from_path: str, to_path: str)` |  |  | Reorder the open-files registry (drag-and-drop). |
 | `file.resume_last_session()` |  |  | Bring back the Untitled draft kept from the last time pixelRef closed. |
 | `file.save()` |  |  | Save the scene to its file (asks for a name the first time). |
 | `file.save_as()` |  |  | Save the scene under a new file name (dialog). |
 | `file.save_to(path: str)` |  |  | Save the scene to ``path``. |
+| `file.set_color(path: str \| None = None, color: str \| None = None)` |  |  | Label a file (default: the current one) with a colour from the palette |
 | `file.set_fun_names(enabled: bool)` |  |  | Give new scenes a random fun name (e.g. Brave-Tiger) instead of scene.pxref. |
 | `file.set_open_pref(value: str)` |  |  | Set the *Open files on double-click* preference ("current" or "new"). |
 | `file.set_resume_enabled(value: bool)` |  |  | Turn Session Resume on or off (the start panel's checkbox). |
 | `file.set_save_dir(path: str)` |  |  | Set the folder new scenes are saved to ("" = the default Documents/pixelRef). |
 | `file.set_watch_mode(mode: str)` |  |  | When the open file changes on disk: "reload" automatically, "notify" with a Reload |
-| `file.switch_to(path: str)` |  |  | Switch to an open file (no prompt; captures the current state first). |
+| `file.switch_to(path: str)` |  |  | Switch to an open file. Files switch without a prompt (the current one is captured first); |
 | `file.thumbnail(path: str \| None = None, save_to: str \| None = None)` |  |  | A scene file's thumbnail (default: the open scene's file): its size and date, |
 | `file.toggle_resume()` |  |  | Switch Session Resume (reopen your last board automatically on launch) on or off. |
+
+## find
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `find.locate(node: str, view: str \| None = None)` | `find_locate` |  | Go to an element: glide a view to it (or frame it) and select it. Returns its name. |
+| `find.search(query: str, limit: int \| None = 50, canvas_only: bool = True)` | `find` |  | Elements matching a query (words, "phrases", #tag, type:, name:, note:, key:value), best first. |
+| `find.select(query: str, add: bool = False)` |  |  | Select every element matching a query (``add``: keep the current selection too). |
+| `find.show(query: str \| None = None)` |  |  | Open the Find panel (or focus it), optionally with a query typed in. |
+| `find.similar(nodes: Any = None)` |  |  | Open Find with everything sharing a tag with nodes (default: the selection). |
 
 ## frames
 
@@ -467,16 +510,22 @@ the rest also work headless (batch mode, scripts).
 | Command | Alias | Undo | Description |
 | --- | --- | --- | --- |
 | `links.add_waypoint(link: str, x: float, y: float, index: int \| None = None)` |  | yes | Pin the path through (x, y) in the link's space; returns the waypoint's index. |
+| `links.back(view: str \| None = None)` | `link_back` |  | Go back to where the view was before the last jump along a link. |
 | `links.clear_waypoints(nodes: Any = None)` |  | yes | Remove every waypoint: the path goes straight (or curves) from end to end again. |
 | `links.connect(source: Any, target: Any, name: str = 'Link', **attrs: Any)` | `connect` | yes | Link two ends. Each is an element (name or id) or a free point [x, y] on the |
 | `links.connect_selection(**attrs: Any)` | `connect_selection` | yes | Link the selected elements in the order they were selected (a → b → c). |
 | `links.connected(nodes: Any = None)` |  |  | Elements linked to these (default: the selection). |
 | `links.ends(link: str)` |  |  | The names of the elements a link's ends are attached to (None: a free end). |
+| `links.follow(link: str, end: str \| None = None, view: str \| None = None)` | `follow_link` |  | Go to one end ("source" / "target") of a link; by default the one farther from |
+| `links.forward(view: str \| None = None)` | `link_forward` |  | Redo a jump undone with back. |
+| `links.go_to(node: Any, view: str \| None = None)` | `go_to_linked` |  | Glide a view to an element (name or id) or a point [x, y] and select the element. |
 | `links.links_of(node)` |  |  |  |
 | `links.remove_waypoint(link: str, index: int)` |  | yes | Unpin one waypoint. |
 | `links.reverse(nodes: Any = None)` |  | yes | Swap a link's ends (with their anchors and caps), keeping the path. |
 | `links.select_connected(nodes: Any = None)` | `select_connected` |  | Select the elements linked to the selection. |
 | `links.set_end(link: str, end: str = 'target', node: Any = None, anchor: str \| None = None, spot: Any = None)` |  | yes | Attach a link's end ("source" or "target") to an element, or free it at a |
+| `links.set_hover_highlight(on: bool)` |  |  | Whether hovering an element outlines its links and what they lead to; remembered. |
+| `links.toggle_hover_highlight()` |  |  | Switch the hover highlight of links on or off. |
 
 ## macros
 
@@ -540,6 +589,7 @@ the rest also work headless (batch mode, scripts).
 | `navigation.frame_all(view: str \| None = None)` | `frame_all` |  | Fit everything visible in a view (Shift+F, Home). |
 | `navigation.frame_selected(view: str \| None = None)` | `frame_selected` |  | Fit the selection in a view (F); everything when nothing is selected. |
 | `navigation.pan(dx: float, dy: float, view: str \| None = None)` | `view_pan` |  | Pan by screen pixels. |
+| `navigation.progressive_zoom(on: bool \| None = None)` |  |  | Turn progressive zoom rendering on or off (no argument: switch it); returns whether it is on. |
 | `navigation.set_camera(center: Any = None, zoom: float \| None = None, rotation: float \| None = None, view: str \| None = None, animate: bool = False, flip_x: bool \| None = None, flip_y: bool \| None = None)` | `set_camera` |  | Move a view's camera: centre (world point), zoom, rotation and optional mirror flips. |
 | `navigation.world_to_screen(x: float, y: float, view: str \| None = None)` | `world_to_screen` |  | A world point's position in a view's widget coordinates. |
 | `navigation.zoom(level: float, view: str \| None = None)` | `view_zoom` |  | Set a view's zoom level (1.0 = 100%). Not undoable, like all camera moves. |
@@ -581,6 +631,40 @@ the rest also work headless (batch mode, scripts).
 | `outliner.unlock(nodes: Any = None)` |  | yes | Unlock the nodes so they can be selected again, and the locked groups holding them. |
 | `outliner.unlock_all()` | `unlock_all` | yes | Unlock every node (Alt+L). |
 
+## pages
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `pages.add_around_selection(paper: str \| None = None)` |  |  | Add a page around the selection (the Page tool's paper size). |
+| `pages.add_from_view(paper: str \| None = None)` |  |  | Add a page framing what the active view shows (the Page tool's paper size). |
+| `pages.create(x: float, y: float, width: float, height: float, paper: str = 'A4', orientation: str = 'landscape', title: str = '', name: str = 'Page', **attrs: Any)` | `create_page` | yes | A page frame at (x, y). With a paper size its height follows the width. |
+| `pages.export_dialog()` |  |  | Ask what to export and where, then write the PDF. |
+| `pages.export_pdf(path: str, pages: Any = None, dpi: int = 300, background: str = 'board', title: str \| None = None)` | `export_pdf` |  | Write pages to one PDF, one page each, in page order; returns the page count. |
+| `pages.fly_to_selected()` |  |  |  |
+| `pages.go_to(page: Any = None, step: int = 0)` |  |  | Fit the active view to a page (name or number), or step to the next (1) / previous (-1) one. |
+| `pages.list()` |  |  | The pages in order: name, number, paper, orientation, title, export. |
+| `pages.move(name: str, step: int)` |  | yes | Move a page earlier (negative ``step``) or later in the page order. |
+| `pages.move_earlier()` |  |  |  |
+| `pages.move_later()` |  |  |  |
+| `pages.next()` |  |  |  |
+| `pages.paper_0(p='A5')` |  |  |  |
+| `pages.paper_1(p='A4')` |  |  |  |
+| `pages.paper_10(p='Free')` |  |  |  |
+| `pages.paper_2(p='A3')` |  |  |  |
+| `pages.paper_3(p='A2')` |  |  |  |
+| `pages.paper_4(p='Letter')` |  |  |  |
+| `pages.paper_5(p='Legal')` |  |  |  |
+| `pages.paper_6(p='Tabloid')` |  |  |  |
+| `pages.paper_7(p='16:9')` |  |  |  |
+| `pages.paper_8(p='4:3')` |  |  |  |
+| `pages.paper_9(p='1:1')` |  |  |  |
+| `pages.previous()` |  |  |  |
+| `pages.rename_selected()` |  |  |  |
+| `pages.reorder(names: Any)` |  | yes | Put these pages first, in this order; the other pages follow in their current order. |
+| `pages.rotate(nodes: Any = None)` |  | yes | Turn pages between landscape and portrait. |
+| `pages.set_paper(nodes: Any = None, paper: str \| None = None, orientation: str \| None = None)` |  | yes | Change pages' paper and/or orientation, keeping each centred where it was. |
+| `pages.toggle_export()` |  |  |  |
+
 ## pen
 
 | Command | Alias | Undo | Description |
@@ -612,7 +696,6 @@ the rest also work headless (batch mode, scripts).
 | `pureref.import_file(path: str, translate: Any = None, group: bool \| None = None)` | `import_pureref` | yes | Add a PureRef board (.pur) to this one; returns the new top-level nodes. |
 | `pureref.inspect(path: str)` |  |  | What a PureRef board holds (version, images, notes) without importing it. |
 | `pureref.open(path: str)` | `open_pureref` |  | Open a PureRef board (.pur) as a new, unsaved scene. |
-| `pureref.open_dialog()` |  |  | Choose a PureRef board to open as a new scene (asks about unsaved changes first). |
 
 ## quick_edit
 
@@ -660,6 +743,16 @@ the rest also work headless (batch mode, scripts).
 | `sequence.set_detect(on: bool)` | `set_detect_sequences` |  | Whether dropped numbered frames become image sequences (True) or separate images. |
 | `sequence.toggle_detect()` |  |  | Switch between dropped numbered frames becoming sequences and separate images. |
 
+## snap
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `snap.enabled()` |  |  | Whether drags snap to the grid. |
+| `snap.set_enabled(on: bool = True)` |  |  | Turn snapping to the grid on or off (a preference: it isn't saved with the scene). |
+| `snap.to_grid(nodes: Any = None)` | `snap_to_grid` | yes | Move each item so its nearest edges sit on grid lines. |
+| `snap.toggle()` | `toggle_snap` |  | Turn snapping to the grid on or off. |
+| `snap.toggle_ui()` |  |  | Turn snapping to the grid on or off, and say so. |
+
 ## steps
 
 | Command | Alias | Undo | Description |
@@ -674,6 +767,7 @@ the rest also work headless (batch mode, scripts).
 | --- | --- | --- | --- |
 | `text.add(text: str = 'Text')` |  |  | Create a note at the mouse and start editing it; with one image selected |
 | `text.apply_preset(preset: str, nodes: Any = None)` |  | yes | Apply a style preset (Plain, Title, Label, Sticky note, Callout, Highlighter). |
+| `text.choose_default_width()` |  |  |  |
 | `text.clear_default_style()` |  |  | New notes go back to the plain style. |
 | `text.clear_formatting(nodes: Any = None)` |  | yes | Remove character formatting from text notes (keeps the text). |
 | `text.commit(name: str, text: str, runs: list[dict[str, Any]] \| None = None)` |  | yes | Store text (and per-character formatting runs) edited on the canvas. |
@@ -681,12 +775,14 @@ the rest also work headless (batch mode, scripts).
 | `text.copy_text(names: list[str] \| None = None)` | `copy_note_text` |  | Copy the selected note's plain text to the clipboard (Ctrl+Alt+T). |
 | `text.create(text: str = 'Text', translate: Any = None, parent: str \| None = None)` | `create_note` | yes | Create a text note at ``translate`` (world units if no parent). |
 | `text.default_style()` |  |  | Your style for new notes (saved values that no longer fit are skipped). |
+| `text.default_width()` |  |  | Width pasted text wraps at (0 = never wrap); kept across restarts. |
 | `text.link_dialog()` |  |  | Link the selected text (while typing, Ctrl+K) or the selected notes to a web address or file. |
 | `text.link_file_dialog()` |  |  | Link the selected text or notes to a file: a scene or PureRef board opens here, others in their app. |
 | `text.open_link(href: str)` |  |  | Open a link: web pages in the browser, scenes and PureRef boards here, other files in their app. |
 | `text.paste_style()` | `paste_text_style` |  | Paste the copied text style onto the selected text (while typing) or the selected notes (Ctrl+Shift+V). |
 | `text.save_default_style(node: str \| None = None)` |  |  | Use a note's style (font, colours, box…) for every new note; kept across restarts. |
 | `text.set_attrs(updates: dict[str, Any], nodes: Any = None, strip: tuple[str, ...] \| list[str] = (), label: str = 'Edit text')` |  | yes | Set note attributes on the selected notes; ``strip`` removes those styles |
+| `text.set_default_width(width: float)` |  |  | Set the width pasted text wraps at; 0 lets pasted text grow as long as it is. |
 | `text.set_link(href: str, nodes: Any = None)` | `set_note_link` | yes | Link the whole text of the selected notes to a web address or file ("" removes links). |
 | `text.toggle_check(name: str, line: int)` |  | yes | Tick or untick the checklist box that starts line ``line`` of a note; returns the new state. |
 | `text.toggle_checklist(nodes: Any = None)` | `toggle_checklist` | yes | Turn the lines of the selected notes into a checklist (☐ boxes), or back to plain lines. |
@@ -719,6 +815,15 @@ the rest also work headless (batch mode, scripts).
 | `transform.rotate(degrees: float = 90.0, nodes: Any = None)` | `rotate` | yes | Rotate each selected item about its own centre. |
 | `transform.scale(factor: float, nodes: Any = None)` | `scale` | yes | Scale the selection about its centre. |
 | `transform.wheel_scale(factor: float)` |  |  | Scale the selection about its centre (Ctrl+wheel); quick repeats are one undo step. |
+
+## updates
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `updates.check()` |  |  | Check for a newer pixelRef now (works even when automatic checks are off). |
+| `updates.roll_back()` |  |  | Restore the previous version from the backup the last update kept (the user's decision). |
+| `updates.settings()` |  |  |  |
+| `updates.state()` |  |  |  |
 
 ## views
 

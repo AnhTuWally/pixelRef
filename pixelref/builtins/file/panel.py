@@ -11,6 +11,7 @@ Window and friends.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -18,13 +19,14 @@ from typing import Any
 
 from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
 from PySide6.QtCore import QMimeData
-from PySide6.QtGui import QColor, QDrag, QImage, QPainter, QPixmap
+from PySide6.QtGui import QColor, QDrag, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QFrame, QLabel, QMenu,
-                               QScrollArea, QVBoxLayout, QWidget)
+                               QScrollArea, QToolButton, QVBoxLayout, QWidget)
 
 from pixelref.ui.panels import PanelType
 
 from .start import ThumbnailCache
+from .workspace import CHILD_ENV, PALETTE
 
 OPEN_PREF_SETTING = "open_double_click"  # "current" (default) or "new"
 THUMB = QSize(64, 44)
@@ -49,7 +51,9 @@ def spawn_window(path: str) -> bool:
     if sys.platform == "win32":
         kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
-        subprocess.Popen([sys.executable, "-m", "pixelref", str(path)], **kwargs)
+        # The new window never owns the saved workspace: only the first window does.
+        env = {**os.environ, CHILD_ENV: "1"}
+        subprocess.Popen([sys.executable, "-m", "pixelref", str(path)], env=env, **kwargs)
     except OSError as exc:
         raise OSError(f"Could not start pixelRef: {exc}") from exc
     return True
@@ -62,6 +66,11 @@ class FileRow(QFrame):
     double_clicked = Signal(str, object)  # path, modifiers
     open_in_new_window = Signal(str)
     dropped_on = Signal(str, str)  # dragged path, target path
+    close_requested = Signal(str)
+    locate_requested = Signal(str)
+    color_requested = Signal(str, str)  # path, colour name ("" removes the label)
+    close_others_requested = Signal(str)
+    close_all_requested = Signal()
 
     def __init__(self, path: str, image: QImage | None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -76,6 +85,14 @@ class FileRow(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 5, 6, 5)
         layout.setSpacing(8)
+        # A narrow colour strip (the user's label); it keeps its width when unlabelled so rows
+        # line up, and it is separate from the active highlight and the unsaved border.
+        self.color_strip = QFrame(self)
+        self.color_strip.setObjectName("fileRowColor")
+        self.color_strip.setFixedWidth(4)
+        self.color_name = ""
+        self.set_color("")
+        layout.addWidget(self.color_strip)
         self.thumb = QLabel(self)
         self.thumb.setObjectName("fileRowThumb")
         self.thumb.setFixedSize(THUMB)
@@ -95,6 +112,46 @@ class FileRow(QFrame):
         titles.addWidget(self.folder)
         layout.addWidget(self.thumb)
         layout.addLayout(titles, 1)
+        # A small, muted close control; it also takes keyboard focus (Tab) and never starts a drag
+        # or selects the row, because a button swallows its own mouse events.
+        self.missing = False
+        self.warn = QLabel("\u26a0", self)
+        self.warn.setObjectName("fileRowWarn")
+        self.warn.setToolTip("File not found")
+        self.warn.setStyleSheet("#fileRowWarn { color: #d9a441; }")
+        self.warn.setVisible(False)
+        layout.addWidget(self.warn, 0, Qt.AlignTop)
+        self.close_button = QToolButton(self)
+        self.close_button.setObjectName("fileRowClose")
+        self.close_button.setText("\u00d7")
+        self.close_button.setToolTip("Close file")
+        self.close_button.setAccessibleName("Close file")
+        self.close_button.setFocusPolicy(Qt.TabFocus)
+        self.close_button.setCursor(Qt.ArrowCursor)
+        self.close_button.setFixedSize(18, 18)
+        self.close_button.setStyleSheet(
+            "#fileRowClose { border: none; border-radius: 3px; background: transparent; color: #7d8590;"
+            " font-size: 14px; }"
+            "#fileRowClose:hover, #fileRowClose:focus { background: rgba(255, 255, 255, 0.14); color: #e6e6e6; }")
+        # Closing rebuilds the list under the pointer, so let this click finish first.
+        self.close_button.clicked.connect(lambda: QTimer.singleShot(0, lambda: self.close_requested.emit(self.path)))
+        layout.addWidget(self.close_button, 0, Qt.AlignTop)
+
+    def set_missing(self, missing: bool) -> None:
+        """Mark the file as not found: muted name and a warning sign. It stays selectable and closable."""
+        if missing == self.missing:
+            return
+        self.missing = missing
+        self.warn.setVisible(missing)
+        self.name.setStyleSheet("color: #7d8590; font-style: italic;" if missing else "")
+        self.setToolTip(f"{self.path}\nFile not found" if missing else self.path)
+
+    def set_color(self, name: str | None) -> None:
+        name = name if name in PALETTE else ""
+        self.color_name = name
+        self.color_strip.setToolTip(f"Colour: {name.title()}" if name else "")
+        rule = f"background: {PALETTE[name]}; border-radius: 2px;" if name else "background: transparent;"
+        self.color_strip.setStyleSheet(f"#fileRowColor {{ {rule} }}")
 
     def set_state(self, active: bool, unsaved: bool) -> None:
         if active == self.active and unsaved == self.unsaved:
@@ -158,7 +215,28 @@ class FileRow(QFrame):
         menu.addAction("Open in New Window", lambda: self.open_in_new_window.emit(self.path))
         menu.addAction("Reveal in Explorer", lambda: _reveal(self.path))
         menu.addAction("Copy Path", lambda: _copy_path(self.path))
+        if self.missing:
+            menu.addAction("Locate File\u2026", lambda: self.locate_requested.emit(self.path))
+        menu.addSeparator()
+        colours = menu.addMenu("Set Colour")
+        for name, swatch in PALETTE.items():
+            action = colours.addAction(_swatch_icon(swatch), name.title(),
+                                       lambda n=name: self.color_requested.emit(self.path, n))
+            action.setCheckable(True)
+            action.setChecked(name == self.color_name)
+        remove = menu.addAction("Remove Colour", lambda: self.color_requested.emit(self.path, ""))
+        remove.setEnabled(bool(self.color_name))
+        menu.addSeparator()
+        menu.addAction("Close", lambda: self.close_requested.emit(self.path))
+        menu.addAction("Close Others", lambda: self.close_others_requested.emit(self.path))
+        menu.addAction("Close All", lambda: self.close_all_requested.emit())
         menu.exec(event.globalPos())
+
+
+def _swatch_icon(color: str) -> QIcon:
+    pixmap = QPixmap(12, 12)
+    pixmap.fill(QColor(color))
+    return QIcon(pixmap)
 
 
 def _reveal(path: str) -> None:
@@ -230,7 +308,9 @@ class FilesPanel(QWidget):
             row.hide()
             row.deleteLater()
         self.rows = []
-        files = self.ui.service("files").open_files_list()
+        files_service = self.ui.service("files")
+        files_service.check_availability()  # background, throttled: never blocks the panel
+        files = files_service.open_files_list()
         current = self.ui.session.scene_path
         current = str(Path(current).resolve()) if current else None
         for path in files:
@@ -240,6 +320,13 @@ class FilesPanel(QWidget):
             row.double_clicked.connect(self._on_double_click)
             row.open_in_new_window.connect(self._open_new_window)
             row.dropped_on.connect(self._on_drop)
+            row.set_color(files_service.file_color(path))
+            row.set_missing(files_service.file_missing(path))
+            row.locate_requested.connect(lambda p: self.ui.app.run_command("file.relocate", p))
+            row.color_requested.connect(lambda p, n: self.ui.app.run_command("file.set_color", p, n))
+            row.close_requested.connect(lambda p: self.ui.app.run_command("file.close", p))
+            row.close_others_requested.connect(lambda p: self.ui.app.run_command("file.close_others", p))
+            row.close_all_requested.connect(lambda: self.ui.app.run_command("file.close_all"))
             self.list_layout.insertWidget(self.list_layout.count() - 1, row)
             row.show()
             self.rows.append(row)
@@ -318,6 +405,26 @@ def activate_files_panel_ui(ui: Any) -> None:
     ui.on("document.replaced", refresh_all)
     ui.on("scene.saved", refresh_all)
     ui.on("scene.opened", refresh_all)
+    ui.on_ui("files.changed", refresh_all)
+
+    def availability_changed(_event: Any = None) -> None:
+        files = ui.service("files")
+        for panel in list(service.panels):
+            for row in panel.rows:
+                row.set_missing(files.file_missing(row.path))
+
+    ui.on_ui("files.availability_changed", availability_changed)
+
+    def color_changed(event: Any) -> None:
+        # Only the colour strip of the one row: no rebuild, so thumbnails are not touched.
+        path = (event.payload if hasattr(event, "payload") else event or {}).get("path")
+        color = ui.service("files").file_color(path) if path else None
+        for panel in list(service.panels):
+            for row in panel.rows:
+                if row.path == path:
+                    row.set_color(color)
+
+    ui.on_ui("files.color_changed", color_changed)
 
     # ---- Commands -----------------------------------------------------------------------------
 
@@ -388,6 +495,7 @@ def activate_files_panel_ui(ui: Any) -> None:
           keywords=f"jump open file {n} switch", category="File")
 
     ui.menu("canvas", "file.open_in_new_window", path="File", group="file.location", order=4)
+    ui.menu("canvas", "file.cycle", path="File", group="file", order=2.5)  # between Open Recent and Save
     ui.menu("canvas", "file.pref_current", path="File/File Opening", group="file.open_pref", order=0)
     ui.menu("canvas", "file.pref_new", path="File/File Opening", group="file.open_pref", order=1)
 

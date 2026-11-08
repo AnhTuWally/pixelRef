@@ -85,7 +85,7 @@ always current:
 Each entry lists how to use the feature, its keys, the commands behind it and
 the plugin that provides it.
 
-### Canvas and navigation (`navigation`, `minimap`, `canvas_background`)
+### Canvas and navigation (`navigation`, `minimap`, `canvas_background`, `snap`)
 
 - Zoom with the wheel. Pan with a middle- or right-drag, or `Space`+drag.
 - `F` frames the selection (or everything), `Shift+F` or `Home` frames
@@ -99,9 +99,19 @@ the plugin that provides it.
   colour, pattern (grid lines, dots, crosses, checkerboard, plain), grid size
   and pattern colour. `Ctrl+'` toggles the pattern. The background is saved
   with the scene.
+- **Snap to grid**: `Alt+'`, *View → Background → Snap to Grid*, or the
+  *Snap to grid* toggle (magnet icon) in the Attribute Editor's Canvas panel makes
+  moves snap the selection's nearest edges to the background grid, as one
+  block, and makes gizmo scaling put the dragged handle on a grid line. It
+  snaps to the lines the view draws: the *Grid size*, or the coarser lines the
+  background switches to when you zoom far out.
+  Holding `Ctrl` while dragging flips snapping for that drag. Snapping works
+  with the pattern hidden too; it's your preference, not saved in the scene.
+  *Transform → Snap Selection to Grid* lines each selected item up.
 - Commands: `navigation.frame`, `frame_all`, `frame_selected`, `zoom`,
   `zoom_by`, `pan`, `set_camera`, `flip`; `minimap.toggle`, `minimap.place`;
-  `canvas_background.set(background=[r, g, b], pattern="dots")`.
+  `canvas_background.set(background=[r, g, b], pattern="dots")`;
+  `snap.toggle`, `snap.set_enabled(on)`, `snap.to_grid(nodes)`.
 
 ### Selecting and transforming (`select`, `gizmo`, `transform`, `crop`, `order`)
 
@@ -136,7 +146,7 @@ the plugin that provides it.
   with the scene.
 - The **Contact Sheet** view shows every image as a thumbnail grid
   (`pxcmd.wm.open_view("contact_sheet")`).
-- **PureRef boards** (`pureref`): *File → Open PureRef Board (Import Only)…*, *File → Import →
+- **PureRef boards** (`pureref`): *File → Open* (`.pur` files, also from Open Recent and the command line), *File → Import →
   PureRef Board…* and dropping `.pur` files; `open_pureref(path)`,
   `import_pureref(path, translate=…, group=…)`, `pureref.inspect(path)`. See
   [user-guide.md](user-guide.md#pureref-boards).
@@ -241,6 +251,30 @@ adjusted by its handles without leaving the tool.
 - Commands: `grouping.group/ungroup/add_group`, `parent`, `rename`,
   `outliner.isolate_types`, `outliner.set_type_flag`,
   `quick_edit.set_fields(type, [attrs])`, `panels.set_mode/popup/toggle`.
+
+### Tags, notes and Find (`inspector`, `find`)
+
+- **Tags** (the `tags` attribute every node has) are edited in the Attribute
+  Editor's *Tags* section, as chips, on one item or a whole selection: adding
+  or removing a tag never replaces an item's other tags. The quick editor can
+  show a *Tags* field too. Kernel commands, one undo step each:
+  `add_tags(tags, nodes=None)`, `remove_tags(tags, nodes=None)`,
+  `set_tags(tags, nodes=None)`; `list_tags(nodes=None)` counts them. Tags are
+  trimmed and kept once each, in order.
+- **Note** (free text) and **Metadata** (key / value fields) are optional
+  attributes of every node, stored only once set. The note is the item's
+  description; there is no separate one.
+- **Find** (`Ctrl+F`, `find.show`): a panel that searches names, tags, types,
+  notes, metadata and text as you type. `Enter` goes to a result (gliding, so
+  `Alt+Left` comes back), `Shift+Enter` selects every match. Query syntax:
+  words and `"phrases"` anywhere, `#tag` (`#a,b` either, `#sky*` wildcards),
+  `type:`, `name:`, `note:`, `key:value` for metadata, `-term` to leave out;
+  every term must match. *Find Similar* (canvas menu) finds what shares a tag
+  with the selection.
+- Commands: `find(query, limit=50)` (= `find.search`, results best first as
+  `{name, type, score, fields, snippet, tags}`), `find.select(query, add=False)`,
+  `find.locate(node)`, `find.similar(nodes=None)`, `find.show(query=None)`.
+  The `find` service is the search index (headless).
 
 ### Effects (`effects`)
 
@@ -403,12 +437,12 @@ shows the actual bindings.
 
 | Area | Keys |
 | --- | --- |
-| Everywhere | `Ctrl+K` command search · `F1` shortcuts · `Ctrl+Z` / `Ctrl+Y` undo / redo · `Esc` cancel or leave |
+| Everywhere | `Ctrl+K` command search · `Ctrl+F` find items · `F1` shortcuts · `Ctrl+Z` / `Ctrl+Y` undo / redo · `Esc` cancel or leave |
 | Files | `Ctrl+N` new · `Ctrl+O` open · `Ctrl+S` save · `Ctrl+E` export image · `Ctrl+Alt+C` copy as image · `Ctrl+Shift+E` export originals · `Ctrl+I` insert images |
 | Edit | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` · `Ctrl+D` duplicate · `Del` delete · `Ctrl+A` select all |
 | Navigate | wheel zoom · middle/right-drag or `Space`+drag pan · `F` frame selection · `Shift+F` / `Home` frame all · `Ctrl+0` 100% · tap `Space` maximise view · `Ctrl+1`–`9` view markers |
 | Tools | `V` select · `T` text · `R` rect · `O` ellipse · `A` arrow · `P` pen · `Shift+P` edit drawing · `E` eraser · `I` colour picker · `Ctrl+Alt+I` pick from screen · `W` link · `N` step · `B` blur · `X` pixelate · `C` crop |
-| Transform | arrows nudge (`Shift` ×10) · `Ctrl+Wheel` scale · `Shift+H` / `Shift+V` flip · `Ctrl+R` / `Ctrl+Shift+R` rotate 90° · `Ctrl+Shift+0` reset · `Shift+C` reset crop |
+| Transform | arrows nudge (`Shift` ×10) · `Alt+'` snap to grid (`Ctrl` while dragging flips it) · `Ctrl+Wheel` scale · `Shift+H` / `Shift+V` flip · `Ctrl+R` / `Ctrl+Shift+R` rotate 90° · `Ctrl+Shift+0` reset · `Shift+C` reset crop |
 | Arrange | `Ctrl+P` pack · `Ctrl+Alt+H` / `V` / `G` row / column / grid · `Ctrl+Left` / `Right` / `Up` / `Down` align left / right / top / bottom · `]` `}` `{` `[` stacking |
 | Organise | `G` group · `Ctrl+Shift+G` ungroup or separate a drawing · `Ctrl+Shift+N` new group · `Ctrl+J` combine strokes · `F2` rename · `Alt+H` show all |
 | Links | `Ctrl+L` link the selection · `Ctrl+Shift+L` select linked |
@@ -517,6 +551,8 @@ note = pxcmd.create_node("annotation_text", parent=img, text="Rim light", transl
 rect = pxcmd.rect.create(0, 0, 300, 200, stroke_color=[255, 64, 64], thickness=6)
 link = pxcmd.links.connect(note, rect, routing="curved", end_cap="arrow")
 pxcmd.ls(type="image")                    # includes subtypes; also tags=, pattern=, visible=, roots=
+pxcmd.find("#hero type:image -#done")     # search like the Find panel: [{name, type, fields, ...}], best first
+pxcmd.add_tags(["hero", "v2"], [img])     # also remove_tags, set_tags, list_tags (one undo step each)
 pxcmd.children(img, all_descendants=True)
 pxcmd.selected(); pxcmd.select([img, note]); pxcmd.select(clear=True)
 
@@ -826,6 +862,8 @@ def activate_ui(ui):
   `refresh(names)` method and a fixed size.
 - `inspector.rows` adds rows inside another plugin's section, and
   `inspector.empty_panels` adds panels shown when nothing is selected.
+  `canvas_background.rows` adds a labelled setting to the Canvas panel itself
+  (the *Snap to grid* toggle is one).
 
 ### 7.9 Views and panels
 
@@ -952,8 +990,9 @@ Which built-in plugin provides each feature:
 | `contact_sheet`, `minimap` | the contact sheet view and the minimap |
 | `effects` | effect stacks, the effect engine and caches |
 | `export`, `file`, `image_storage` | export, scene files, autosave and recovery, embedding and linking |
+| `find` | the Find panel, the search index and `find.*` commands |
 | `gizmo`, `select`, `transform`, `order`, `navigation` | selection, the gizmo, transforms, stacking, the camera |
-| `grouping`, `outliner`, `inspector`, `quick_edit`, `tool_palette` | groups and the panels |
+| `grouping`, `outliner`, `inspector`, `quick_edit`, `tool_palette` | groups and the panels (the inspector also owns the note, metadata and the Tags section) |
 | `help` | `F1` keyboard shortcuts, the `Shift+F1` Help browser and About |
 | `image`, `playback`, `image_info` | image nodes, GIF/WebP/movie playback, filmstrip scrubbing, the image info readout |
 | `links` | links |

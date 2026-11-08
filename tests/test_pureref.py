@@ -309,7 +309,7 @@ def test_pureref_drop_and_menus():
         assert not h.has("sample") and h.has("Existing")
         file_menu = next(a.menu() for a in h.app.menus.build("canvas").actions() if a.text() == "File")
         texts = [a.text() for a in file_menu.actions()]
-        assert "Open PureRef Board (Import Only)…" in texts
+        assert not any("Import Only" in t for t in texts), "boards open through the normal File > Open"
         assert any(a.menu() and "Import PureRef Board…" in [s.text() for s in a.menu().actions()]
                    for a in file_menu.actions()) or "Import PureRef Board…" in texts
         # Opening replaces the board, and the canvas follows without a forced refresh.
@@ -476,7 +476,36 @@ def test_pureref2_reader_unpacks_the_database():
     assert curve.points[0] == (0.0, 0.0) and curve.points[-1] == (20.0, 20.0) and len(curve.points) == 13
     assert curve.color == (255, 255, 0, 255) and curve.width == 10.0
     assert rect.color == (0, 0, 0, 128)
+    assert curve.arrow and not rect.arrow, "the arrow pen draws a head on an open stroke, not on a closed shape"
     assert (40.0, 0.0) in rect.points and (39.5, 0.0) in rect.points, "corners stay sharp"
+
+
+def test_pureref_group_backgrounds_become_backdrops_and_freeform_crops_are_reported():
+    from pixelref.builtins.pureref.purformat import PurGroup, read_board
+
+    session = headless()
+    importer = session.services.get("pureref")
+    path = _sample_board_v2(tmp_dir())
+    board = read_board(path)
+    group = next(i for i in board.walk() if isinstance(i, PurGroup))
+    group.background = (200, 40, 40, 128)
+    cropped = next(i for i in board.walk() if getattr(i, "crop_box", None))
+    assert not cropped.freeform_crop, "a rectangular crop is exact"
+    session.new_document()
+    importer.build(path, board)
+    scene = session.scene
+    backdrops = [n for n in scene.children_of("refs") if scene.get_node(n).node_type == "backdrop"]
+    assert len(backdrops) == 1 and importer.last_report["backdrops"] == 1
+    attrs = scene.get_node(backdrops[0]).attrs
+    assert attrs["color"] == [200, 40, 40] and approx(attrs["fill_opacity"], 128 / 255, 0.01)
+    assert scene.children_of("refs")[0] == backdrops[0], "behind the members"
+    # An L-shaped outline fills well under its bounding box: reported, not silent.
+    cropped.points = [(0, 0), (40, 0), (40, 10), (10, 10), (10, 40), (0, 40)]
+    assert cropped.freeform_crop
+    session.new_document()
+    importer.build(path, board)
+    assert importer.last_report["simplified_crops"] == 1
+    assert any("free-form crop" in w for w in importer.last_report["warnings"])
 
 
 def test_pureref2_open_builds_groups_notes_and_drawings():
@@ -535,6 +564,48 @@ def test_pureref2_damaged_databases_fail_cleanly():
             pass
 
 
+def test_pureref_is_a_first_class_open():
+    """File > Open lists .pur, opens it as an untitled scene, records it in Recent, and Save asks for a .pxref."""
+    h = make()
+    try:
+        path = _sample_board(tmp_dir())
+        from PySide6.QtWidgets import QFileDialog
+
+        chooser, seen = QFileDialog.getOpenFileName, []
+
+        def choose(*args, **kwargs):
+            seen.append(args[3])
+            return str(path), ""
+
+        QFileDialog.getOpenFileName = staticmethod(choose)
+        try:
+            h.session.mark_saved()
+            h.run("file.open")
+            APP.processEvents()
+        finally:
+            QFileDialog.getOpenFileName = chooser
+        assert seen[0].startswith("All supported files (*.pxref *.json *.pur);;"), seen[0]
+        assert "PureRef Board (*.pur)" in seen[0] and "pixelRef Scene (*.pxref *.json)" in seen[0]
+        assert all(h.item(n) is not None for n in ("red", "blue", "Note"))
+        assert h.session.scene_path is None and h.session.unsaved, "a new, unsaved scene"
+        recent = h.app.settings.value("plugins/file/recent_files", [])
+        recent = [recent] if isinstance(recent, str) else list(recent or [])
+        assert str(path.resolve()) in recent, "reopenable from File > Open Recent"
+        # Dropping a board on an empty scene opens it; on a populated one it is imported as a group.
+        h.session.new_document()
+        mime = QMimeData()
+        mime.setUrls([QUrl.fromLocalFile(str(path))])
+        assert h.service("ingest").describe(mime) == "Drop to open sample.pur"
+        # Opening a bad file keeps the board and says why.
+        bad = tmp_dir() / "broken.pur"
+        bad.write_bytes(b"not a board")
+        h.app.run_command("pureref.open", str(path))
+        assert h.app.run_command("pureref.open", str(bad)) is None
+        assert h.item("red") is not None or h.has("red")
+    finally:
+        h.close()
+
+
 def test_pureref_open_warns_it_is_one_way_import_does_not():
     """Opening a board says pixelRef can't write .pur files (until hidden); importing doesn't."""
     h = make()
@@ -547,20 +618,21 @@ def test_pureref_open_warns_it_is_one_way_import_does_not():
 
         def open_board() -> None:
             h.session.mark_saved()  # no modal "Save changes?" prompt
-            h.run("pureref.open_dialog")
+            h.run("file.open")
         QFileDialog.getOpenFileName = staticmethod(lambda *a, **k: (str(path), ""))
         try:
             mime = QMimeData()
             mime.setUrls([QUrl.fromLocalFile(str(path))])
+            h.add_image("Existing", 0, 0)  # a populated board imports a dropped board instead of replacing it
             h.drop(QPointF(0, 0), mime)
             h.run("pureref.import_dialog")
             APP.processEvents()
-            assert notice.box() is None and "import only" not in h.app.status_text(), "importing doesn't warn"
+            assert notice.box() is None and "new scene" not in h.app.status_text(), "importing doesn't warn"
             open_board()
             APP.processEvents()
-            assert h.app.status_text().endswith("(import only: save as a pixelRef scene (.pxref))"), h.app.status_text()
+            assert h.app.status_text().endswith("(opened as a new scene: Save creates a .pxref)"), h.app.status_text()
             box = notice.box()
-            assert box is not None and box.isVisible() and "can't save them back as PureRef files" in box.text()
+            assert box is not None and box.isVisible() and "can't write PureRef files" in box.text()
             assert box.windowModality() == Qt.NonModal, "the board stays usable"
             open_board()
             APP.processEvents()
@@ -572,8 +644,76 @@ def test_pureref_open_warns_it_is_one_way_import_does_not():
             open_board()
             APP.processEvents()
             assert notice.box() is None, "hidden for good"
-            assert h.app.status_text().endswith("(.pxref))"), "the status bar still says it"
+            assert h.app.status_text().endswith("Save creates a .pxref)"), "the status bar still says it"
         finally:
             QFileDialog.getOpenFileName = chooser
     finally:
         h.close()
+
+
+def test_pureref_real_boards_open_cleanly():
+    """Boards saved by real PureRef builds (set PIXELREF_PUR_CORPUS to a folder of .pur files) open without warnings."""
+    import os
+
+    folder = os.environ.get("PIXELREF_PUR_CORPUS")
+    boards = sorted(Path(folder).rglob("*.pur")) if folder and Path(folder).is_dir() else []
+    for board in boards:
+        session = headless()
+        session.run("pureref.open", str(board))
+        report = session.services.get("pureref").last_report
+        assert not report["warnings"], (board.name, report["warnings"])
+        assert report["images"] + report["linked"] + report["notes"] + report["drawings"] > 0, board.name
+        assert session.scene.nodes, board.name
+
+
+def test_pureref2_note_alignment_comes_from_the_paragraphs():
+    from pixelref.builtins.pureref.pur2format import rich_text
+
+    def html(*aligns):
+        paras = "".join(f'<p {a}style=" margin-top:0px;">line {i}</p>' for i, a in enumerate(aligns))
+        return f"<html><body>{paras}</body></html>"
+
+    assert rich_text(html(""))[3] == "left"
+    assert rich_text(html('align="center" '))[3] == "center"
+    assert rich_text(html('align="right" ', 'align="right" ', 'align="center" '))[3] == "right"
+    assert rich_text(html('align="justify" ', ""))[3] == "justify", "ties go to the first paragraph"
+    assert rich_text("plain")[3] == "left"
+    session = headless()
+    from pixelref.builtins.pureref.purformat import PurBoard, PurText
+
+    board = PurBoard(version="2.1", items=[PurText(text="centred", align="center"), PurText(text="plain")])
+    session.services.get("pureref").build(Path("align.pur"), board)
+    aligns = sorted(n.attrs.get("align", "left") for n in session.scene.nodes.values())
+    assert aligns == ["center", "left"], aligns
+
+
+def test_pureref2_arrow_strokes_and_unfamiliar_stroke_bytes():
+    from pixelref.builtins.pureref.purformat import PurDrawing, read_board
+
+    line = [(0, 0.0, 0.0), (2, 10.0, 0.0), (3, 20.0, 10.0), (3, 20.0, 20.0)]
+
+    def stroke(kind: int) -> bytes:
+        return (b"d" + struct.pack(">b5H", 1, 65535, 65535, 65535, 0, 0) + struct.pack(">d", 10.0)
+                + _q_path(line) + struct.pack(">ddI", 0.0, 0.0, kind))
+
+    def board(*kinds: int, extra: bytes = b"") -> Path:
+        def fill(con: Any) -> None:
+            con.execute("INSERT INTO items (parent, id, z, opacity, locked, transform) VALUES (-1, 0, 1.0, 1.0, 0, ?)",
+                        (_q_transform(),))
+            blob = struct.pack(">I", len(kinds)) + b"".join(stroke(k) for k in kinds) + extra
+            con.execute("INSERT INTO items_drawings (id, strokes) VALUES (0, ?)",
+                        (_as_text(_q_user("QList<GraphicsDrawItem::Stroke>", blob)),))
+        return write_pur2(tmp_dir() / "arrows.pur", fill)
+
+    parsed = read_board(board(0, 2, 1))
+    drawing = next(i for i in parsed.walk() if isinstance(i, PurDrawing))
+    assert [s.arrow for s in drawing.strokes] == [False, True, False]
+    assert [s.dashed for s in drawing.strokes] == [False, False, True]
+    # Bytes after the last stroke (fields a newer PureRef may add) don't make the drawing unreadable.
+    extra = read_board(board(2, extra=b"\x00\x01\x02\x03"))
+    assert next(i for i in extra.walk() if isinstance(i, PurDrawing)).strokes[0].arrow
+    session = headless()
+    session.run("pureref.open", str(board(0, 2, 1)))
+    paths = [n.attrs for n in session.scene.nodes.values() if n.node_type == "annotation_path"]
+    assert sorted(a.get("arrow", 0) for a in paths) == [0, 0, 1]
+    assert sorted(a.get("stroke_style", "solid") for a in paths) == ["dash", "solid", "solid"]

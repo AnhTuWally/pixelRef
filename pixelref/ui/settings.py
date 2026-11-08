@@ -6,6 +6,7 @@ from typing import Any
 
 from PySide6.QtCore import QSettings
 
+from ..core import paths
 from ..core.settings import MemorySettings, Settings, convert
 
 # The user's plugin choices (approvals, sources, publishers…), shared with tools that don't run the app.
@@ -33,7 +34,16 @@ class QtSettings(Settings):
     """
 
     def __init__(self) -> None:
-        self._qsettings = QSettings(QSettings.defaultFormat(), QSettings.UserScope, "pixelRef", "pixelRef")
+        portable = paths.portable()  # fully portable mode: an INI file beside the program
+        try:
+            if portable is not None:
+                portable.settings_file.parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            portable = None  # read-only location: settings fall back to the usual per-user place
+        if portable is not None:
+            self._qsettings = QSettings(str(portable.settings_file), QSettings.IniFormat)
+        else:
+            self._qsettings = QSettings(QSettings.defaultFormat(), QSettings.UserScope, "pixelRef", "pixelRef")
 
     @property
     def qsettings(self) -> QSettings:

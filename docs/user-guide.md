@@ -9,6 +9,7 @@ searches every command.
 - [Annotations](#annotations)
 - [Links](#links)
 - [Groups, the Outliner and the Attribute Editor](#groups-the-outliner-and-the-attribute-editor)
+- [Finding items](#finding-items)
 - [Backdrops](#backdrops)
 - [Effects](#effects)
 - [Views and window management](#views-and-window-management)
@@ -31,6 +32,12 @@ searches every command.
   to maximise the view.
 - **Zoom controls** in the bar: click the percentage for 100% (`Ctrl+0`), its
   arrow for presets, then − / + / Fit.
+- **Progressive zoom rendering** (*View → Progressive Zoom Rendering*, on by
+  default): on a busy board the canvas keeps zooming smoothly by showing a
+  blurry picture of the board while the zoom changes, then sharpens it once you
+  stop (a fraction of a second). Turn it off if you prefer the picture to stay
+  sharp at every step; zooming then stalls on large boards. The choice is
+  remembered. Scripts: `pxcmd.navigation.progressive_zoom(on=None)`.
 - **Select:** drag a rubber band on empty canvas; `Shift` or `Ctrl` adds to
   the selection.
 - **Transform gizmo** for one or many items: corner handles scale (`Shift`
@@ -42,6 +49,12 @@ searches every command.
   checkerboard, plain), grid size and pattern colour. They are also under
   *View → Background*, and `Ctrl+'` toggles the pattern. The background is
   saved in the scene, and new scenes start with your last choice.
+- **Snap to grid:** `Alt+'`, or the *Snap to grid* toggle (magnet icon) in the
+  Canvas settings, turns snapping on or off. Dragged items then land
+  with their nearest edges on the background grid, and scale handles snap to
+  grid lines. Snapping follows the lines you see: the *Grid size*, or the
+  coarser lines drawn when you zoom far out. Hold `Ctrl` while dragging to
+  flip snapping for that drag.
 - **Undo / redo** covers every change to the document. Camera moves (pan, zoom,
   framing) are not undoable.
 
@@ -194,8 +207,10 @@ the open board stays as it was.
   `.pur` file is left exactly as it was, so changes made in pixelRef don't
   show up in PureRef. Opening a board says so: in a notice the first time
   (tick *Don't show this again* to hide it), and in the status bar every time.
-- *File → Open PureRef Board (Import Only)…* opens one as a new, unsaved
-  scene. *Save* then asks for a `.pxref` name.
+- *File → Open* lists `.pur` files next to scenes (the first filter is *All
+  supported files*). A board opens as a new, unsaved scene, is added to *Open
+  Recent*, and can also be given on the command line (`pixelref board.pur`) or
+  dropped on an empty canvas. *Save* then asks for a `.pxref` name.
 - *File → Import → PureRef Board…* adds one to the current board, centred in
   the view and put in a group named after the file. Dropping `.pur` files on
   the canvas does the same at the drop point. Either way it's one undo step.
@@ -207,11 +222,15 @@ the open board stays as it was.
   keep their formatting too: font, size, bold, italic, underline, strike,
   colour and highlight, also for parts of the text. Text attached to an image
   becomes a child of that image, so it still moves with it.
-- PureRef 2 groups become groups, and pen strokes become a drawing (it needs
+- PureRef 2 groups become groups (a group's background colour becomes a
+  backdrop behind its members), and pen strokes become a drawing (it needs
   the *Pen* plugin).
-- Not carried over: arrowheads on PureRef 2 pen strokes, group background
-  colours, and animation playback settings. Free-form (non-rectangular) crops
-  become their bounding rectangle. PureRef 1.x text has no font information,
+- PureRef 2 pen strokes keep their colour, width, dashed line style and an
+  arrowhead at the end of an open stroke. Text alignment comes across too (one
+  per note: the one most paragraphs use).
+- Not carried over: arrowheads at the start of a stroke (none seen in PureRef's
+  own boards), note borders and styles, and animation playback settings. Free-form (non-rectangular) crops become their bounding rectangle,
+  and the import says how many. PureRef 1.x text has no font information,
   so it uses pixelRef's default size, scaled like the PureRef item.
 - From scripts: `pxcmd.open_pureref(path)`, `pxcmd.import_pureref(path,
   translate=None, group=None)` and `pxcmd.pureref.inspect(path)`, which
@@ -417,6 +436,29 @@ and hollow dots for free ones.
   thickness, dash, a cap at each end (arrow, triangle, circle, diamond, bar),
   cap size and a label.
 
+**Finding the other end.** Jumping along a link glides the view to the element
+there (the zoom stays unless the element is too big to fit) and selects it.
+`Alt+Left` goes back to where you were, with the same selection, and `Alt+Right`
+goes forward again (*View → Go Back / Go Forward*).
+
+- **Edge chips:** when a selected element (or link) is linked to something
+  off-screen, a chip with its name sits on the edge of the view, its arrow
+  pointing the way. Click the chip to go there.
+- **Double-click a link** to go to its far end (the end away from where you
+  clicked). Double-click a selected link's end handle to go to the other end.
+- **Linked To** in the right-click menu lists everything the selection is
+  linked to (`→` the link points to it, `←` it points here). Pick one to go
+  there.
+- **Count badge:** a selected or hovered element with links shows how many it
+  has in its corner (just outside it when it's small on screen). Click the
+  badge for the same list.
+- **Hover:** with the Select tool, hovering an element outlines its links and
+  the elements they lead to. Off-screen ones get faded chips. Turn this off with
+  *View → Highlight Links on Hover*.
+- The **Links** section of the Attribute Editor lists the selected element's
+  links: click a name to go there, or the link button to select the link
+  itself. For a selected link it lists its *from* and *to* elements.
+
 ## Groups, the Outliner and the Attribute Editor
 
 **Groups.** `G` groups the selection. A group acts as one item: a click
@@ -468,12 +510,27 @@ a key and a value, ✕ removes it). Values can be text, numbers or `true` /
 other nodes autocomplete. Both are saved with the scene and undoable; from
 scripts they are the `note` and `metadata` (a dict) attributes.
 
+**Tags** label items so you can find them again. The **Tags** section of the
+Attribute Editor shows the selection's tags as chips. Type in *Add tags…* and
+press `Enter` to add one (commas separate several); tags already on the board
+autocomplete, most used first. ✕ on a chip removes the tag. With several items
+selected, everything applies to all of them, and a tag only some of them have is
+dimmed with a count (*sky 2/5*); its **+** adds it to the rest. Adding or
+removing a tag never touches an item's other tags. Click a tag's name to find
+everything carrying it. Tags are saved with the scene, survive import and
+editable PNGs, and undo as one step; from scripts: `pxcmd.add_tags("sky")`
+(the selection), `pxcmd.remove_tags(["sky"], nodes)`, `pxcmd.set_tags([], nodes)`
+and `pxcmd.list_tags()`.
+
 **Quick editor.** Select something on the canvas and a small bar appears
 below it with the attributes you change most: colour, width and line style
 for shapes, colour, size and alignment for text, opacity for images. Edits
 apply to every selected element and undo as one step. The bar hides while you
 drag the selection. Its **⋯** menu chooses the fields for each kind of element
 (tick and drag to reorder; *Plugin default* puts back the plugin's choice).
+Add **Tags** there to tag from the bar: with several items selected it shows the
+first one's tags, and what you add or remove there is added to or removed from
+every selected item.
 Right-click a field to remove it. Turn the bar off or on with
 **View ▸ Quick Attribute Editor**, or disable the *Quick Attribute Editor*
 plugin.
@@ -481,6 +538,40 @@ plugin.
 The Tools, Outliner and Attribute Editor are **panels**: docked in the
 sidebar, floating over the canvas, or hidden and popped up on demand (`Alt+T`,
 `Alt+O`, `Alt+A`). See [Panels](window-manager.md#panels).
+
+## Finding items
+
+`Ctrl+F` (or *Find…* in the right-click menu) opens the **Find** panel. Type
+and the list fills as you go: each result shows the item's name, its type, the
+part of its note or text that matched, and its tags. Hidden items are dimmed.
+
+- `Up` / `Down` move through the results, `Enter` (or a click) **goes to** the
+  highlighted item and selects it, and `Shift+Enter` (or **Select All**)
+  selects every match. Going there glides the view like following a link, so
+  `Alt+Left` brings you back. Finding never changes the board or the undo list.
+- While the field is empty, the panel lists the tags on the board, most used
+  first: click one to find what carries it.
+- **Find Similar (Same Tags)** in the right-click menu finds everything sharing
+  a tag with the selection.
+- The panel is a pop-up by default; its pin turns it into a floating card, and
+  right-clicking its *Find* tab on the window's edge docks it in the sidebar.
+
+What you can type (case never matters, and every part must match):
+
+| Type | Finds |
+| --- | --- |
+| `sky` | items whose name, tags, type, note, metadata or text contain *sky* |
+| `"warm light"` | a phrase |
+| `#hero` or `tag:hero` | items tagged *hero* (the whole tag); `#sky*` also finds *skyline* |
+| `#sky,sea` | items tagged *sky* or *sea* |
+| `type:image` | images; also base types (`type:annotation_*`, every annotation) and labels (`type:rectangle`) |
+| `name:shot_` · `note:fix` | only the name, or only the note |
+| `shot:010` · `shot:` | a metadata field *shot* containing *010*, or having a *shot* field at all |
+| `-#done` · `-draft` | leave out what matches |
+
+For images, the file name counts as their text (not the folders it is in).
+From scripts: `pxcmd.find("#hero type:image")` lists matches best first,
+`pxcmd.find.select(query)` selects them and `pxcmd.find.locate(name)` goes to one.
 
 ## Backdrops
 
@@ -554,6 +645,34 @@ Workspaces are saved with the scene. The built-in ones are **Board**,
 canvas).
 
 All of this is covered in [window-manager.md](window-manager.md).
+
+## Color palettes
+
+Select an image, or a group or backdrop holding images (or an image with other images
+under it), and choose **Image → Extract Color Palette** (or search for it with
+`Ctrl+K`). pixelRef reads the image's dominant colors and puts them on the board as ordinary
+objects: a backdrop titled *Color Palette* holding five filled rectangles, joined to the image
+by a normal link. Everything can be moved, recolored, restyled and undone like any other node.
+
+- With a group, the colors come from every visible image inside it, recursively, each
+  contributing equally. The palette links to the selected group; unreadable images are skipped.
+  Select one node (the group), not several.
+- **Extract again on the same image or group** updates that palette in place (same backdrop, link and
+  swatches; only the generated swatch colors change, and any other rectangles you added to
+  the backdrop are left alone). It is one undo step.
+- **Delete the link** and the palette becomes independent canvas content. The next extraction
+  ignores it and makes a new palette.
+- Palettes never update on their own: editing, cropping or applying effects to the image
+  changes nothing until you extract again.
+- Colors come from the image's own pixels inside its crop; effects are not applied. A flat
+  image gives fewer than five swatches.
+- If an image feeds several palettes, extraction refuses to guess: delete the extra links.
+- A locked palette can't be updated; unlock it first.
+
+From a script: `pxcmd.color_palette.extract("Photo", count=6)` returns
+`{"backdrop", "created", "colors"}`. The link is marked with a hidden `palette_role`
+attribute and each generated swatch with `palette_swatch` (its position), which is how a
+palette is recognised. A new link you draw yourself is never taken for a palette link.
 
 ## Animated images
 
@@ -688,6 +807,12 @@ edges and centres (including horizontal/vertical centers, which have no
 default shortcut). With fewer than two items selected, arranging works on
 everything.
 
+*Distribute Horizontally / Vertically* (3+ items, no default shortcut) evens out the
+empty space between neighbouring edges. Unlike *Arrange*, the outermost items stay
+where they are, the middle ones slide between them, and the other axis is untouched
+(`pxcmd.distribute("horizontal")`). It never falls back to everything, and
+overlapping items get equal negative gaps.
+
 ## Export
 
 - `Ctrl+E` renders the selection (or the whole board) to PNG or JPEG at 1:1.
@@ -697,6 +822,29 @@ everything.
   image) into a folder.
 
 Exports wait for every effect result, so what you save is complete.
+
+### Editable PNGs
+
+PNG exports also carry the exported objects inside the file (*File → Embed
+Editable Scene in PNG Exports*, on by default). Drag such a PNG back onto a board
+and the original, editable objects appear where you drop them: images, notes,
+shapes, groups, links, effects and their transforms, as one undo step. Hold
+`Shift` while dropping to add the flat picture instead. PNGs without embedded
+data, and every other image, import as before.
+
+- Exporting the selection embeds just the selection; with nothing selected the
+  whole board is embedded.
+- Images are embedded in full, linked files included, so the PNG works without the
+  original files. **This can make exported PNGs much larger than the picture
+  they show**; turn the setting off for a plain, small PNG (JPEGs never carry
+  a scene).
+- Other programs show the PNG normally. Re-saving it in an image editor
+  usually drops the embedded scene.
+- Not carried: scene-level settings (canvas background, saved workspaces) and
+  linked movies (a movie needs its file on the importing machine). Linked
+  file paths are never imported.
+- A PNG whose embedded data is damaged, from a newer version, or over the size
+  limits is imported as a flat image instead, and the status bar says why.
 
 ## Files, autosave and recovery
 
@@ -721,15 +869,30 @@ Exports wait for every effect result, so what you save is complete.
   If the file is deleted or moved, your open copy is kept and the toast offers
   **Save** to write it back.
 - **Autosave and recovery.** Unsaved work (images included) is written to a
-  recovery copy every minute. After a crash, the next start offers to restore
-  it.
+  recovery copy every minute, one per board. A board you switch away from with
+  unsaved edits is copied at that moment, so a crash cannot lose it. After a
+  crash, the next start offers every board with recoverable work in **one
+  dialog** (tick the ones to restore; *Discard All*; or *Decide Later*, which
+  keeps everything for next time). Restored boards come back as unsaved work,
+  never written over the file: if the file changed on disk since, the dialog
+  says so. A copy that cannot be read is set aside in the `corrupt` folder next
+  to the recovery files instead of being deleted.
+- **The Files list.** The Files panel lists the files open in this window. Close
+  one with its **×** (or right-click: *Close*, *Close Others*, *Close All*;
+  `Ctrl+Shift+W` closes the current file); it stays in Recent Files. Right-click
+  also sets a colour label, and a file that has gone missing shows a warning
+  sign and can be pointed at its new place with *Locate File…*. With Session
+  Resume on, the list, its order, colours and active file come back at launch;
+  only the active board is loaded, the rest load when you select them.
 - **Session Resume.** *File → Resume Last Session on Launch*, or the checkbox
-  on the start panel (off by default; the checkbox only shows once a previous
-  session actually had something on the board), reopens your workspace
+  on the start panel (on by default; the start panel shows the checkbox from the
+  very first launch), reopens your workspace
   exactly as you left it. With a saved file open, closing pixelRef skips the
   save prompt; next launch reopens that file's last saved version, and if you
-  had unsaved edits you're asked whether to bring them back. With an Untitled
-  board, your unsaved draft reopens automatically, no prompt needed.
+  had unsaved edits you're asked whether to bring them back. Boards parked in
+  the Files list with unsaved edits are kept the same way (no prompt on quit)
+  and offered back in the same single question. With an Untitled board, your
+  unsaved draft reopens automatically, no prompt needed.
 - **Resuming an Untitled draft without turning Session Resume on.** Closing an
   Untitled board with unsaved work (even if you choose Discard) still keeps a
   thumbnailed copy of it. Next time you see the start panel, a *Resume Last
@@ -806,6 +969,28 @@ search the same documentation. See [documentation.md](documentation.md).
 the *Scripts* menu that you can put on a key. *Record Macro* (`Ctrl+Alt+R`,
 or the record button in the window bar) saves what you do as a script. `keymap.toml` can also bind command lists,
 Python and your own key modes. See [keymap.md](keymap.md).
+
+## Updates
+
+pixelRef can tell you when a newer version exists. About once a day it reads GitHub's public list of
+releases in the background; if there is a newer one, **Update available** appears in the status bar. Click it
+for the release notes and a link to download the new ZIP. That is all it does: it never downloads or installs
+anything by itself, and your boards and settings are never touched. Nothing is sent about you or your boards.
+
+- **Check for Updates…** (canvas menu) checks right now, even when automatic checks are off.
+- **Update Settings…** (command search) turns automatic checks off, chooses *Stable* or *Beta*
+  (which includes pre-releases) and shows the last successful check.
+- A failed check says so (no connection, GitHub's rate limit, an unreadable answer). It is never reported as
+  "up to date", and it never interrupts you.
+- Skip a version with **Skip This Version**; the note comes back for the next one.
+- Running from source (`python -m pixelref`)? pixelRef only tells you; update with git.
+- No internet, or the Updates plugin switched off in Window → Plugins…: pixelRef works the same.
+
+To install a new version, download the ZIP and extract it to a fresh folder, then copy your own files if you
+keep any beside the program. Settings kept in the usual per-user folders carry over by themselves. For
+keeping everything beside the program, see [Fully portable mode](packaging.md#fully-portable-mode).
+Maintainers: [update-architecture.md](update-architecture.md), [update-security.md](update-security.md),
+[update-release-process.md](update-release-process.md).
 
 ## Plugins
 

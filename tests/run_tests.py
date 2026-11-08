@@ -6,8 +6,11 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import os
+import shutil
 import sys
+import tempfile
 import time
 import traceback
 from pathlib import Path
@@ -32,8 +35,14 @@ def main(argv: list[str]) -> int:
     failed = []
     began = time.perf_counter()
     for label, fn in tests:
+        scratch = None
         try:
-            fn()
+            # A test may ask for pytest's ``tmp_path`` fixture; give it a fresh folder, removed afterwards.
+            if "tmp_path" in inspect.signature(fn).parameters:
+                scratch = Path(tempfile.mkdtemp(prefix="pixelref-test-"))
+                fn(tmp_path=scratch)
+            else:
+                fn()
             print(f"PASS  {label}", flush=True)
         except Exception:  # noqa: BLE001
             failed.append(label)
@@ -41,6 +50,8 @@ def main(argv: list[str]) -> int:
             traceback.print_exc()
         finally:
             os.chdir(start_dir)
+            if scratch is not None:
+                shutil.rmtree(scratch, ignore_errors=True)
     print(f"\n{len(tests) - len(failed)}/{len(tests)} passed in {time.perf_counter() - began:.1f}s")
     for label in failed:
         print(f"  failed: {label}")

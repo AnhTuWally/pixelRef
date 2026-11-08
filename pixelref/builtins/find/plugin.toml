@@ -1,0 +1,6 @@
+id = "find"
+name = "Find"
+version = "1.0.0"
+api = 1
+optional = ["links"]
+description = "Find elements by name, tag, type, note, metadata or text: a search service and commands (find.search, find.select) that work headless, and the Find panel (Ctrl+F) that selects and goes to what it finds."

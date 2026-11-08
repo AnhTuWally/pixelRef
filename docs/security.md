@@ -82,6 +82,12 @@ choose *Approve and switch on*.
   it's approved.
 - **pixelRef's own packages can't be replaced** from the package manager.
 
+- **Embedded scenes in PNGs are untrusted data.** A dropped PNG's embedded scene
+  is size-limited while decompressing, parsed into a scratch scene, stripped of
+  unknown node types, linked file paths and scene-level data, and added only if
+  all of that succeeds. Nothing in it is executed (click actions only run
+  commands that plugins have declared safe for them, as in any scene file).
+
 ## What it can't protect you from
 
 - **An approved plugin isn't sandboxed.** It can do anything you can. Approve

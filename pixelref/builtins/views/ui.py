@@ -31,6 +31,10 @@ DEFAULT_WORKSPACES = (
                                    "state": {"display": {"preset": "Clean", "show_overlays": False,
                                                          "show_grid": False}}},
                     window_style={"panels": False}),
+    WorkspacePreset(4, "Contact Sheet", {"split": "h", "sizes": [0.62, 0.38], "children": [
+        {"tile": "canvas", "name": "SheetCanvas", "title": "Canvas"},
+        {"tile": "contact_sheet", "name": "ContactSheet", "title": "Contact Sheet"},
+    ]}),
 )
 
 
@@ -357,7 +361,8 @@ def activate_views_ui(ui: Any) -> None:
     for number in range(1, 10):
         a(f"views.bookmark_{number}", "views.bookmark", f"View Marker {number}", args=(number,), category="hidden")
         ui.bind(f"Ctrl+{number}", f"views.bookmark_{number}")
-    for order, key in enumerate(("views.value_check", "views.isolate", "views.toggle_markers")):
+    # Show View Markers is the first entry of the View Markers sub-menu below, so it isn't listed twice.
+    for order, key in enumerate(("views.value_check", "views.isolate")):
         ui.menu("canvas", key, path="View", group="view.display", order=order)
     ui.menu("canvas", "views.isolate", group="focus", order=10, when="selection.count > 0")
 

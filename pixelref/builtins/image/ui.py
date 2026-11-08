@@ -619,7 +619,7 @@ def activate_image_ui(ui: Any) -> None:
         notes = session.services.get("notes")
         if notes is not None:
             with session.undo.chunk("Paste text"):
-                notes.create(text, pos.x(), pos.y())
+                notes.create(text, pos.x(), pos.y(), wrap=True)
             session.notify_changed("paste")
 
     def downloaded(reply: QNetworkReply, pos: QPointF, fallback_text: str) -> None:

@@ -598,6 +598,7 @@ Extension points declared by the built-ins (contribution types are in
 | `inspector.sections` | inspector | `InspectorSection(key, title, order, applies(info), build(parent, inspector), generic=False)`; `generic=True` for sections that apply to every type (they don't replace a type's generated Attributes section) |
 | `inspector.rows` | inspector | `InspectorRows(section, order, build)`: rows inside another plugin's section |
 | `inspector.empty_panels` | inspector | `EmptyPanel(key, order, build)`: shown when nothing is selected |
+| `canvas_background.rows` | canvas_background | `CanvasRow(key, label, order, build)`: a labelled setting in the Canvas panel; `build(parent)` returns a widget with `refresh()` |
 | `quick_edit.sections` | quick_edit | `QuickSection(key, title, order, applies(names), build(parent))`: controls in the canvas quick editor bar, before the fields; the widget has `refresh(names)` and keeps a fixed size (playback's transport is one) |
 | `ingest.handlers` | clipboard | `IngestHandler(name, order, accepts(mime), describe(mime), ingest(view, pos, mime))` |
 | `clipboard.exporters` | clipboard | `fn(names, QMimeData)` adding formats when copying |
@@ -630,9 +631,19 @@ transforms), `ingest`, `gizmo`, `inspector`, `outliner`, `tool_palette`,
 `drawing_session`, `notes`, `text`, `recovery`, `files`, `image_storage`,
 `canvas_background`, `console`, `playback`, `playback.controls`, `links`,
 `minimaps`, `contact_sheets`, `start_panel`, `effects`, `effects_engine`,
-`exr` and `color` (the ocio plugin: `display()` is the OCIO display EXRs are
+`exr`, `color` (the ocio plugin: `display()` is the OCIO display EXRs are
 shown through, or None for the built-in sRGB view; `display().apply(rgba,
-input_space)` runs linear float pixels through it).
+input_space)` runs linear float pixels through it) and
+`find` (the search index: `ctx.service("find").search("#hero type:image")` returns
+`Match` objects best first; it works headless).
+
+**Tags, notes and metadata are shared.** Don't add your own "label",
+"description" or "keywords" attribute: every node already has `tags` (edit them
+with the `add_tags` / `remove_tags` / `set_tags` commands, which never replace a
+node's other tags; `pixelref.plugin_api.clean_tags` normalises a list the same
+way), a `note` and a `metadata` dict. Find searches those, the name, the type
+and every `string`, `text`, `path` (file name) and `asset` (original file name)
+attribute your node type declares, without anything to register.
 
 ## Testing a plugin
 

@@ -192,9 +192,7 @@ def test_export_copy_image_puts_selection_on_clipboard():
 
 
 def _clear_recovery(h):
-    for path in h.service("recovery").recovery_files():
-        if path.exists():
-            path.unlink()
+    h.service("recovery").purge_all()
 
 
 def test_autosave_and_crash_recovery():
@@ -274,12 +272,14 @@ def _clear_resume(h=None):
     # file.toggle_resume's settings live scoped under the file plugin's own prefix.
     QSettings().remove("plugins/file/session_resume")
     QSettings().remove("plugins/file/session_resume_state")
+    QSettings().setValue("plugins/file/workspace_restore", "empty")  # the baseline: resume off
+    QSettings().remove("plugins/file/workspace_manifest")
     QSettings().remove("plugins/file/last_session_had_content")
     if h is not None and not h.app.closed:
         _clear_recovery(h)
 
 
-def test_session_resume_disabled_by_default_and_keeps_save_prompt_on_close():
+def test_session_resume_turned_off_keeps_save_prompt_on_close():
     import pixelref.builtins.file as file_plugin
 
     h = make()
@@ -555,7 +555,8 @@ def test_resume_card_survives_a_later_empty_close_that_never_touched_anything():
         _clear_resume()
 
 
-def test_resume_checkbox_hidden_when_last_session_was_empty():
+def test_resume_checkbox_is_shown_even_when_last_session_was_empty():
+    """The start panel is where the setting is found: it must not wait for a session with content."""
     h = make()
     try:
         _clear_resume(h)
@@ -566,7 +567,8 @@ def test_resume_checkbox_hidden_when_last_session_was_empty():
         try:
             panel = h2.service("start_panel").panels["Main"]
             panel.reload()
-            assert not panel.resume_checkbox.isVisible(), "nothing to resume from an empty last session"
+            assert panel.resume_checkbox.isVisible(), "shown from the very first launch"
+            assert panel.resume_checkbox.isChecked() == h2.service("recovery").resume_enabled
         finally:
             h2.close()
     finally:
@@ -867,4 +869,22 @@ def test_copy_path_and_open_containing_folder():
         assert [Path(p) for p in opened] == [scene_path.parent]
     finally:
         QDesktopServices.openUrl = original
+        h.close()
+
+
+def test_first_save_of_a_fresh_session_registers_the_file_in_the_files_panel():
+    h = make()
+    try:
+        h.add_image("Img", 0, 0, 300, 200)
+        path = tmp_dir() / "fresh_save.pxref"
+        key = str(path.resolve())
+        assert key not in h.service("files").open_files_list()
+        assert h.save_to(path)
+        assert key in h.service("files").open_files_list(), "a saved file is an open file"
+        panel = h.service("files_panel").panels[0]
+        assert key in [row.path for row in panel.rows], "and the panel lists it"
+        # Saving again does not duplicate the entry.
+        assert h.save_to(path)
+        assert h.service("files").open_files_list().count(key) == 1
+    finally:
         h.close()

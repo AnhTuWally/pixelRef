@@ -64,6 +64,43 @@ and `.remove(names)`.
   `wheels/`, so later rebuilds still find it.
 - pip honours the usual `HTTPS_PROXY` / `PIP_INDEX_URL` settings.
 
+## Fully portable mode
+
+By default pixelRef keeps settings, plugins, recovery files, caches and managed packages in the usual
+per-user folders. To keep **everything beside the program** (a USB stick, a shared folder), put a
+`portable.toml` next to `pixelRef.exe`:
+
+```toml
+[portable]
+enabled = true
+data_directory = "user-data"     # optional: a plain folder name inside the program's folder
+```
+
+Then, under `user-data/`:
+
+```text
+settings/pixelRef.ini     the settings (instead of the registry / plist / ~/.config)
+config/                   keymap.toml
+data/                     your plugins (plugins/), recovery files, plugin activity log
+cache/                    effect caches
+python/                   managed Python packages (one folder per Python version and platform)
+boards/                   where new scenes are saved by default (a folder you choose still wins)
+```
+
+- Everything is found relative to the program's folder, never the current directory. Move the whole folder
+  and it keeps working. `portable.toml` is optional and yours: unzip a new release over the old one, or let
+  an update replace the program, and `portable.toml` and `user-data/` stay as they are.
+- **Opt-in and not migrated.** Turning it on starts with empty settings and plugins; nothing is copied from
+  (or deleted in) the per-user folders. Copy what you want by hand.
+- A `portable.toml` that can't be used (bad TOML, an absolute path, `..`, a name the program uses) is
+  ignored with a logged warning and the per-user folders are used, rather than guessing a location.
+- Running from source (`python -m pixelref`) is never portable.
+- `$PIXELREF_PACKAGES_DIR` still overrides the package folder.
+- The folder must be writable. If the settings folder can't be created pixelRef still starts and keeps
+  settings in the usual place for that run.
+- Compiled packages are machine-specific: the per-version/platform folders keep a stick moved between
+  Windows and Linux from loading the wrong binaries, but reinstall the packages on each.
+
 ## The standalone executable
 
 ```text
@@ -79,6 +116,7 @@ dist/pixelRef/
     pixelRef.exe         the app (windowed)
     pixelref-cli.exe     the same app with a console: --batch scripts, --run-pip
     _internal/           Python, Qt and pixelRef, shared by both
+        updater/         the update helper: pixelref-updater.exe with its own _internal/ (see below)
 ```
 
 Choices made in `packaging/pixelref.spec`:
@@ -108,6 +146,16 @@ frozen only breaks when frozen. It prints four steps:
 3. the UI kernel starts offscreen, imports an image and renders it, with all
    the image formats available;
 4. the size of the built folder (a report, not a check).
+
+The update helper (`packaging/updater/helper.spec`, entry point `helper_main.py`) is built first into
+`dist/pixelref-updater/` and bundled as plain files in `_internal/updater/`. It is deliberately separate from the
+app: its own Python runtime and `cryptography`, no Qt, pip or plugins (about 30 MB on Linux), because the app copies
+it to `.pixelref-update/helper/<id>/` and runs it from there while the app's own files are replaced. A
+test (`tests/test_update_packaging.py`) keeps its imports Qt-free. `build_exe.py` fails the build if the helper is
+missing or doesn't run; smoke step 5 runs it in place (it must refuse to install while installing is disabled)
+and from an install-shaped folder (it must find its install and report nothing to recover). Installing from inside
+pixelRef stays unavailable until the flag is switched on; see
+[update-release-process.md](update-release-process.md#status-and-go-live-checklist).
 
 Before distributing builds, sign the executables. Windows SmartScreen and
 antivirus tools treat unsigned PyInstaller apps with suspicion.

@@ -20,7 +20,7 @@ from ..ui.canvas.items import (
     view_for,
 )
 from ..ui.canvas.tools import Tool
-from ..ui.canvas.view import CanvasView, cursor_pos_in, pattern_color
+from ..ui.canvas.view import CanvasView, cursor_pos_in, grid_step, pattern_color
 from ..ui.icons import app_icon, icon, logo_pixmap
 from ..ui import color_dialog, theme, widgets
 from ..ui.wm.manager import WorkspacePreset
@@ -53,6 +53,7 @@ __all__ = [
     "cursor_pos_in",
     "decompose_transform",
     "from_qtransform",
+    "grid_step",
     "icon",
     "logo_pixmap",
     "paint",

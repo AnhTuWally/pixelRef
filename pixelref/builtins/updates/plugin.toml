@@ -1,0 +1,5 @@
+id = "updates"
+name = "Updates"
+version = "1.0.0"
+api = 1
+description = "Quiet update discovery: checks GitHub Releases in the background (about once a day, off in Settings), shows an 'Update available' note in the status bar and offers Help → Check for Updates…. It only tells you a newer version exists and links to the release page; it never downloads, installs or changes any file. Needs no account and sends nothing about you or your boards."
