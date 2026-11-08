@@ -663,3 +663,24 @@ def test_pureref_real_boards_open_cleanly():
         assert not report["warnings"], (board.name, report["warnings"])
         assert report["images"] + report["linked"] + report["notes"] + report["drawings"] > 0, board.name
         assert session.scene.nodes, board.name
+
+
+def test_pureref2_note_alignment_comes_from_the_paragraphs():
+    from pixelref.builtins.pureref.pur2format import rich_text
+
+    def html(*aligns):
+        paras = "".join(f'<p {a}style=" margin-top:0px;">line {i}</p>' for i, a in enumerate(aligns))
+        return f"<html><body>{paras}</body></html>"
+
+    assert rich_text(html(""))[3] == "left"
+    assert rich_text(html('align="center" '))[3] == "center"
+    assert rich_text(html('align="right" ', 'align="right" ', 'align="center" '))[3] == "right"
+    assert rich_text(html('align="justify" ', ""))[3] == "justify", "ties go to the first paragraph"
+    assert rich_text("plain")[3] == "left"
+    session = headless()
+    from pixelref.builtins.pureref.purformat import PurBoard, PurText
+
+    board = PurBoard(version="2.1", items=[PurText(text="centred", align="center"), PurText(text="plain")])
+    session.services.get("pureref").build(Path("align.pur"), board)
+    aligns = sorted(n.attrs.get("align", "left") for n in session.scene.nodes.values())
+    assert aligns == ["center", "left"], aligns

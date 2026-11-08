@@ -110,6 +110,7 @@ class PurText(PurItem):
     background: tuple[int, int, int, int] = (0, 0, 0, 19)
     runs: list[dict] | None = None
     width: float = 0.0  # a fixed text width, 0 for none
+    align: str = "left"  # left, center, right or justify (PureRef 2 sets it per paragraph; the most used wins)
 
 
 @dataclass

@@ -225,6 +225,9 @@ def argb(value: Any, default: tuple[int, int, int, int]) -> tuple[int, int, int,
 # ---- Notes (Qt rich text) -----------------------------------------------------------------------------
 
 
+ALIGN_NAMES = {"left": "left", "center": "center", "right": "right", "justify": "justify"}
+
+
 def _css(style: str) -> dict[str, str]:
     found = {}
     for part in style.split(";"):
@@ -277,6 +280,7 @@ class _RichText(HTMLParser):
         self.stack: list[tuple[str, dict[str, Any]]] = []
         self.runs: list[dict[str, Any]] = []
         self.blocks = 0
+        self.aligns: list[str] = []  # one per paragraph
         self.in_block = False
         self.empty_block = False
         self.skip = 0
@@ -310,6 +314,7 @@ class _RichText(HTMLParser):
                 self.stack = []
                 self.add("\n")
             self.blocks += 1
+            self.aligns.append(ALIGN_NAMES.get(str(dict(attrs).get("align") or "").lower(), "left"))
             self.in_block = True
             self.empty_block = "empty" in css.get("-qt-paragraph-type", "")
         style = _style(css, {**self.current(), **self.TAG_STYLES.get(tag, {})})
@@ -332,10 +337,10 @@ class _RichText(HTMLParser):
         self.add(data)
 
 
-def rich_text(html: str) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
-    """(plain text, runs, the body's style) of a note's HTML; plain text stays as it is."""
+def rich_text(html: str) -> tuple[str, list[dict[str, Any]], dict[str, Any], str]:
+    """(plain text, runs, the body's style, alignment) of a note's HTML; plain text stays as it is."""
     if "<" not in html:
-        return html, [{"text": html}] if html else [], {}
+        return html, [{"text": html}] if html else [], {}, "left"
     parser = _RichText()
     try:
         parser.feed(html)
@@ -343,7 +348,9 @@ def rich_text(html: str) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
     except Exception:  # noqa: BLE001  (malformed markup: keep what was read)
         pass
     runs = [run for run in parser.runs if run["text"]]
-    return "".join(run["text"] for run in runs), runs, parser.base
+    # pixelRef aligns a whole note: take the alignment most paragraphs use (the first on a tie).
+    align = max(dict.fromkeys(parser.aligns), key=parser.aligns.count) if parser.aligns else "left"
+    return "".join(run["text"] for run in runs), runs, parser.base, align
 
 
 # ---- Items ------------------------------------------------------------------------------------------
@@ -390,8 +397,8 @@ def _image(row: dict[str, Any], image_rows: dict[int, dict[str, Any]], board: Pu
 
 
 def _note(row: dict[str, Any]) -> PurText:
-    text, runs, base = rich_text(str(row.get("text") or ""))
-    note = PurText(text=text)
+    text, runs, base, align = rich_text(str(row.get("text") or ""))
+    note = PurText(text=text, align=align)
     default = argb(row.get("text_color"), (255, 255, 255, 255))
     note.color = base.get("color", default)
     for run in runs:

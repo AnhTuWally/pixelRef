@@ -308,6 +308,8 @@ class PureRefImporter:
                 attrs["runs"] = runs
         if text.width > 0:
             attrs["text_width"] = round(text.width, 3)
+        if text.align != "left":
+            attrs["align"] = text.align
         name = self.session.scene.unique_name(text.name or "Note")
         self.create("annotation_text", name, parent, text, matrix, attrs)
         self.report["notes"] += 1
