@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QDialogButtonBo
 
 from pixelref.core import paths
 from pixelref.plugin_api import SCENE_EXT, SCENE_EXTS, perf
-from pixelref.plugin_api.contracts import EmptyPanel, IngestHandler
+from pixelref.plugin_api.contracts import EmptyPanel, FileOpener, IngestHandler
 
 from . import recovery_store as rs
 from . import workspace as ws
@@ -683,6 +683,7 @@ class RecoveryService:
 def activate_ui(ui: Any) -> None:
     session = ui.session
     app = ui.app
+    ui.declare_extension_point("file.openers", "FileOpener: open a foreign file type from File > Open, recents, argv and drops")
     recovery = RecoveryService(ui)
     ui.provide_service("recovery", recovery)
     ui.track(recovery.timer.stop)
@@ -1330,8 +1331,12 @@ def activate_ui(ui: Any) -> None:
         files already in the Files list passes track_recent=False: it is not a new access."""
         if confirm and not may_discard():
             return False
+        opener = opener_for(path)
         try:
-            session.run("open_scene", str(path))
+            if opener is None:
+                session.run("open_scene", str(path))
+            elif not opener.open(str(path)):  # the opener already reported why
+                return False
         except Exception as exc:  # noqa: BLE001  (opening is atomic: the open scene is untouched)
             QMessageBox.critical(app.main_window(), "Open failed", f"{path}\n\n{exc}")
             return False
@@ -1342,16 +1347,36 @@ def activate_ui(ui: Any) -> None:
         recovery.clear()
         if track_recent:
             add_recent(Path(path))
-        QTimer.singleShot(0, lambda: app.run_command("navigation.frame_all"))
+
+        def framed() -> None:
+            app.run_command("navigation.frame_all")
+            if opener is not None and opener.opened is not None:
+                opener.opened(str(path))  # after framing, which sets its own status
+
+        QTimer.singleShot(0, framed)
         ui.status(f"Loaded: {Path(path).name}")
         return True
 
+    def openers() -> list[FileOpener]:
+        return list(ui.contributions("file.openers"))
+
+    def opener_for(path: Any) -> FileOpener | None:
+        """The plugin-provided opener for a foreign file type (None for pixelRef scenes)."""
+        suffix = Path(str(path)).suffix.lower()
+        return next((o for o in openers() if suffix in o.extensions), None)
+
+    def open_filter() -> str:
+        """'All supported files' first, then one entry per kind, as Qt filter text."""
+        kinds = [("pixelRef Scene", SCENE_EXTS)] + [(o.label, o.extensions) for o in openers()]
+        patterns = lambda exts: " ".join(f"*{e}" for e in exts)  # noqa: E731
+        everything = "All supported files (" + patterns([e for _, exts in kinds for e in exts]) + ")"
+        return ";;".join([everything] + [f"{label} ({patterns(exts)})" for label, exts in kinds])
+
     def open_dialog() -> None:
-        """Choose a scene file to open (asks about unsaved changes first)."""
+        """Choose a scene or board file to open (asks about unsaved changes first)."""
         if not may_discard():
             return
-        path, _ = QFileDialog.getOpenFileName(app.main_window(), "Open Scene", str(session.base_dir()),
-                                              SCENE_FILTER)
+        path, _ = QFileDialog.getOpenFileName(app.main_window(), "Open", str(session.base_dir()), open_filter())
         if path:
             open_path(path, confirm=False)
 
@@ -1586,10 +1611,14 @@ def activate_ui(ui: Any) -> None:
     # ---- Dropped scene files -------------------------------------------------------------------
 
     def scene_files(mime: Any) -> list[Path]:
+        """Dropped scenes, plus foreign boards when the scene is empty (otherwise the plugin's
+        own handler imports them into the board instead of replacing it)."""
         if not mime.hasUrls():
             return []
+        foreign = not session.scene.nodes
         return [Path(u.toLocalFile()) for u in mime.urls()
-                if u.isLocalFile() and Path(u.toLocalFile()).suffix.lower() in SCENE_EXTS]
+                if u.isLocalFile() and (Path(u.toLocalFile()).suffix.lower() in SCENE_EXTS
+                                        or (foreign and opener_for(u.toLocalFile()) is not None))]
 
     def describe(mime: Any) -> str | None:
         scenes = scene_files(mime)

@@ -76,7 +76,7 @@ def run(argv: list[str] | None = None) -> int:
             plugin_paths.append(next(args, ""))
         elif arg == "--trust-plugin-path":  # trusted for this run (plugin development)
             trusted_paths.append(next(args, ""))
-        elif Path(arg).suffix.lower() in SCENE_EXTS:
+        elif Path(arg).suffix:  # scene or a plugin-opened board; checked once the plugins are loaded
             scene_args.append(Path(arg))
     app = create_app(argv, plugin_paths=tuple(p for p in plugin_paths if p),
                      trusted_plugin_paths=tuple(p for p in trusted_paths if p))
@@ -87,8 +87,13 @@ def run(argv: list[str] | None = None) -> int:
         # crash-recovery safety net, which still applies either way (and asks only once).
         restored = recovery.resume()
         restored = recovery.offer() or restored
+    foreign = {e for o in app.session.extensions.contributions("file.openers") for e in o.extensions}
+    scene_args = [p for p in scene_args if p.suffix.lower() in SCENE_EXTS or p.suffix.lower() in foreign]
     if not restored and scene_args and scene_args[0].exists():
-        app.run_command("open_scene", str(scene_args[0]))
+        if scene_args[0].suffix.lower() in SCENE_EXTS:
+            app.run_command("open_scene", str(scene_args[0]))
+        else:  # through File's open path so it lands in Recent and gets framed
+            app.run_command("file.open_path", str(scene_args[0]), False)
     elif not restored:
         # The very first launch opens the Getting Started guide (once, ever); Help → Getting Started reopens it.
         onboarding = app.session.services.get("onboarding")

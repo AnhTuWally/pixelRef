@@ -106,8 +106,10 @@ the open board stays as it was.
   `.pur` file is left exactly as it was, so changes made in pixelRef don't
   show up in PureRef. Opening a board says so: in a notice the first time
   (tick *Don't show this again* to hide it), and in the status bar every time.
-- *File → Open PureRef Board (Import Only)…* opens one as a new, unsaved
-  scene. *Save* then asks for a `.pxref` name.
+- *File → Open* lists `.pur` files next to scenes (the first filter is *All
+  supported files*). A board opens as a new, unsaved scene, is added to *Open
+  Recent*, and can also be given on the command line (`pixelref board.pur`) or
+  dropped on an empty canvas. *Save* then asks for a `.pxref` name.
 - *File → Import → PureRef Board…* adds one to the current board, centred in
   the view and put in a group named after the file. Dropping `.pur` files on
   the canvas does the same at the drop point. Either way it's one undo step.
@@ -119,11 +121,12 @@ the open board stays as it was.
   keep their formatting too: font, size, bold, italic, underline, strike,
   colour and highlight, also for parts of the text. Text attached to an image
   becomes a child of that image, so it still moves with it.
-- PureRef 2 groups become groups, and pen strokes become a drawing (it needs
+- PureRef 2 groups become groups (a group's background colour becomes a
+  backdrop behind its members), and pen strokes become a drawing (it needs
   the *Pen* plugin).
-- Not carried over: arrowheads on PureRef 2 pen strokes, group background
-  colours, and animation playback settings. Free-form (non-rectangular) crops
-  become their bounding rectangle. PureRef 1.x text has no font information,
+- Not carried over: arrowheads on PureRef 2 pen strokes and animation playback
+  settings. Free-form (non-rectangular) crops become their bounding rectangle,
+  and the import says how many. PureRef 1.x text has no font information,
   so it uses pixelRef's default size, scaled like the PureRef item.
 - From scripts: `pxcmd.open_pureref(path)`, `pxcmd.import_pureref(path,
   translate=None, group=None)` and `pxcmd.pureref.inspect(path)`, which

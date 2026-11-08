@@ -72,6 +72,7 @@ HEADER_SIZE = 224
 IMAGE_ITEM = "GraphicsImageItem"
 TEXT_ITEM = "GraphicsTextItem"
 LINKED_SLOT = b"\xff\xff\xff\xff"
+FREEFORM_FILL = 0.98  # a crop outline filling less of its bounding box than this isn't a rectangle
 MAX_DEPTH = 64  # text attached to text attached to …
 MAX_POINTS = 100_000
 
@@ -134,6 +135,16 @@ class PurImage(PurItem):
         det = a * d - b * c or 1e-12
         x, y = x - self.offset[0], y - self.offset[1]
         return (d * x - c * y) / det, (-b * x + a * y) / det
+
+    @property
+    def freeform_crop(self) -> bool:
+        """True when the crop outline isn't (close to) a rectangle, so a box only approximates it."""
+        box = self.crop_box
+        if box is None or len(self.points) < 3 or box[2] * box[3] <= 0:
+            return False
+        pixels = [self.to_pixels(*p) for p in self.points]
+        area = abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(pixels, pixels[1:] + pixels[:1]))) / 2.0
+        return area < box[2] * box[3] * FREEFORM_FILL
 
     @property
     def crop_box(self) -> tuple[float, float, float, float] | None:

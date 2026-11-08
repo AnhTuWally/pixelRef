@@ -309,7 +309,7 @@ def test_pureref_drop_and_menus():
         assert not h.has("sample") and h.has("Existing")
         file_menu = next(a.menu() for a in h.app.menus.build("canvas").actions() if a.text() == "File")
         texts = [a.text() for a in file_menu.actions()]
-        assert "Open PureRef Board (Import Only)…" in texts
+        assert not any("Import Only" in t for t in texts), "boards open through the normal File > Open"
         assert any(a.menu() and "Import PureRef Board…" in [s.text() for s in a.menu().actions()]
                    for a in file_menu.actions()) or "Import PureRef Board…" in texts
         # Opening replaces the board, and the canvas follows without a forced refresh.
@@ -479,6 +479,34 @@ def test_pureref2_reader_unpacks_the_database():
     assert (40.0, 0.0) in rect.points and (39.5, 0.0) in rect.points, "corners stay sharp"
 
 
+def test_pureref_group_backgrounds_become_backdrops_and_freeform_crops_are_reported():
+    from pixelref.builtins.pureref.purformat import PurGroup, read_board
+
+    session = headless()
+    importer = session.services.get("pureref")
+    path = _sample_board_v2(tmp_dir())
+    board = read_board(path)
+    group = next(i for i in board.walk() if isinstance(i, PurGroup))
+    group.background = (200, 40, 40, 128)
+    cropped = next(i for i in board.walk() if getattr(i, "crop_box", None))
+    assert not cropped.freeform_crop, "a rectangular crop is exact"
+    session.new_document()
+    importer.build(path, board)
+    scene = session.scene
+    backdrops = [n for n in scene.children_of("refs") if scene.get_node(n).node_type == "backdrop"]
+    assert len(backdrops) == 1 and importer.last_report["backdrops"] == 1
+    attrs = scene.get_node(backdrops[0]).attrs
+    assert attrs["color"] == [200, 40, 40] and approx(attrs["fill_opacity"], 128 / 255, 0.01)
+    assert scene.children_of("refs")[0] == backdrops[0], "behind the members"
+    # An L-shaped outline fills well under its bounding box: reported, not silent.
+    cropped.points = [(0, 0), (40, 0), (40, 10), (10, 10), (10, 40), (0, 40)]
+    assert cropped.freeform_crop
+    session.new_document()
+    importer.build(path, board)
+    assert importer.last_report["simplified_crops"] == 1
+    assert any("free-form crop" in w for w in importer.last_report["warnings"])
+
+
 def test_pureref2_open_builds_groups_notes_and_drawings():
     session = headless()
     path = _sample_board_v2(tmp_dir())
@@ -535,6 +563,48 @@ def test_pureref2_damaged_databases_fail_cleanly():
             pass
 
 
+def test_pureref_is_a_first_class_open():
+    """File > Open lists .pur, opens it as an untitled scene, records it in Recent, and Save asks for a .pxref."""
+    h = make()
+    try:
+        path = _sample_board(tmp_dir())
+        from PySide6.QtWidgets import QFileDialog
+
+        chooser, seen = QFileDialog.getOpenFileName, []
+
+        def choose(*args, **kwargs):
+            seen.append(args[3])
+            return str(path), ""
+
+        QFileDialog.getOpenFileName = staticmethod(choose)
+        try:
+            h.session.mark_saved()
+            h.run("file.open")
+            APP.processEvents()
+        finally:
+            QFileDialog.getOpenFileName = chooser
+        assert seen[0].startswith("All supported files (*.pxref *.json *.pur);;"), seen[0]
+        assert "PureRef Board (*.pur)" in seen[0] and "pixelRef Scene (*.pxref *.json)" in seen[0]
+        assert all(h.item(n) is not None for n in ("red", "blue", "Note"))
+        assert h.session.scene_path is None and h.session.unsaved, "a new, unsaved scene"
+        recent = h.app.settings.value("plugins/file/recent_files", [])
+        recent = [recent] if isinstance(recent, str) else list(recent or [])
+        assert str(path.resolve()) in recent, "reopenable from File > Open Recent"
+        # Dropping a board on an empty scene opens it; on a populated one it is imported as a group.
+        h.session.new_document()
+        mime = QMimeData()
+        mime.setUrls([QUrl.fromLocalFile(str(path))])
+        assert h.service("ingest").describe(mime) == "Drop to open sample.pur"
+        # Opening a bad file keeps the board and says why.
+        bad = tmp_dir() / "broken.pur"
+        bad.write_bytes(b"not a board")
+        h.app.run_command("pureref.open", str(path))
+        assert h.app.run_command("pureref.open", str(bad)) is None
+        assert h.item("red") is not None or h.has("red")
+    finally:
+        h.close()
+
+
 def test_pureref_open_warns_it_is_one_way_import_does_not():
     """Opening a board says pixelRef can't write .pur files (until hidden); importing doesn't."""
     h = make()
@@ -547,20 +617,21 @@ def test_pureref_open_warns_it_is_one_way_import_does_not():
 
         def open_board() -> None:
             h.session.mark_saved()  # no modal "Save changes?" prompt
-            h.run("pureref.open_dialog")
+            h.run("file.open")
         QFileDialog.getOpenFileName = staticmethod(lambda *a, **k: (str(path), ""))
         try:
             mime = QMimeData()
             mime.setUrls([QUrl.fromLocalFile(str(path))])
+            h.add_image("Existing", 0, 0)  # a populated board imports a dropped board instead of replacing it
             h.drop(QPointF(0, 0), mime)
             h.run("pureref.import_dialog")
             APP.processEvents()
-            assert notice.box() is None and "import only" not in h.app.status_text(), "importing doesn't warn"
+            assert notice.box() is None and "new scene" not in h.app.status_text(), "importing doesn't warn"
             open_board()
             APP.processEvents()
-            assert h.app.status_text().endswith("(import only: save as a pixelRef scene (.pxref))"), h.app.status_text()
+            assert h.app.status_text().endswith("(opened as a new scene: Save creates a .pxref)"), h.app.status_text()
             box = notice.box()
-            assert box is not None and box.isVisible() and "can't save them back as PureRef files" in box.text()
+            assert box is not None and box.isVisible() and "can't write PureRef files" in box.text()
             assert box.windowModality() == Qt.NonModal, "the board stays usable"
             open_board()
             APP.processEvents()
@@ -572,8 +643,23 @@ def test_pureref_open_warns_it_is_one_way_import_does_not():
             open_board()
             APP.processEvents()
             assert notice.box() is None, "hidden for good"
-            assert h.app.status_text().endswith("(.pxref))"), "the status bar still says it"
+            assert h.app.status_text().endswith("Save creates a .pxref)"), "the status bar still says it"
         finally:
             QFileDialog.getOpenFileName = chooser
     finally:
         h.close()
+
+
+def test_pureref_real_boards_open_cleanly():
+    """Boards saved by real PureRef builds (set PIXELREF_PUR_CORPUS to a folder of .pur files) open without warnings."""
+    import os
+
+    folder = os.environ.get("PIXELREF_PUR_CORPUS")
+    boards = sorted(Path(folder).rglob("*.pur")) if folder and Path(folder).is_dir() else []
+    for board in boards:
+        session = headless()
+        session.run("pureref.open", str(board))
+        report = session.services.get("pureref").last_report
+        assert not report["warnings"], (board.name, report["warnings"])
+        assert report["images"] + report["linked"] + report["notes"] + report["drawings"] > 0, board.name
+        assert session.scene.nodes, board.name

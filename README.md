@@ -81,9 +81,9 @@ You can also drag in or *File → Insert Movies…* to add video files
 only** — there is no embed option like for images, so a shared `.pxref` needs
 its video files alongside it, or the board shows them as missing.
 
-Coming from PureRef? *File → Open PureRef Board (Import Only)…* opens a `.pur`
-board, and dropping one on the canvas adds it to the current board. It's one
-way: pixelRef saves your work as a `.pxref` scene and never writes `.pur`
+Coming from PureRef? *File → Open* (or Open Recent, or the command line) opens a
+`.pur` board as a new scene, and dropping one on a populated canvas adds it to the
+board. It's one way: pixelRef saves your work as a `.pxref` scene and never writes `.pur`
 files (see [PureRef boards](docs/user-guide.md#pureref-boards)).
 
 ### 3. Select, transform and quick-edit

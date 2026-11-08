@@ -146,7 +146,7 @@ the plugin that provides it.
   with the scene.
 - The **Contact Sheet** view shows every image as a thumbnail grid
   (`pxcmd.wm.open_view("contact_sheet")`).
-- **PureRef boards** (`pureref`): *File → Open PureRef Board (Import Only)…*, *File → Import →
+- **PureRef boards** (`pureref`): *File → Open* (`.pur` files, also from Open Recent and the command line), *File → Import →
   PureRef Board…* and dropping `.pur` files; `open_pureref(path)`,
   `import_pureref(path, translate=…, group=…)`, `pureref.inspect(path)`. See
   [user-guide.md](user-guide.md#pureref-boards).

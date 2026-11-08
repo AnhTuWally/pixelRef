@@ -11,6 +11,7 @@ Extension point             Declared by        Contribution
 ``canvas_background.rows``  canvas_background  :class:`CanvasRow`
 ``quick_edit.sections``     quick_edit         :class:`QuickSection`
 ``ingest.handlers``         clipboard          :class:`IngestHandler`
+``file.openers``            file               :class:`FileOpener`
 ``clipboard.exporters``     clipboard          callable(names, QMimeData) adding formats
 ``palette.buttons``         tool_palette       :class:`PaletteButton`
 ``stroke.styles``           brush              :class:`StrokeStyle`
@@ -121,6 +122,22 @@ class CanvasRow:
     label: str
     order: float
     build: Callable[[Any], Any]  # build(parent) -> widget with refresh()
+
+
+@dataclass
+class FileOpener:
+    """Lets File > Open, recent files, the command line and drops open a foreign file type.
+
+    ``open(path)`` replaces the board and returns something truthy on success (a falsy
+    result means it failed and already told the user). ``opened(path)`` runs after the
+    view is framed, for reports and notices. Foreign files open as new, unsaved scenes.
+    """
+
+    name: str
+    extensions: tuple[str, ...]
+    label: str
+    open: Callable[[str], Any]
+    opened: Callable[[str], None] | None = None
 
 
 @dataclass
