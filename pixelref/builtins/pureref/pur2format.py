@@ -429,7 +429,7 @@ def _drawing(row: dict[str, Any]) -> PurDrawing:
         width = reader.f64()
         paths = painter_path(reader)
         reader.skip(16)  # the drag's start point
-        kind = reader.u32()  # pen style bits (boards saved by 2.1.3): 0 plain, 1 dashed, 2 arrow, 3 both
+        kind = reader.u32()  # pen style bits (boards saved by 2.1.3): 0 plain, 1 dashed, 2 arrow
         for points in paths:
             if points:
                 # PureRef draws the head only on open strokes: closed shapes drawn with the arrow pen show none.

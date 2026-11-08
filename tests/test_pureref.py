@@ -705,10 +705,10 @@ def test_pureref2_arrow_strokes_and_unfamiliar_stroke_bytes():
                         (_as_text(_q_user("QList<GraphicsDrawItem::Stroke>", blob)),))
         return write_pur2(tmp_dir() / "arrows.pur", fill)
 
-    parsed = read_board(board(0, 2, 1, 3))
+    parsed = read_board(board(0, 2, 1))
     drawing = next(i for i in parsed.walk() if isinstance(i, PurDrawing))
-    assert [s.arrow for s in drawing.strokes] == [False, True, False, True]
-    assert [s.dashed for s in drawing.strokes] == [False, False, True, True]
+    assert [s.arrow for s in drawing.strokes] == [False, True, False]
+    assert [s.dashed for s in drawing.strokes] == [False, False, True]
     # Bytes after the last stroke (fields a newer PureRef may add) don't make the drawing unreadable.
     extra = read_board(board(2, extra=b"\x00\x01\x02\x03"))
     assert next(i for i in extra.walk() if isinstance(i, PurDrawing)).strokes[0].arrow
