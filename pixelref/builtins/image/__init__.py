@@ -7,17 +7,29 @@ image_storage plugin's "Embed New Images" setting is off.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
 from pixelref.plugin_api import CAP_CONTENT, Attr, CommandError, NodeType
 
-SUPPORTED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff"}
+SUPPORTED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".exr"}  # .exr: the exr plugin
 MIME_EXTENSIONS = {
     "image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp", "image/bmp": ".bmp",
-    "image/tiff": ".tif",
+    "image/tiff": ".tif", "image/x-exr": ".exr",
 }
 ARRANGE_GAP = 8.0
+# Linked even when new images are embedded (they'd swell the scene file); embed=True still embeds.
+ALWAYS_LINKED = {".exr"}
+# Numbered file names (shot.0001.png, frame12.jpg: render and sequence frames) are linked too.
+_NUMBERED = re.compile(r"\d+\.[A-Za-z0-9]+$")
+
+
+def always_linked(path: str | Path) -> bool:
+    """Files added by link even when new images are embedded: EXRs and numbered frames,
+    which come in hundreds and would swell the scene file. ``embed=True`` still embeds them."""
+    name = Path(path).name
+    return Path(name).suffix.lower() in ALWAYS_LINKED or bool(_NUMBERED.search(name))
 
 IMAGE_TYPE = NodeType(
     name="image",
@@ -50,14 +62,31 @@ class ImageApi:
         self.ctx = ctx
         self.session = ctx.session
         self.sizer = lambda attrs: headless_size(self.session, attrs)
+        # Formats other plugins read (``image.decoders``), by extension: {".exr": "image/x-exr"}.
+        self.extra_exts: dict[str, str] = {}
+
+    def supported_exts(self) -> set[str]:
+        """File extensions dropped/inserted files are added as images for."""
+        return SUPPORTED_IMAGE_EXTS | set(self.extra_exts)
+
+    def register_ext(self, ext: str, mime: str = "") -> Any:
+        """Add an extension (a plugin that reads the format); returns a function undoing it."""
+        ext = ext.lower()
+        self.extra_exts[ext] = mime
+
+        def remove() -> None:
+            self.extra_exts.pop(ext, None)
+
+        return remove
 
     def embed_new(self) -> bool:
         storage = self.session.services.get("image_storage")
         return bool(storage.embed_new) if storage is not None else True
 
     def source_from_file(self, path: Path) -> dict[str, Any]:
-        """Image attrs for a file: embedded by default, or linked by path."""
-        if self.embed_new():
+        """Image attrs for a file: embedded by default, or linked by path. EXRs and numbered
+        frames are always linked (see ``always_linked``)."""
+        if self.embed_new() and not always_linked(path):
             try:
                 data = Path(path).read_bytes()
             except OSError:

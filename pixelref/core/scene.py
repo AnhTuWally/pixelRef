@@ -31,6 +31,7 @@ _MAGIC_MIME = (
     (b"BM", "image/bmp"),
     (b"II*\x00", "image/tiff"),
     (b"MM\x00*", "image/tiff"),
+    (b"\x76\x2f\x31\x01", "image/x-exr"),
 )
 
 

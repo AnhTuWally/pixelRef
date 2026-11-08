@@ -2,6 +2,68 @@
 
 All notable changes to pixelRef are documented here.
 
+## [1.2.0] - 2026-11-08
+
+### Added — EXR images
+
+- New **EXR Support** plugin (`exr`): OpenEXR images on the board through a
+  per-image view: linear → sRGB with **exposure** (stops),
+  **gamma**, **layer / AOV** (multi-part files included) and **channel**
+  (RGB, R, G, B, A, luminance). *EXR View* section in the Attribute Editor,
+  `[` / `]` for exposure, `exr.*` commands (`set_view`, `adjust_exposure`,
+  `cycle_channel`, `reset_view`, `layers`).
+- On by default. Showing pixels needs the **OpenEXR** and **numpy** Python
+  packages, declared *optional* so they're never installed unasked: *Image →
+  Install EXR Support…* (`exr.install_support`) installs them in the
+  background and EXRs show without a restart. The app itself stays numpy-free. Without them an
+  EXR shows a card at its real size explaining how to turn support on.
+- **EXRs and numbered files are always linked** when added (`shot.0001.png`,
+  `frame12.jpg`: render frames, including frames added as separate images
+  with sequence detection off), whatever *Embed New Images in Scene* says, so
+  boards stay small; *Embed in Scene* / `import_image(embed=True)` still embed
+  one on purpose.
+- EXR sizes and layers come from the file headers, read in pure Python
+  (`core.imagesize.exr_info`), so headless bounds, batch and MCP tools work
+  without OpenEXR. Embedded EXRs have the MIME type `image/x-exr`.
+- Decoded float pixels are cached (`PIXELREF_EXR_MEMORY_MB`, default 512), so
+  view changes only re-run the view transform; levels are box-filtered in
+  linear light. The previous view stays on screen while a new one decodes.
+
+### Added — Image sequences
+
+- New **Image Sequences** plugin (`sequence`) and `sequence` node: numbered
+  frames (`shot.####.exr`, any image format) played like a movie, always
+  linked by pattern (`#`, `%04d`, `@@@@` and `$F4` accepted) with
+  `first` / `last`, `fps`, `loop`, `autoplay` and `missing` (hold / black).
+- Dropping a folder of frames or several frames makes one sequence (stills in
+  the drop stay images); *File → Insert Image Sequence…*; *Show Sequence
+  Folder*.
+- **Refresh Frames** (`Shift+F5`, right-click *Image* menu, and a button in
+  the new *Sequence* section of the Attribute Editor): picks up frames a
+  render added since, extending the range and showing frames that appeared
+  inside it; with nothing selected, every sequence on the board. Nothing is
+  watched automatically. The *Sequence* section also lists what's on disk. Detection can be turned
+  off (*File → Dropped Frames Become Sequences*).
+- Works with the playback transport, filmstrip and per-frame annotations; the
+  frame display shows the file's frame number too. Frames are decoded in the
+  background and ahead while playing, and playback drops frames rather than
+  slowing down. EXR frames use the EXR view.
+- `sequence.*` commands: `import_sequence`, `import_sequences`, `rescan`,
+  `info`, `set_detect`.
+
+### Fixed
+
+- Movies (and now image sequences) lost their generated *Attributes* editor
+  (path, loop, volume…) because the Playback and Frame Notes sections replaced
+  it; those sections now add to it (`generic=True`).
+
+### Added — for plugin authors
+
+- `image.decoders` extension point (`ImageDecoder`): teach the image plugin a
+  format Qt can't read, with background decoding, levels and the memory budget
+  for free. `ImageApi.register_ext()` / `supported_exts()`.
+- `sequence.started` extension point (like `movie.started`).
+
 ## [1.1.0] - 2026-10-24
 
 ### Added — Files panel (multi-file management)

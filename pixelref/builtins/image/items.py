@@ -483,8 +483,8 @@ class PixmapItem(NodeItemMixin, QGraphicsItem):
     # ---- Effects: the source pixels (whole image, before the crop) -----------------------
 
     def effect_source(self) -> tuple[QPixmap, Any] | None:
-        if self.cache_key is None:
-            return None  # a placeholder ("missing"), not the image
+        if self.cache_key is None or (self._handle is not None and self._handle.placeholder):
+            return None  # a placeholder ("missing", or a format no plugin reads), not the image
         frame = self.current_frame() if self._movie is not None else 1
         if self._handle is not None:
             return LazySource(self._handle), (self.cache_key, frame)
@@ -509,6 +509,11 @@ class PixmapItem(NodeItemMixin, QGraphicsItem):
             found = handle.best(level)
             if on_screen and (found is None or found[0] != level):
                 handle.request(level, self)
+            if found is None and handle.stand_in is not None:
+                stand_in = handle.stand_in.best(level)
+                if stand_in is not None:
+                    self._draw_scaled(painter, stand_in[1])
+                    return
             if found is None:
                 painter.fillRect(self.boundingRect(), PLACEHOLDER_COLOR)
                 return

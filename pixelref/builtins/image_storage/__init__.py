@@ -9,7 +9,7 @@ from pixelref.plugin_api import CommandError
 
 MIME_EXTENSIONS = {
     "image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp", "image/bmp": ".bmp",
-    "image/tiff": ".tif",
+    "image/tiff": ".tif", "image/x-exr": ".exr",
 }
 
 

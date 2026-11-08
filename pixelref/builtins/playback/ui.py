@@ -16,6 +16,13 @@ from pixelref.plugin_api.ui import widgets as w
 KEY = "playback"  # scene plugin data: {node id: {"frame": n}} for paused images
 
 
+def frame_text(item: Any, frame: int, count: int) -> str:
+    """"12 / 96", plus the file's own frame number for image sequences ("12 / 96 · 1012")."""
+    text = f"{frame} / {count}" if count else f"{frame}"
+    label = getattr(item, "frame_label", None)
+    return f"{text} · {label(frame)}" if label is not None else text
+
+
 class PlaybackService(QObject):
     """Finds animated items, applies remembered state, reports frame changes."""
 
@@ -44,7 +51,7 @@ class PlaybackService(QObject):
             names = [self.session.scene.resolve(n) for n in refs]
             names = [n for n in names if self.item(n) is not None]
         if not names:
-            raise CommandError("Select an animated image (GIF or WebP)")
+            raise CommandError("Select an animated image (GIF or WebP), a movie or an image sequence")
         return names
 
     # ---- Remembered state ----------------------------------------------------------------
@@ -238,7 +245,7 @@ class PlaybackSection(w.InspectorSection):
         try:
             count, frame = item.frame_count(), item.current_frame()
             maximum = max(count, frame, 1)
-            self.frame_label.setText(f"{frame} / {count}" if count else f"{frame}")
+            self.frame_label.setText(frame_text(item, frame, count))
             playing = item.is_playing()
             self.play_btn.setIcon(icon("pause" if playing else "play"))
             self.play_btn.setChecked(playing)
@@ -266,6 +273,7 @@ def activate_playback_ui(ui: Any) -> None:
     ui.provide_service("playback", service)
     ui.contribute("image.movie_hooks", service.on_movie)
     ui.contribute("movie.started", service.on_movie)
+    ui.contribute("sequence.started", service.on_movie)
 
     def apply_to(names: list[str], fn: Any) -> list[str]:
         for name in names:
@@ -376,7 +384,8 @@ def activate_playback_ui(ui: Any) -> None:
         return info.single and getattr(info.item, "animated", False)
 
     ui.contribute("inspector.sections", InspectorSection(
-        key="playback", title="Playback", order=31, applies=applies,
+        # generic: it adds to a movie's or sequence's Attributes editor (fps, loop…), not replaces it
+        key="playback", title="Playback", order=31, applies=applies, generic=True,
         build=lambda parent, _inspector: PlaybackSection(ui, service, parent)))
 
     # ---- Controls under selected animated images ---------------------------------------------
@@ -454,10 +463,10 @@ class PlaybackQuickControls(QWidget):
             return
         count, frame = item.frame_count(), item.current_frame()
         # As wide as the longest "frame / count", so the bar doesn't wobble (it re-centres on resize).
-        widest = f"{count} / {count}" if count else "0000"
+        widest = frame_text(item, count, count) if count else "0000"
         self.frame_label.ensurePolished()  # measure in the styled font
         self.frame_label.setFixedWidth(int(self.frame_label.fontMetrics().horizontalAdvance(widest)) + 4)
-        self.frame_label.setText(f"{frame} / {count}" if count else f"{frame}")
+        self.frame_label.setText(frame_text(item, frame, count))
         playing = item.is_playing()
         toggle = self.buttons["toggle"]
         toggle.setIcon(icon("pause" if playing else "play"))

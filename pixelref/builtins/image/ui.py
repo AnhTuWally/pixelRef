@@ -5,11 +5,12 @@ from __future__ import annotations
 import base64
 import logging
 import re
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QPointF, Qt, QUrl
-from PySide6.QtGui import QColor, QImage, QImageReader, QMovie, QPainter, QPen, QPixmap
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QPointF, QSize, Qt, QUrl
+from PySide6.QtGui import QColor, QImage, QImageIOHandler, QImageReader, QMovie, QPainter, QPen, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import QFileDialog
 
@@ -17,7 +18,7 @@ from pixelref.plugin_api import perf
 from pixelref.plugin_api.contracts import IngestHandler, InspectorSection, PaletteButton, SelectionInfo
 from pixelref.plugin_api.ui import widgets as w
 
-from . import MIME_EXTENSIONS, SUPPORTED_IMAGE_EXTS
+from . import MIME_EXTENSIONS
 from .items import PixmapItem, prune_frame_cache
 from .source import ImageHandle, level_for, open_handle
 
@@ -40,6 +41,56 @@ def png_bytes(image: QImage) -> bytes:
     return bytes(buffer.data())
 
 
+# Formats pixelRef recognises but only a plugin decodes: (label, what to do), by MIME type.
+UNREADABLE_HINTS = {"image/x-exr": ("OpenEXR", "Switch on EXR Support in Window → Plugins…")}
+UNREADABLE_EXTS = {".exr": "image/x-exr"}
+FRAME_HANDLES = 512  # sequence frames whose handles (and decoded levels) are kept
+
+
+class PlaceholderReader:
+    """Draws a "can't show this yet" card, quacking like the QImageReader an ImageHandle uses."""
+
+    def __init__(self, size: QSize, text: str) -> None:
+        self._size = QSize(size)
+        self._scaled = QSize(size)
+        self._text = text
+
+    def canRead(self) -> bool:  # noqa: N802
+        return True
+
+    def size(self) -> QSize:
+        return QSize(self._size)
+
+    def transformation(self) -> Any:
+        return QImageIOHandler.Transformation.TransformationNone
+
+    def supportsOption(self, option: Any) -> bool:  # noqa: N802
+        return option == QImageIOHandler.ImageOption.ScaledSize
+
+    def setAutoTransform(self, _on: bool) -> None:  # noqa: N802
+        pass
+
+    def setQuality(self, _quality: int) -> None:  # noqa: N802
+        pass
+
+    def setScaledSize(self, size: QSize) -> None:  # noqa: N802
+        self._scaled = QSize(size)
+
+    def read(self) -> QImage:
+        image = QImage(self._scaled, QImage.Format_ARGB32_Premultiplied)
+        image.fill(QColor("#1a1c21"))
+        painter = QPainter(image)
+        painter.setPen(QPen(QColor("#3d4452"), max(1, self._scaled.width() // 300)))
+        painter.drawRect(image.rect().adjusted(0, 0, -1, -1))
+        font = painter.font()
+        font.setPixelSize(max(6, min(self._scaled.width() // 24, self._scaled.height() // 8)))
+        painter.setFont(font)
+        painter.setPen(QPen(QColor("#8a93a6")))
+        painter.drawText(image.rect(), int(Qt.AlignCenter | Qt.TextWordWrap), self._text)
+        painter.end()
+        return image
+
+
 class PixmapCache:
     """Image pixels by source (embedded asset or linked file): an ``ImageHandle`` for
     still images (decoded in the background at the size they're drawn, see .source),
@@ -49,6 +100,9 @@ class PixmapCache:
         self.session = session
         self.pixmaps: dict[tuple[str, Any], QPixmap] = {}
         self.handles: dict[tuple[str, Any], ImageHandle | None] = {}  # None: use load()
+        self.frame_handles: OrderedDict[tuple, ImageHandle | None] = OrderedDict()  # see shared_handle
+        # What placeholder cards say, by MIME type (a plugin may change it: forget_placeholders() after).
+        self.hints: dict[str, tuple[str, str]] = dict(UNREADABLE_HINTS)
 
     def source_key(self, attrs: dict[str, Any]) -> tuple[str, Any] | None:
         asset_id = str(attrs.get("asset", "") or "")
@@ -63,31 +117,139 @@ class PixmapCache:
         except OSError:
             return None
 
+    def decoders(self) -> list[Any]:
+        return list(self.session.extensions.contributions("image.decoders"))
+
+    def decoder_for(self, attrs: dict[str, Any]) -> Any:
+        """The ``image.decoders`` contribution that reads this image, or None (Qt reads it)."""
+        decoders = self.decoders()
+        if not decoders:
+            return None
+        asset_id = str(attrs.get("asset", "") or "")
+        if asset_id:
+            asset = self.session.scene.get_asset(asset_id)
+            mime = asset.mime if asset is not None else ""
+            return next((d for d in decoders if mime in d.mimes), None)
+        suffix = Path(str(attrs.get("path", "") or "")).suffix.lower()
+        return next((d for d in decoders if suffix in d.exts), None) if suffix else None
+
+    def kind(self, attrs: dict[str, Any]) -> str:
+        """The image's MIME type when pixelRef needs a plugin to read it ("image/x-exr"), else ""."""
+        asset_id = str(attrs.get("asset", "") or "")
+        if asset_id:
+            asset = self.session.scene.get_asset(asset_id)
+            mime = asset.mime if asset is not None else ""
+        else:
+            mime = UNREADABLE_EXTS.get(Path(str(attrs.get("path", "") or "")).suffix.lower(), "")
+        return mime if mime in self.hints else ""
+
+    def _key(self, attrs: dict[str, Any]) -> tuple[tuple | None, Any]:
+        key = self.source_key(attrs)
+        if key is None:
+            return None, None
+        decoder = self.decoder_for(attrs)
+        if decoder is not None:
+            key = key + tuple(decoder.view_key(attrs))  # each view (exposure, layer…) decodes separately
+        return key, decoder
+
     def handle(self, attrs: dict[str, Any]) -> ImageHandle | None:
         """The image's handle, or None for animations, missing and unreadable images (use load())."""
-        key = self.source_key(attrs)
+        key, decoder = self._key(attrs)
         if key is None:
             return None
         if key in self.handles:
             return self.handles[key]
-        handle = None
+        handle = self._open(key, attrs, decoder)
+        if handle is not None and decoder is not None:
+            handle.stand_in = self._other_view(key, handle, self.handles)
+        self.handles[key] = handle
+        return handle
+
+    @staticmethod
+    def _other_view(key: tuple, handle: ImageHandle, handles: Any) -> ImageHandle | None:
+        """A decoded handle of the same source with another view (exposure, layer…), if any,
+        the most recently added first."""
+        for other_key, other in reversed(list(handles.items())):
+            if other is not None and other.levels and other_key[:2] == key[:2] and other.size == handle.size:
+                return other
+        return None
+
+    def shared_handle(self, attrs: dict[str, Any]) -> ImageHandle | None:
+        """A handle kept in a least-recently-used set of its own, not pruned with the board's
+        images: sequence frames, which come and go as a sequence plays. Items rebuilt after
+        an edit find the frames they had still decoded."""
+        key, decoder = self._key(attrs)
+        if key is None:
+            return None
+        if key in self.frame_handles:
+            self.frame_handles.move_to_end(key)
+            return self.frame_handles[key]
+        handle = self._open(key, attrs, decoder)
+        if handle is not None and decoder is not None:
+            handle.stand_in = self._other_view(key, handle, self.frame_handles)
+        self.frame_handles[key] = handle
+        while len(self.frame_handles) > FRAME_HANDLES:
+            _old_key, old = self.frame_handles.popitem(last=False)
+            if old is not None:
+                old.forget()
+        return handle
+
+    def _open(self, key: tuple, attrs: dict[str, Any], decoder: Any) -> ImageHandle | None:
+        if decoder is not None:
+            view = dict(attrs)  # the view as it is now; changing it makes another handle
+            if key[0] == "asset":
+                asset = self.session.scene.get_asset(key[1])
+                if asset is None:
+                    return None
+                source: Any = asset.data
+            else:
+                source = key[0]
+            try:
+                return open_handle(key, lambda: decoder.open_reader(source, view))
+            except Exception:  # noqa: BLE001  (a broken file shows as missing)
+                logging.getLogger(__name__).exception("image decoder %s failed", decoder.id)
+                return None
+        kind = self.kind(attrs)
+        if kind:
+            return self._placeholder_handle(key, attrs, kind)
         if key[0] == "asset":
             asset = self.session.scene.get_asset(key[1])
-            if asset is not None and asset.mime not in self.ANIMATED:
+            if asset is None or asset.mime in self.ANIMATED:
+                return None
 
-                def open_reader(data: bytes = asset.data) -> QImageReader:
-                    # A copy only while it decodes: a lasting QByteArray would double the board's memory.
-                    source = QBuffer()
-                    source.setData(QByteArray(data))
-                    source.open(QIODevice.ReadOnly)
-                    reader = QImageReader(source)
-                    reader._source = source  # keep the buffer alive while reading
-                    return reader
+            def open_reader(data: bytes = asset.data) -> QImageReader:
+                # A copy only while it decodes: a lasting QByteArray would double the board's memory.
+                source = QBuffer()
+                source.setData(QByteArray(data))
+                source.open(QIODevice.ReadOnly)
+                reader = QImageReader(source)
+                reader._source = source  # keep the buffer alive while reading
+                return reader
 
-                handle = open_handle(key, open_reader)
-        elif Path(key[0]).suffix.lower() not in (".gif", ".webp"):
-            handle = open_handle(key, lambda path=key[0]: QImageReader(path))
-        self.handles[key] = handle
+            return open_handle(key, open_reader)
+        if Path(key[0]).suffix.lower() not in (".gif", ".webp"):
+            return open_handle(key, lambda path=key[0]: QImageReader(path))
+        return None
+
+    def _placeholder_handle(self, key: tuple, attrs: dict[str, Any], kind: str) -> ImageHandle | None:
+        """A card at the image's real size (from its header) saying which plugin shows it."""
+        from pixelref.core.imagesize import file_image_size, image_size
+
+        if key[0] == "asset":
+            asset = self.session.scene.get_asset(key[1])
+            size = image_size(asset.data) if asset is not None else None
+            name = asset.name if asset is not None else ""
+        else:
+            size = file_image_size(key[0])
+            name = Path(key[0]).name
+        if not size or size[0] <= 0 or size[1] <= 0:
+            return None
+        label, hint = self.hints[kind]
+        stored = QSize(int(size[0]), int(size[1]))
+        text = f"{label}\n{name}\n{hint}" if name else f"{label}\n{hint}"
+        handle = open_handle(("placeholder",) + key, lambda: PlaceholderReader(stored, text))
+        if handle is not None:
+            handle.placeholder = True
         return handle
 
     def size(self, attrs: dict[str, Any]) -> tuple[int, int] | None:
@@ -106,12 +268,22 @@ class PixmapCache:
         longest = max(handle.size.width(), handle.size.height())
         return handle.picture_now(level_for(side / max(1, longest), handle.max_level))
 
+    def forget_placeholders(self) -> None:
+        """Drop the "needs a plugin" cards, so they're drawn again (their text changed)."""
+        for handles in (self.handles, self.frame_handles):
+            for key in [k for k, h in handles.items() if h is not None and h.placeholder]:
+                handles.pop(key).forget()
+
     def clear(self) -> None:
         """Forget every decoded image (another document was opened)."""
         for handle in self.handles.values():
             if handle is not None:
                 handle.forget()
         self.handles.clear()
+        for handle in self.frame_handles.values():
+            if handle is not None:
+                handle.forget()
+        self.frame_handles.clear()
         self.pixmaps.clear()
 
     def load(self, attrs: dict[str, Any]) -> tuple[QPixmap, tuple[str, Any] | None]:
@@ -260,6 +432,8 @@ def activate_image_ui(ui: Any) -> None:
     api.sizer = pixmap_size
     ui.track(lambda: setattr(api, "sizer", headless_sizer))
     ui.provide_service("image_cache", cache)
+    ui.declare_extension_point("image.decoders",
+                               "ImageDecoder: reads an image format Qt can't (EXR…), at the levels drawn")
     ui.declare_extension_point("image.movie_hooks",
                                "callable(item): called when an animated image's item starts its movie")
 
@@ -294,7 +468,10 @@ def activate_image_ui(ui: Any) -> None:
             kind = MIME_EXTENSIONS.get(asset.mime, "").lstrip(".").upper() or "image"
             parts.append(f"{kind} · embedded {w.format_size(asset.size)}")
         elif attrs.get("path"):
-            parts.append("linked file")
+            kind = Path(str(attrs["path"])).suffix.lstrip(".").upper()
+            parts.append(f"{kind} · linked file" if kind else "linked file")
+        if cache.kind(attrs) and cache.decoder_for(attrs) is None:
+            parts.append("needs a plugin to show")
         return parts
 
     def double_click(view: Any, item: Any) -> bool:
@@ -329,14 +506,15 @@ def activate_image_ui(ui: Any) -> None:
     ui.track(network.deleteLater)
 
     def local_paths(mime: Any) -> list[Path]:
+        exts = api.supported_exts()
         paths: list[Path] = []
         for url in mime.urls() if mime.hasUrls() else []:
             if not url.isLocalFile():
                 continue
             path = Path(url.toLocalFile())
             if path.is_dir():
-                paths.extend(sorted(p for p in path.iterdir() if p.suffix.lower() in SUPPORTED_IMAGE_EXTS))
-            elif path.suffix.lower() in SUPPORTED_IMAGE_EXTS:
+                paths.extend(sorted(p for p in path.iterdir() if p.suffix.lower() in exts))
+            elif path.suffix.lower() in exts:
                 paths.append(path)
         return paths
 
@@ -344,7 +522,8 @@ def activate_image_ui(ui: Any) -> None:
         if not mime.hasUrls():
             return None
         local = [u.toLocalFile() for u in mime.urls() if u.isLocalFile()]
-        images = [f for f in local if Path(f).suffix.lower() in SUPPORTED_IMAGE_EXTS]
+        exts = api.supported_exts()
+        images = [f for f in local if Path(f).suffix.lower() in exts]
         folders = [f for f in local if "." not in f.replace("\\", "/").rsplit("/", 1)[-1]]
         if images:
             return f"Drop to add {len(images)} image{'s' if len(images) != 1 else ''}"
@@ -463,7 +642,7 @@ def activate_image_ui(ui: Any) -> None:
         ext = next((value for key, value in known.items() if key in content_type), None)
         if ext is None:
             suffix = Path(reply.url().path()).suffix.lower()
-            ext = suffix if suffix in SUPPORTED_IMAGE_EXTS else None
+            ext = suffix if suffix in api.supported_exts() else None
         if ext is None:
             data, ext = png_bytes(image), ".png"  # unknown container (e.g. AVIF): re-encode
         url_name = Path(reply.url().path()).name
@@ -489,7 +668,8 @@ def activate_image_ui(ui: Any) -> None:
     # ---- Clipboard export --------------------------------------------------------------------
 
     def export_to_clipboard(names: list[str], mime: Any) -> None:
-        images = [canvas.item(n) for n in names if isinstance(canvas.item(n), PixmapItem)]
+        images = [canvas.item(n) for n in names
+                  if isinstance(canvas.item(n), PixmapItem) and canvas.item(n).node_type == "image"]
         if len(images) == 1:
             item = images[0]
             mime.setImageData(item.pixmap().copy(item.crop_rect().toRect()).toImage())
@@ -504,8 +684,8 @@ def activate_image_ui(ui: Any) -> None:
 
     def insert_images_dialog() -> None:
         """Choose image files and add them in a row at the view centre."""
-        paths, _ = QFileDialog.getOpenFileNames(ui.app.main_window(), "Insert Images", "",
-                                                "Images (*.png *.jpg *.jpeg *.webp *.gif *.bmp *.tif *.tiff)")
+        patterns = " ".join(f"*{ext}" for ext in sorted(api.supported_exts()))
+        paths, _ = QFileDialog.getOpenFileNames(ui.app.main_window(), "Insert Images", "", f"Images ({patterns})")
         if not paths:
             return
         view = ui.app.active_view()

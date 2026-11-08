@@ -1,0 +1,7 @@
+id = "sequence"
+name = "Image Sequences"
+version = "1.0.0"
+api = 1
+requires = ["image"]
+optional = ["playback", "clipboard", "tool_palette"]
+description = "Image sequence nodes: numbered frames (shot.####.exr, any image format) played like a movie, always linked by file pattern. Dropped frames and folders of frames become sequences."

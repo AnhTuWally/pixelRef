@@ -412,8 +412,8 @@ shows the actual bindings.
 | Arrange | `Ctrl+P` pack · `Ctrl+Alt+H` / `V` / `G` row / column / grid · `Ctrl+Left` / `Right` / `Up` / `Down` align left / right / top / bottom · `]` `}` `{` `[` stacking |
 | Organise | `G` group · `Ctrl+Shift+G` ungroup or separate a drawing · `Ctrl+Shift+N` new group · `Ctrl+J` combine strokes · `F2` rename · `Alt+H` show all |
 | Links | `Ctrl+L` link the selection · `Ctrl+Shift+L` select linked |
-| Look | `Shift+G` grayscale effect · `Alt+V` value check · `Alt+I` image info · `Shift+I` isolate in view · `Ctrl+'` background pattern |
-| Animation | `K` play/pause · `,` / `.` step · `Ctrl+,` / `Ctrl+.` first / last frame |
+| Look | `Shift+G` grayscale effect · `Alt+V` value check · `Alt+I` image info · `Shift+I` isolate in view · `Ctrl+'` background pattern · `[` / `]` EXR exposure down / up |
+| Animation | `K` play/pause · `,` / `.` step · `Ctrl+,` / `Ctrl+.` first / last frame · `Shift+F5` refresh image sequence frames |
 | Interactions | `Ctrl+Enter` finish demonstrating a click action |
 | Panels | `Alt+T` Tools · `Alt+O` Outliner · `Alt+A` or `Alt+Enter` Attribute Editor · `Tab` hide panels |
 | Window | ``Ctrl+` `` Script Editor · `Ctrl+Alt+R` record macro · `Ctrl+T` on top · `F11` frameless · `Ctrl+G` ghost mode · `Ctrl+Shift+T` click-through · `Ctrl+Alt+arrows` move focus |

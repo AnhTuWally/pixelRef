@@ -513,7 +513,7 @@ def activate_frames_ui(ui: Any) -> None:
     ui.command("of", of, alias="annotated_frames", undoable=False, echo=False)
 
     ui.contribute("inspector.sections", InspectorSection(
-        key="frame_ghost", title="Frame Notes", order=32,
+        key="frame_ghost", title="Frame Notes", order=32, generic=True,  # any animation; keeps Attributes
         applies=lambda info: info.single and frame_aware(info.item),
         build=lambda parent, _inspector: GhostSection(ui, service, parent)))
 

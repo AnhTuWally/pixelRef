@@ -50,6 +50,17 @@ describes schema 1, written by pixelRef 1.0.0.
 
 An image node shows its embedded `asset` when one is set, otherwise the file
 at `path`. Linked paths are stored relative to the scene file when possible.
+Embedded OpenEXR files have the MIME type `image/x-exr`.
+
+A `sequence` node is always linked: `path` is the pattern of its frame files
+with one `#` per digit of padding (`renders/shot.####.exr`; a single `#` for
+unpadded numbers), `first` / `last` the frames played, plus `fps`, `loop`,
+`autoplay` and `missing` (`"hold"` or `"black"`).
+
+The exr plugin adds sparse attributes to image and sequence nodes, written
+only once changed: `exr_layer` (`""` is the beauty; `"diffuse"`, or
+`"part/layer"` in multi-part files), `exposure` (stops), `gamma` and `channel`
+(`"rgb"`, `"r"`, `"g"`, `"b"`, `"a"`, `"luma"`).
 
 Other top-level keys are kept as they are, so tools can add their own
 sections without pixelRef dropping them.

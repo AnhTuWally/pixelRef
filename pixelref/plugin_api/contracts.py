@@ -10,6 +10,7 @@ Extension point             Declared by        Contribution
 ``inspector.empty_panels``  inspector          :class:`EmptyPanel`
 ``quick_edit.sections``     quick_edit         :class:`QuickSection`
 ``ingest.handlers``         clipboard          :class:`IngestHandler`
+``image.decoders``          image              :class:`ImageDecoder`
 ``clipboard.exporters``     clipboard          callable(names, QMimeData) adding formats
 ``palette.buttons``         tool_palette       :class:`PaletteButton`
 ``stroke.styles``           brush              :class:`StrokeStyle`
@@ -126,6 +127,28 @@ class IngestHandler:
     accepts: Callable[[Any], bool]
     describe: Callable[[Any], str | None]
     ingest: Callable[[Any, Any, Any], Any]
+
+
+@dataclass
+class ImageDecoder:
+    """Teaches the image plugin to read a format Qt can't (e.g. OpenEXR).
+
+    ``open_reader(source, attrs)`` gets a file path (str) or the embedded bytes and
+    the node's attributes, and returns an object with the parts of ``QImageReader``
+    the image plugin uses: ``canRead()``, ``size()``, ``transformation()``,
+    ``supportsOption(option)``, ``setAutoTransform(on)``, ``setScaledSize(size)``,
+    ``setQuality(q)`` and ``read() -> QImage``. It is called on worker threads.
+
+    ``view_key(attrs)`` names the attributes that change the decoded pixels
+    (exposure, layer…): nodes with different keys get separate decoded copies.
+    """
+
+    id: str
+    exts: frozenset[str]
+    mimes: frozenset[str]
+    open_reader: Callable[[Any, dict[str, Any]], Any]
+    view_key: Callable[[dict[str, Any]], tuple] = lambda attrs: ()
+    label: str = ""  # e.g. "EXR", shown in the node description
 
 
 @dataclass

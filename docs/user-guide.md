@@ -54,6 +54,9 @@ searches every command.
   holds everything. Per image you can link to a file on disk instead
   (Attribute Editor → *Link…*), or use *Save as file* to write an embedded image
   out and link to it. Linked paths are stored relative to the scene.
+- **Always linked:** EXRs and numbered files (`shot.0001.png`, `frame12.jpg`,
+  render frames) are linked even when new images are embedded, so boards stay
+  small. *Embed in Scene* still packs one in on purpose.
 - *File → Embed New Images in Scene* switches the default for new images, and
   *File → Embed All Linked Images* packs a scene into one self-contained file.
 - **Copy, cut, paste and duplicate** work between scenes.
@@ -80,6 +83,63 @@ searches every command.
   frame slider: a row of thumbnails sampled across the clip (decoded in the
   background). Click or drag across either filmstrip to scrub straight to a
   point in the video.
+
+## Image sequences
+
+A sequence node plays numbered image files (`shot.1001.exr` …
+`shot.1096.exr`, or PNG, JPG, TIFF, any image pixelRef reads) like a movie.
+
+- **Bring sequences in:** drag in a folder of frames, or select several frames
+  and drag them in: they become one sequence (stills dropped with them are
+  added as images). *File → Insert Image Sequence…* takes any one frame and
+  finds the rest. A single frame dropped alone is just an image. Turn
+  detection off with *File → Dropped Frames Become Sequences*.
+- **Always linked**, like movies. The node stores the file *pattern* with a `#`
+  per digit (`shot.####.exr`), relative to the scene, and the frame range it
+  plays (`first`, `last`). `%04d`, `@@@@` and `$F4` patterns are understood
+  too (scripts: `pxcmd.sequence.import_sequence("renders/shot.%04d.exr")`).
+- **Missing frames** show the nearest earlier frame (`missing` = *hold*) or
+  nothing (*black*).
+- **New frames on disk** (a render still writing) aren't picked up by
+  themselves: press `Shift+F5` (*Refresh Frames*, also in the right-click
+  *Image* menu and the Attribute Editor's *Sequence* section). It extends the
+  range to the frames on disk and shows frames that appeared inside it. With
+  nothing selected it refreshes every sequence on the board. The *Sequence*
+  section shows what's on disk: the range, missing frames and frames outside
+  the played range.
+- Playback is the same as for [animated images](#animated-images) (`K`, `,`,
+  `.`, filmstrip, per-frame annotations); the frame display adds the file's
+  own frame number (`12 / 96 · 1012`). Frames are decoded in the background
+  at the size they're drawn and a few ahead while playing; when one isn't
+  ready in time the previous one stays up, so playback keeps its speed
+  (`fps`, 24 by default).
+- EXR frames use the [EXR view](#exr-images) of the sequence node.
+
+## EXR images
+
+OpenEXR files (`.exr`) are shown through a *view* that turns their linear,
+high-dynamic-range values into screen colours: exposure (in stops), the sRGB
+curve and an extra display gamma.
+
+- **Install it once:** EXR support is on by default, but showing EXR pixels
+  needs the OpenEXR and numpy Python packages, which aren't part of pixelRef
+  itself. Right-click an EXR → *Image → Install EXR Support…* (or find it with
+  `Ctrl+K`) installs them in the background; EXRs show as soon as it's done,
+  no restart. Until then an EXR shows a card at its real size saying so (its
+  size, layers and the EXR View settings work without them).
+- **The EXR View section** of the Attribute Editor picks the **layer** (the
+  render's AOVs: `diffuse`, `specular`, `Z`…, from every part of multi-part
+  files), the **channel** (RGB, or red, green, blue, alpha or luminance as
+  grey), the **exposure** and the **gamma**. `[` and `]` step the exposure by
+  half a stop; *Image → Cycle Channel (EXR)* and *Reset EXR View* are in the
+  right-click menu. Each image keeps its own view, saved with the board.
+- **EXRs are always linked** when added, even with *File → Embed New Images in
+  Scene* on: they're often hundreds of MB and would swell the board file.
+  To pack one into the scene anyway, use *Embed in Scene* on it (or *Embed All
+  Linked Images*).
+- Changing the view is quick: the pixels of the layers shown last are kept in
+  memory (`PIXELREF_EXR_MEMORY_MB`, 512 by default) and only the view is
+  recomputed. Deep EXRs aren't supported.
 
 ### PureRef boards
 

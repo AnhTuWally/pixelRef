@@ -319,6 +319,17 @@ the rest also work headless (batch mode, scripts).
 | `export.originals_dialog()` |  |  | Ask for a folder, then write the original image files of the selection (or of every image). |
 | `export.render(path: str, nodes: Any = None, opaque: bool \| None = None)` | `render_image` |  | Render nodes (default: the selection, else everything) to PNG/JPEG at 1:1. Returns [w, h]. |
 
+## exr
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `exr.adjust_exposure(stops: float, nodes: Any = None)` |  | yes | Brighten (positive stops) or darken the selected EXR images. |
+| `exr.cycle_channel(nodes: Any = None)` |  | yes | Show the next channel (RGB → R → G → B → A → luminance → RGB). Returns it. |
+| `exr.install_support()` |  |  | Install the OpenEXR and numpy Python packages EXR images need (in the background). |
+| `exr.layers(node: str \| None = None)` | `exr_layers` |  | The layers (AOVs) of an EXR image or sequence ("" is the beauty, RGBA). |
+| `exr.reset_view(nodes: Any = None)` |  | yes | Back to the plain view: beauty layer, exposure 0, gamma 1, RGB. |
+| `exr.set_view(nodes: Any = None, exposure: float \| None = None, gamma: float \| None = None, layer: str \| None = None, channel: str \| None = None)` | `exr_set_view` | yes | Change how EXR images are shown: exposure (stops), gamma, layer ("" = beauty), channel. |
+
 ## file
 
 | Command | Alias | Undo | Description |
@@ -327,17 +338,26 @@ the rest also work headless (batch mode, scripts).
 | `file.clear_recent()` |  |  | Forget the recent files list. |
 | `file.copy_folder()` |  |  | Copy the path of the folder holding the open scene file to the clipboard. |
 | `file.copy_path()` |  |  | Copy the open scene file's full path to the clipboard. |
+| `file.cycle(direction: int = 1)` |  |  | Cycle to the next/previous open file (current window). |
+| `file.jump(n: int)` |  |  | Jump to the n-th open file (1-based). |
 | `file.new()` |  |  | New, empty scene (asks about unsaved changes). |
 | `file.open()` |  |  | Choose a scene file to open (asks about unsaved changes first). |
 | `file.open_folder()` |  |  | Open the folder holding the open scene file in the system file browser. |
+| `file.open_in_new_window(path: str \| None = None)` |  |  | Open a scene file in its own window (a new pixelRef process). |
 | `file.open_path(path: str, confirm: bool = True)` |  |  | Open a scene file (asks about unsaved changes unless confirm=False). |
+| `file.pick_save_dir()` |  |  | Choose the folder new scenes are saved to. |
 | `file.reload()` |  |  | Reload the open scene from disk (asks before discarding unsaved changes). |
+| `file.reorder_open_files(from_path: str, to_path: str)` |  |  | Reorder the open-files registry (drag-and-drop). |
 | `file.resume_last_session()` |  |  | Bring back the Untitled draft kept from the last time pixelRef closed. |
 | `file.save()` |  |  | Save the scene to its file (asks for a name the first time). |
 | `file.save_as()` |  |  | Save the scene under a new file name (dialog). |
 | `file.save_to(path: str)` |  |  | Save the scene to ``path``. |
+| `file.set_fun_names(enabled: bool)` |  |  | Give new scenes a random fun name (e.g. Brave-Tiger) instead of scene.pxref. |
+| `file.set_open_pref(value: str)` |  |  | Set the *Open files on double-click* preference ("current" or "new"). |
 | `file.set_resume_enabled(value: bool)` |  |  | Turn Session Resume on or off (the start panel's checkbox). |
+| `file.set_save_dir(path: str)` |  |  | Set the folder new scenes are saved to ("" = the default Documents/pixelRef). |
 | `file.set_watch_mode(mode: str)` |  |  | When the open file changes on disk: "reload" automatically, "notify" with a Reload |
+| `file.switch_to(path: str)` |  |  | Switch to an open file (no prompt; captures the current state first). |
 | `file.thumbnail(path: str \| None = None, save_to: str \| None = None)` |  |  | A scene file's thumbnail (default: the open scene's file): its size and date, |
 | `file.toggle_resume()` |  |  | Switch Session Resume (reopen your last board automatically on launch) on or off. |
 
@@ -595,6 +615,20 @@ the rest also work headless (batch mode, scripts).
 | `select.all()` | `select_all` |  | Select every visible, unlocked item. |
 | `select.invert()` | `invert_selection` |  | Select every selectable item that isn't selected, and deselect the rest. |
 
+## sequence
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `sequence.import_sequence(path: str, translate: Any = None, name: str \| None = None, fps: float = 24.0, centered: bool = True)` | `import_sequence` | yes | Add an image sequence from its pattern (shot.####.exr) or any one frame; the range is found on disk. |
+| `sequence.import_sequences(paths: list[str], translate: Any = None)` | `import_sequences` | yes | Add several image sequences side by side, centred on ``translate``. |
+| `sequence.info(node: str \| None = None)` | `sequence_info` |  | A sequence's files: pattern, range on disk, missing frames in the played range. |
+| `sequence.insert_dialog()` |  |  | Choose one frame of each sequence to add; the frame range is found on disk. |
+| `sequence.open_folder()` |  |  | Show the selected sequence's folder in the file browser. |
+| `sequence.refresh_frames(nodes: Any = None)` |  |  | Look at the frame files again: new frames past the end extend the range, frames that |
+| `sequence.rescan(nodes: Any = None)` | `rescan_sequence` | yes | Update the frame range of sequences from the files on disk (a render still going). |
+| `sequence.set_detect(on: bool)` | `set_detect_sequences` |  | Whether dropped numbered frames become image sequences (True) or separate images. |
+| `sequence.toggle_detect()` |  |  | Switch between dropped numbered frames becoming sequences and separate images. |
+
 ## steps
 
 | Command | Alias | Undo | Description |
@@ -613,6 +647,7 @@ the rest also work headless (batch mode, scripts).
 | `text.clear_formatting(nodes: Any = None)` |  | yes | Remove character formatting from text notes (keeps the text). |
 | `text.commit(name: str, text: str, runs: list[dict[str, Any]] \| None = None)` |  | yes | Store text (and per-character formatting runs) edited on the canvas. |
 | `text.copy_style()` | `copy_text_style` |  | Copy the text style: at the cursor while typing, else the selected note's look (Ctrl+Shift+C). |
+| `text.copy_text(names: list[str] \| None = None)` | `copy_note_text` |  | Copy the selected note's plain text to the clipboard (Ctrl+Alt+T). |
 | `text.create(text: str = 'Text', translate: Any = None, parent: str \| None = None)` | `create_note` | yes | Create a text note at ``translate`` (world units if no parent). |
 | `text.default_style()` |  |  | Your style for new notes (saved values that no longer fit are skipped). |
 | `text.link_dialog()` |  |  | Link the selected text (while typing, Ctrl+K) or the selected notes to a web address or file. |

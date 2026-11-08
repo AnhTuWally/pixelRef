@@ -76,6 +76,10 @@ class ImageHandle:
         self.pending: set[int] = set()
         self.waiting: list[Any] = []  # items to repaint when a level arrives
         self.failed = False
+        self.placeholder = False  # a stand-in card (the format needs a plugin), not the image
+        # Another view of the same pixels (the image before an exposure change…), drawn until
+        # this handle's first level arrives, so editing the view doesn't flash a grey card.
+        self.stand_in: ImageHandle | None = None
 
     # ---- Sizes ----------------------------------------------------------------------------------
 
@@ -131,6 +135,7 @@ class ImageHandle:
         with perf.span("image.to_pixmap"):
             picture = QPixmap.fromImage(image)
         self.levels[level] = picture
+        self.stand_in = None
         STORE.add(self, level, picture)
         waiting, self.waiting = self.waiting, []
         for item in waiting:

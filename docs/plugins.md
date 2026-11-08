@@ -610,6 +610,8 @@ Extension points declared by the built-ins (contribution types are in
 | `color.pickers` | kernel (UI) | `ColorPickerProvider(id, title, create, order, description)`: a colour picker for every swatch (see below) |
 | `canvas.item_hooks` | kernel (UI) | `fn(item, node)` after every canvas item is built (paint filters) |
 | `image.movie_hooks` | image | `fn(item)` when an animated image's item starts its movie (playback restores paused frames with it) |
+| `image.decoders` | image | `ImageDecoder(id, exts, mimes, open_reader(source, attrs), view_key(attrs), label)`: reads a format Qt can't. `open_reader` gets a file path or the embedded bytes and returns an object with the parts of `QImageReader` the image plugin uses (`canRead`, `size`, `transformation`, `supportsOption`, `setAutoTransform`, `setScaledSize`, `setQuality`, `read`); it runs on worker threads. `view_key` names the attributes that change the pixels (the exr plugin's exposure, layer…). Register the extension with `services["images"].register_ext(".ext", mime)` so drops and *Insert Images* accept it |
+| `movie.started` / `sequence.started` | movie / sequence | `fn(item)` when a movie or image sequence item is (re)built (playback follows them) |
 | `interactions.steps` | interactions | `StepKind(command, describe(session, args, kwargs), targets(args, kwargs), icon)`: a command click actions may run, and its sentence. Only these run from a board |
 | `interactions.verbs` | interactions | `ClickVerb(id, label, applies(session, target), build(session, target) -> (steps, back), prepare=None, order)`: what connecting a button to an item offers |
 | `scene.before_save` / `scene.after_new` | kernel | `fn(session, path)` / `fn(session)` |

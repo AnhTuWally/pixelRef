@@ -1,0 +1,12 @@
+id = "exr"
+name = "EXR Support"
+version = "1.0.0"
+api = 1
+requires = ["image"]
+optional = ["sequence", "inspector"]
+description = "OpenEXR images and EXR frames of image sequences: a linear-to-sRGB view with per-image exposure, gamma, layer (AOV) and channel. Showing EXR pixels needs the OpenEXR and numpy Python packages: Image → Install EXR Support… (right-click menu or Ctrl+K) installs them."
+
+[python]
+# Optional, not required: the plugin is on by default for everyone (sizes, layers and the
+# view attributes work without them), and "install what plugins need" never pulls them in.
+optional = ["OpenEXR>=3.3", "numpy>=1.26"]
