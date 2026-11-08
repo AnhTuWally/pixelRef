@@ -476,6 +476,7 @@ def test_pureref2_reader_unpacks_the_database():
     assert curve.points[0] == (0.0, 0.0) and curve.points[-1] == (20.0, 20.0) and len(curve.points) == 13
     assert curve.color == (255, 255, 0, 255) and curve.width == 10.0
     assert rect.color == (0, 0, 0, 128)
+    assert curve.arrow and not rect.arrow, "the arrow pen draws a head on an open stroke, not on a closed shape"
     assert (40.0, 0.0) in rect.points and (39.5, 0.0) in rect.points, "corners stay sharp"
 
 
@@ -684,3 +685,33 @@ def test_pureref2_note_alignment_comes_from_the_paragraphs():
     session.services.get("pureref").build(Path("align.pur"), board)
     aligns = sorted(n.attrs.get("align", "left") for n in session.scene.nodes.values())
     assert aligns == ["center", "left"], aligns
+
+
+def test_pureref2_arrow_strokes_and_unfamiliar_stroke_bytes():
+    from pixelref.builtins.pureref.purformat import PurDrawing, read_board
+
+    line = [(0, 0.0, 0.0), (2, 10.0, 0.0), (3, 20.0, 10.0), (3, 20.0, 20.0)]
+
+    def stroke(kind: int) -> bytes:
+        return (b"d" + struct.pack(">b5H", 1, 65535, 65535, 65535, 0, 0) + struct.pack(">d", 10.0)
+                + _q_path(line) + struct.pack(">ddI", 0.0, 0.0, kind))
+
+    def board(*kinds: int, extra: bytes = b"") -> Path:
+        def fill(con: Any) -> None:
+            con.execute("INSERT INTO items (parent, id, z, opacity, locked, transform) VALUES (-1, 0, 1.0, 1.0, 0, ?)",
+                        (_q_transform(),))
+            blob = struct.pack(">I", len(kinds)) + b"".join(stroke(k) for k in kinds) + extra
+            con.execute("INSERT INTO items_drawings (id, strokes) VALUES (0, ?)",
+                        (_as_text(_q_user("QList<GraphicsDrawItem::Stroke>", blob)),))
+        return write_pur2(tmp_dir() / "arrows.pur", fill)
+
+    parsed = read_board(board(0, 2))
+    drawing = next(i for i in parsed.walk() if isinstance(i, PurDrawing))
+    assert [s.arrow for s in drawing.strokes] == [False, True]
+    # Bytes after the last stroke (fields a newer PureRef may add) don't make the drawing unreadable.
+    extra = read_board(board(2, extra=b"\x00\x01\x02\x03"))
+    assert next(i for i in extra.walk() if isinstance(i, PurDrawing)).strokes[0].arrow
+    session = headless()
+    session.run("pureref.open", str(board(0, 2)))
+    arrows = sorted(n.attrs.get("arrow", 0) for n in session.scene.nodes.values() if n.node_type == "annotation_path")
+    assert arrows == [0, 1], arrows

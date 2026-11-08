@@ -413,6 +413,9 @@ def _note(row: dict[str, Any]) -> PurText:
     return note
 
 
+ARROW_KIND = 2  # the stroke "kind" bit that PureRef sets for the arrow pen style
+
+
 def _drawing(row: dict[str, Any]) -> PurDrawing:
     drawing = PurDrawing()
     parsed = qvariant(row.get("strokes"))
@@ -424,12 +427,14 @@ def _drawing(row: dict[str, Any]) -> PurDrawing:
         color = _qcolor(*reader.unpack(">b5H"))
         width = reader.f64()
         paths = painter_path(reader)
-        reader.skip(16 + 4)  # the drag's start point, and a kind (2)
+        reader.skip(16)  # the drag's start point
+        kind = reader.u32()  # 0 for a plain stroke; bit 2 is the arrow pen style (boards saved by 2.1.3)
         for points in paths:
             if points:
-                drawing.strokes.append(PurStroke(color=color, width=width, points=points))
-    if reader.pos != len(reader.data):
-        raise PureRefError("unexpected stroke data")
+                # PureRef draws the head only on open strokes: closed shapes drawn with the arrow pen show none.
+                drawing.strokes.append(PurStroke(color=color, width=width, points=points,
+                                                 arrow=bool(kind & ARROW_KIND) and points[0] != points[-1]))
+    # Bytes after the last stroke (a newer PureRef may add fields) are ignored, not an error.
     return drawing
 
 

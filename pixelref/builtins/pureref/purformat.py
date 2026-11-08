@@ -163,6 +163,7 @@ class PurStroke:
     color: tuple[int, int, int, int] = (255, 255, 255, 255)
     width: float = 1.0
     points: list[tuple[float, float]] = field(default_factory=list)  # item coordinates
+    arrow: bool = False  # an arrowhead at the end of the stroke
 
 
 @dataclass
