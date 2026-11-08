@@ -346,12 +346,16 @@ def test_manual_rollback_blocks_when_unsafe_and_is_retryable_after_failure():
     root = ti.make_install()
     blocked(root, "no committed update")
     root, _ = committed_install()
+    flag = ins.ASSISTED_INSTALL_ENABLED
     try:
+        ins.ASSISTED_INSTALL_ENABLED = False
         rc.rollback_previous(root, platform=WIN, alive=lambda p: False, launcher=kw["launcher"])
     except ins.InstallError as exc:
         assert "disabled" in str(exc)
     else:
         raise AssertionError
+    finally:
+        ins.ASSISTED_INSTALL_ENABLED = flag
 
     # A rollback that fails part-way is undone, and the same rollback can then be run again.
     root, original = committed_install()
@@ -398,7 +402,10 @@ def test_helper_cli_recover_runs_while_install_is_disabled():
     assert done.returncode == 0 and json.loads(done.stdout)["state"] == "IDLE", done.stdout + done.stderr
     for command in ("rollback", "activate " + tx):
         done = subprocess.run([sys.executable, str(helper), *command.split()], capture_output=True, text=True, env=env)
-        assert done.returncode == 3, command
+        if ins.ASSISTED_INSTALL_ENABLED:  # enabled build: refused because there is nothing to roll back or activate
+            assert done.returncode not in (0, 3) and not json.loads(done.stdout)["ok"], command
+        else:
+            assert done.returncode == 3, command
 
 
 def test_replace_waits_for_a_reader_to_let_go_of_the_file():

@@ -148,20 +148,24 @@ def blocked(root, tx, text="", **kw):
     assert jr.read_journal(st.update_directory(root)) is None
 
 
-def test_disabled_by_default_and_helper_refuses():
+def test_disabled_flag_and_helper_refuses():
     root = make_install()
     tx = stage(root)
-    assert ins.ASSISTED_INSTALL_ENABLED is False
+    flag = ins.ASSISTED_INSTALL_ENABLED
     try:
+        ins.ASSISTED_INSTALL_ENABLED = False
         ins.run_activation(root, tx, trust=TRUST, platform=WIN, now=NOW)
     except ins.InstallError as exc:
         assert "disabled" in str(exc)
     else:
         raise AssertionError
+    finally:
+        ins.ASSISTED_INSTALL_ENABLED = flag
     helper = ROOT / "packaging" / "updater" / "helper_main.py"
     env = {**os.environ, "PYTHONPATH": str(ROOT)}
-    done = subprocess.run([sys.executable, str(helper), "activate", tx], capture_output=True, text=True, env=env)
-    assert done.returncode == 3 and "disabled" in done.stdout
+    if not flag:  # the helper reads the flag of the build it ships in; only a disabled build must refuse
+        done = subprocess.run([sys.executable, str(helper), "activate", tx], capture_output=True, text=True, env=env)
+        assert done.returncode == 3 and "disabled" in done.stdout
     for bad in (["activate"], ["activate", tx, "--wait-pid", "x"], ["run", tx], ["activate", tx, "--root", "/"]):
         done = subprocess.run([sys.executable, str(helper), *bad], capture_output=True, text=True, env=env)
         assert done.returncode == 2, bad

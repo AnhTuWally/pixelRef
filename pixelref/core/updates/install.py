@@ -42,7 +42,7 @@ from .models import Channel, Platform
 from .staging import REQUIRED_LAYOUT, StagingError, read_last_sequence, staging_root, update_directory, validate_staged
 from .verification import Manifest, TrustStore, VerificationError, verify_release
 
-ASSISTED_INSTALL_ENABLED = False
+ASSISTED_INSTALL_ENABLED = True
 BACKUP_DIR = "backup"
 HELPER_DIR = "helper"
 LOCK_NAME = "lock"

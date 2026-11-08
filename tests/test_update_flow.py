@@ -158,8 +158,14 @@ def test_assist_status_requires_every_condition():
         args = {**kw, "enabled": True, **change}
         ok, why = flow.assist_status(**args)
         assert not ok and text in why, (change, why)
-    assert ins.ASSISTED_INSTALL_ENABLED is False
-    assert flow.assist_status(**kw)[0] is False  # off in this build
+    flag = ins.ASSISTED_INSTALL_ENABLED
+    try:
+        ins.ASSISTED_INSTALL_ENABLED = False
+        assert flow.assist_status(**kw)[0] is False  # the build flag alone turns it off
+        ins.ASSISTED_INSTALL_ENABLED = True
+        assert flow.assist_status(**kw) == (True, "")
+    finally:
+        ins.ASSISTED_INSTALL_ENABLED = flag
     if os.name == "posix" and os.geteuid() != 0:
         ro = ti.make_install()
         (ro / ".pixelref-update").chmod(0o500)
@@ -320,7 +326,8 @@ def test_ui_offers_install_only_when_everything_allows_it():
         assert not s.can_offer_install() and "not enabled" in s.assist()[1]
         assert not s.prepare() and s.prep_state == "idle"
         env.close()
-        assert not s.can_offer_install()  # and the real build ships with it off
+        if not ins.ASSISTED_INSTALL_ENABLED:
+            assert not s.can_offer_install()  # a build shipped with the flag off never offers it
     finally:
         h.close()
 
