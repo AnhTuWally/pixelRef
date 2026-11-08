@@ -1,0 +1,7 @@
+id = "name_labels"
+name = "Name Labels"
+version = "1.0.0"
+api = 1
+requires = ["text", "image"]
+optional = ["movie", "sequence"]
+description = "Show an image's, movie's or sequence's name as a caption pinned to its bottom-left corner, readable at any scale."

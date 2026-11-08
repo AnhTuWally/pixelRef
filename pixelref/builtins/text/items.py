@@ -100,6 +100,7 @@ class TextItem(NodeItemMixin, QGraphicsTextItem):
         self._corner_radius = 0.0
         self._text_width = 0.0
         self._editing = False
+        self._pinned = False  # a pinned name label: selectable, but not dragged
         self.setFlag(QGraphicsItem.ItemIsSelectable, True)
         self.setFlag(QGraphicsItem.ItemIsMovable, True)
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges, True)
@@ -144,7 +145,18 @@ class TextItem(NodeItemMixin, QGraphicsTextItem):
         option.setWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
         document.setDefaultTextOption(option)
         self.set_box_width(float(attrs.get("text_width", 0.0) or 0.0))
+        self._pinned = bool(attrs.get("name_label", False)) and bool(attrs.get("label_pinned", True))
+        if not self._editing:
+            self.setFlag(QGraphicsItem.ItemIsMovable, self._movable())
         self.update()
+
+    def _movable(self) -> bool:
+        return not self._locked and not self._pinned and self.is_content
+
+    def set_locked(self, locked: bool) -> None:
+        super().set_locked(locked)
+        if self._pinned and not self._editing:
+            self.setFlag(QGraphicsItem.ItemIsMovable, False)
 
     # ---- Box width ------------------------------------------------------------------------
 
@@ -528,7 +540,7 @@ class TextItem(NodeItemMixin, QGraphicsTextItem):
         cursor.clearSelection()
         self.setTextCursor(cursor)
         self.setTextInteractionFlags(Qt.NoTextInteraction)
-        self.setFlag(QGraphicsItem.ItemIsMovable, not self._locked)
+        self.setFlag(QGraphicsItem.ItemIsMovable, self._movable())
         self.clearFocus()
         self.update()
         text, runs = self.extract_content()

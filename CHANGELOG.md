@@ -2,6 +2,31 @@
 
 All notable changes to pixelRef are documented here.
 
+## [Unreleased]
+
+### Added — Name labels
+
+- New **Name Labels** plugin (`name_labels`): a **label button** on the
+  selected image, movie or sequence (or `Shift+N`, or *Show Name Label*)
+  shows a caption with the item's name in its bottom-left corner. It is an
+  ordinary text note parented to the item, so it can be restyled, and saving,
+  undo and copy/paste need nothing new.
+- Hiding a label only hides it: showing it again brings back its edited text,
+  style and position. `Delete` removes it.
+- Labels are **locked to the corner** by default: they can be selected but not
+  dragged, and they move to the new corner when the item is cropped or
+  resized. The **lock button** beside a selected label (or *Unlock Label
+  Position*) lets you drag it, and clicking it again snaps it back.
+- A new label's text is 5% of the item's height, so it scales with the
+  item. Any resizing you do to it is kept. Labels follow renames (and a duplicate's new name) until their
+  text is edited by hand. *Reset Label* restores the name.
+- **Show on new items** (Canvas settings in the Attribute Editor, a
+  preference for all boards): every image, movie or sequence you import, drop
+  or paste gets a label straight away. Images, movies and sequences now emit
+  a `media.added` scene event when created from a file or pasted data.
+- `name_labels.*` commands: `show`, `hide`, `toggle`, `remove`, `pin`,
+  `unpin`, `toggle_pin`, `reset`, `labels_of`, `label_new`, `set_label_new`.
+
 ## [1.3.0] - 2026-11-08
 
 ### Added — Colour management (OCIO)

@@ -294,6 +294,38 @@ Sticky note, Callout, Highlighter) and side handles to set its width
 These are in the **More** row of the Text section, and in **Text** when you
 right-click a note.
 
+### Name labels
+
+To show an image's, movie's or sequence's name on the board, select it and
+click the **label button** (the **T** in its top-right corner), press
+`Shift+N`, or right-click → **Show Name Label**. The label is a text note
+attached to the item:
+
+- It sits in the item's **bottom-left corner**, locked there. It stays there
+  when the item is moved, scaled, rotated or cropped.
+- Its text is **5% of the item's height**, so it scales with the item. Resize
+  it like any note (font size, the box's side handles, or scaling it): hiding
+  and showing it keeps that size.
+- It **follows the name**: rename the item and the label changes too. A
+  duplicate gets its own name. Once you edit the label's text yourself, it
+  keeps your text.
+- A locked label can be selected, restyled and edited like any note, but not
+  dragged. Click the **lock button** beside it (shown when the label or its
+  item is selected), or use **Unlock Label Position**, then drag it anywhere
+  on or around the item. It still moves with the item. Click the button again
+  (**Lock Label to Corner**) to put it back.
+- **Hiding** a label (the label button again, `Shift+N` or **Hide Name
+  Label**) keeps your changes: showing it again brings back the same text,
+  style and position. **Reset Label** goes back to the name in the corner.
+  `Delete` on a selected label deletes it for good.
+
+To label everything you add, click an empty part of the board and tick
+**Name labels: Show on new items** under the Canvas settings in the Attribute
+Editor (also *Name Labels on New Items* in the command search). Every image,
+movie or sequence you then import, drop or paste gets a label. Opening a
+board, pasting copied items or duplicating doesn't add labels. The setting is
+a preference: it applies to every board.
+
 ### Copying attributes between items
 
 Three ways to make items match without editing each one.

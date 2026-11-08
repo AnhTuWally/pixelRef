@@ -57,6 +57,7 @@ class MovieApi:
             "translate": [round(x, 3), round(y, 3)], "scale": [1.0, 1.0], "rotate": 0.0,
         }
         scene.create_node("movie", name, attrs=attrs)
+        scene.emit("media.added", {"name": name})  # a new file, not a paste or a loaded scene
         return name
 
     def create_from_path(self, path: Path, x: float, y: float, centered: bool = True) -> str:

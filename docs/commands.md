@@ -514,6 +514,22 @@ the rest also work headless (batch mode, scripts).
 | `movie.import_movies(paths: list[str], translate: Any = None)` | `import_movies` | yes | Add several video files side by side, centred on ``translate``. |
 | `movie.insert_dialog()` |  |  | Choose video files and add them in a row at the view centre (always linked, never embedded). |
 
+## name_labels
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `name_labels.hide(nodes: Any = None)` | `hide_name_label` | yes | Hide the name labels of the selection (or the selected labels); they keep your changes. |
+| `name_labels.label_new()` |  |  | Whether newly added images, movies and sequences get a name label. |
+| `name_labels.labels_of(node: str)` |  |  | The name labels of a node. |
+| `name_labels.pin(nodes: Any = None)` |  | yes | Pin name labels to their media's bottom-left corner (they can't be dragged). |
+| `name_labels.remove(nodes: Any = None)` | `remove_name_label` | yes | Delete the name labels of the selection (or the selected labels), changes and all. |
+| `name_labels.reset(nodes: Any = None)` |  | yes | Back to the media's name, pinned in the corner (keeps the label's style). |
+| `name_labels.set_label_new(on: bool \| None = None)` |  |  | Give every newly added image, movie and sequence a name label (a preference, for all boards). |
+| `name_labels.show(nodes: Any = None)` | `show_name_label` | yes | Show the name label of the selected images, movies and sequences. |
+| `name_labels.toggle(nodes: Any = None)` |  | yes | Show labels where none is showing; when every selected item shows one, hide them. |
+| `name_labels.toggle_pin(nodes: Any = None)` |  | yes | Unlock pinned labels so they can be dragged, or lock them back to the corner. |
+| `name_labels.unpin(nodes: Any = None)` |  | yes | Let name labels be dragged anywhere; they keep following their media. |
+
 ## navigation
 
 | Command | Alias | Undo | Description |
