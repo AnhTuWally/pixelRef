@@ -1,0 +1,10 @@
+id = "ocio"
+name = "Colour Management (OCIO)"
+version = "1.0.0"
+api = 1
+optional = ["inspector"]
+description = "Show EXR images and EXR sequences through an OpenColorIO display and view: $OCIO, a config file of your own or OCIO's built-in ACES config, per-image input colour spaces, and settings that can be saved with a board. Needs the opencolorio and numpy Python packages: Image → Install OCIO Support… (right-click menu or Ctrl+K) installs them."
+
+[python]
+# Optional, not required: without them EXRs keep pixelRef's built-in sRGB view.
+optional = ["opencolorio>=2.2", "numpy>=1.26"]

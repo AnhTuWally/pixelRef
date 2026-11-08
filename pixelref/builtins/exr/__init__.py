@@ -7,7 +7,9 @@ shown through a per-node *view*:
 * ``exr_layer``: the layer (AOV) shown, "" for the beauty (``R G B A``);
 * ``exposure``: stops, applied to the linear values;
 * ``gamma``: applied after the sRGB curve (1 = plain sRGB);
-* ``channel``: ``rgb``, or one of ``r g b a luma`` shown as grey.
+* ``channel``: ``rgb``, or one of ``r g b a luma`` shown as grey;
+* ``colorspace``: the OCIO input colour space when colour management is on
+  (the ocio plugin, service ``"color"``), "" for the board's default.
 
 The attributes are sparse (only stored once changed) and live on image and
 sequence nodes. Reading EXRs needs the OpenEXR and numpy Python packages, which
@@ -39,6 +41,8 @@ VIEW_ATTRS = (
          step=0.05, precision=2, omit_default=True, doc="Display gamma applied after the sRGB curve (1 = sRGB)"),
     Attr("channel", "enum", "rgb", choices=decode.CHANNELS, group="EXR View", omit_default=True,
          doc="Show the colour, or one channel (red, green, blue, alpha, luminance) as grey"),
+    Attr("colorspace", "string", "", group="EXR View", label="Input", omit_default=True,
+         doc="OCIO input colour space (colour management on); empty = the board default / the config's file rules"),
 )
 VIEW_DEFAULTS = {attr.name: attr.default for attr in VIEW_ATTRS}
 
@@ -108,10 +112,16 @@ def activate(ctx: Any) -> None:
         return api.layers(scene.get_node(names[0]))
 
     def set_view(nodes: Any = None, exposure: float | None = None, gamma: float | None = None,
-                 layer: str | None = None, channel: str | None = None) -> list[str]:
-        """Change how EXR images are shown: exposure (stops), gamma, layer ("" = beauty), channel."""
+                 layer: str | None = None, channel: str | None = None, colorspace: str | None = None) -> list[str]:
+        """Change how EXR images are shown: exposure (stops), gamma, layer ("" = beauty), channel,
+        and OCIO input colorspace ("" = the board default / the config's file rules)."""
         if channel is not None and channel not in decode.CHANNELS:
             raise CommandError(f"Channel must be one of {', '.join(decode.CHANNELS)}")
+        if colorspace:
+            color = session.services.get("color")
+            config = color.config() if color is not None else None
+            if config is not None and config.getColorSpace(colorspace) is None:
+                raise CommandError(f"The OCIO config has no colour space '{colorspace}'")
         names = targets(nodes)
         for name in names:
             if exposure is not None:
@@ -124,6 +134,8 @@ def activate(ctx: Any) -> None:
                 put(name, "exr_layer", str(layer))
             if channel is not None:
                 put(name, "channel", channel)
+            if colorspace is not None:
+                put(name, "colorspace", str(colorspace))
         return names
 
     def adjust_exposure(stops: float, nodes: Any = None) -> list[str]:
@@ -144,8 +156,8 @@ def activate(ctx: Any) -> None:
         return following
 
     def reset_view(nodes: Any = None) -> list[str]:
-        """Back to the plain view: beauty layer, exposure 0, gamma 1, RGB."""
-        return set_view(nodes, exposure=0.0, gamma=1.0, layer="", channel="rgb")
+        """Back to the plain view: beauty layer, exposure 0, gamma 1, RGB, the default input colour space."""
+        return set_view(nodes, exposure=0.0, gamma=1.0, layer="", channel="rgb", colorspace="")
 
     ctx.command("layers", layers, alias="exr_layers", label="EXR layers", undoable=False)
     ctx.command("set_view", set_view, alias="exr_set_view", label="EXR view")

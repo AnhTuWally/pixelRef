@@ -141,6 +141,47 @@ curve and an extra display gamma.
   memory (`PIXELREF_EXR_MEMORY_MB`, 512 by default) and only the view is
   recomputed. Deep EXRs aren't supported.
 
+### Colour management (OCIO)
+
+To see EXRs the way Nuke, RV or your renderer's viewer shows them, switch the
+board to **OCIO**: the plain sRGB curve is replaced by an OpenColorIO
+transform from the image's *input colour space* to a *display* and *view*
+(ACES tone mapping, a show LUT…), plus an optional *look*.
+
+- **Where:** click empty canvas: the Attribute Editor shows a **Colour**
+  panel under *Canvas*. Set *EXR view* to *OCIO*, then pick the *Config*,
+  *Display*, *View*, *Look* and the board's *Default input* colour space.
+  *Toggle OCIO Colour Management* (right-click an EXR → *Image*, or `Ctrl+K`)
+  flips between OCIO and the built-in sRGB view.
+- **Install it once:** OCIO needs the `opencolorio` and numpy Python packages:
+  *Image → Install OCIO Support…* (or `Ctrl+K`) installs them in the
+  background.
+- **The config:** `$OCIO` when it's set (your studio's config; the board
+  then starts in OCIO mode), else OCIO's built-in **ACES CG** config. The
+  *Config* menu also offers the built-in *ACES Studio* config.
+- **Your own config file:** **Browse…** next to *Config* (or *File → Colour
+  Management → Open OCIO Config…*, or `Ctrl+K` → *Open OCIO Config*) opens a
+  file dialog for any `.ocio` / `.ocioz` file; picking one turns OCIO on and
+  shows EXRs through it straight away. A file that isn't a valid config is
+  refused and the config in use is kept. The dialog opens in the folder of
+  the config in use (else `$OCIO`'s, else the last one you picked). From a
+  script: `pxcmd.ocio.set(config="/path/to/config.ocio", mode="ocio")`.
+  *Reload OCIO Config* reads an edited config again.
+- **Input colour space:** each EXR picks its own in the *EXR View* section
+  (*Input*); *Auto* uses the board's *Default input*, else the config's file
+  rules (the built-in ACES configs map `.exr` to ACES2065-1), else its
+  `scene_linear` role. Renders in ACEScg: set *Default input* to `ACEScg`.
+- **Exposure, gamma and channels** still work: exposure applies to the linear
+  values before OCIO, gamma after it; single channels go through the view as
+  grey, alpha is always shown raw.
+- **Per board or for you:** the settings are your preferences, used by every
+  board, unless *Save with this board* is ticked: then they're saved in the
+  board file (changes are undoable) and travel with it. A board whose config
+  isn't on this machine opens with your config (or the built-in one) and a
+  warning in the panel.
+- Only EXR images and EXR sequences are colour managed; PNG, JPEG, movies and
+  the rest of the board are shown as they are.
+
 ### PureRef boards
 
 The **PureRef import** plugin reads PureRef `.pur` boards: the 1.x format

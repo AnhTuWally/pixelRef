@@ -31,10 +31,20 @@ def view_of(attrs: dict[str, Any]) -> tuple[str, float, float, str]:
     return (str(attrs.get("exr_layer", "") or ""), exposure, gamma, channel if channel in decode.CHANNELS else "rgb")
 
 
+def colorspace_of(attrs: dict[str, Any]) -> str:
+    """The node's OCIO input colour space ("" = the board default / the config's file rules)."""
+    return str(attrs.get("colorspace", "") or "")
+
+
 class ExrReader:
-    def __init__(self, source: Any, attrs: dict[str, Any]) -> None:
+    def __init__(self, source: Any, attrs: dict[str, Any], display: Any = None) -> None:
         self.source = source  # a file path (str) or the embedded bytes
         self.layer_name, self.exposure, self.gamma, self.channel = view_of(attrs)
+        self.display = display  # an OCIO Display snapshot (ocio plugin), or None for plain sRGB
+        self.input_space = ""
+        if display is not None:
+            path = source if isinstance(source, str) else ""
+            self.input_space = display.input_for(colorspace_of(attrs), path)
         self.info = decode.info_of(source)
         self._scaled: QSize | None = None
 
@@ -72,5 +82,6 @@ class ExrReader:
         target = self._scaled if self._scaled is not None and self._scaled.isValid() else self.size()
         # At least the target size: the image plugin smooths the rest (``shrink``).
         reduced = decode.box_reduce(array, target.width(), target.height())
-        pixels = decode.view_transform(reduced, self.exposure, self.gamma, self.channel)
+        pixels = decode.view_transform(reduced, self.exposure, self.gamma, self.channel,
+                                       self.display, self.input_space)
         return decode.to_qimage(pixels)

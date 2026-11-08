@@ -7,6 +7,9 @@ the board shows is a *view* of one layer:
 
     linear value × 2**exposure  →  channel isolate  →  clamp  →  sRGB  →  ** (1 / gamma)
 
+With colour management on (the ocio plugin), "clamp → sRGB" becomes the OCIO
+transform from the image's input colour space to the board's display/view.
+
 Reading an EXR is the slow part, so the float pixels of the layers read last
 are kept (``FLOATS``, ``PIXELREF_EXR_MEMORY_MB``, default 512): changing the
 exposure, gamma or channel re-runs only the cheap view transform. Each level
@@ -229,13 +232,19 @@ def box_reduce(array: Any, width: int, height: int) -> Any:
     return blocks.mean(axis=(1, 3))
 
 
-def view_transform(array: Any, exposure: float = 0.0, gamma: float = 1.0, channel: str = "rgb") -> Any:
-    """Linear RGBA (H×W×4) to premultiplied 8-bit sRGB RGBA, as numpy uint8."""
+def view_transform(array: Any, exposure: float = 0.0, gamma: float = 1.0, channel: str = "rgb",
+                   display: Any = None, input_space: str = "") -> Any:
+    """Linear RGBA (H×W×4) to premultiplied 8-bit display RGBA, as numpy uint8.
+
+    ``display`` (an OCIO ``Display`` of the ocio plugin) replaces the sRGB curve with its
+    display/view transform from ``input_space``; the alpha channel is always shown raw.
+    """
     import numpy as np
 
     data = np.nan_to_num(array.astype(np.float32, copy=False), nan=0.0, posinf=65504.0, neginf=0.0)
     alpha = np.clip(data[..., 3], 0.0, 1.0)
     rgb = data[..., :3]
+    managed = display is not None and channel != "a"
     if channel == "a":
         color = np.repeat(alpha[..., None], 3, axis=2)
         alpha = np.ones_like(alpha)
@@ -248,12 +257,20 @@ def view_transform(array: Any, exposure: float = 0.0, gamma: float = 1.0, channe
             index = "rgb".index(channel)
             color = np.repeat(rgb[..., index:index + 1], 3, axis=2)
         elif channel == "luma":
-            luma = rgb[..., 0] * 0.2126 + rgb[..., 1] * 0.7152 + rgb[..., 2] * 0.0722
+            kr, kg, kb = display.luma_coefs() if managed else (0.2126, 0.7152, 0.0722)
+            luma = rgb[..., 0] * kr + rgb[..., 1] * kg + rgb[..., 2] * kb
             color = np.repeat(luma[..., None], 3, axis=2)
         else:
             color = rgb
-    color = np.clip(color, 0.0, 1.0)
-    color = np.where(color <= 0.0031308, color * 12.92, 1.055 * np.power(color, 1.0 / 2.4) - 0.055)
+    if managed:
+        rgba = np.empty(color.shape[:2] + (4,), dtype=np.float32)
+        rgba[..., :3] = color
+        rgba[..., 3] = 1.0
+        color = display.apply(rgba, input_space)[..., :3]
+        color = np.clip(np.nan_to_num(color, nan=0.0), 0.0, 1.0)
+    else:
+        color = np.clip(color, 0.0, 1.0)
+        color = np.where(color <= 0.0031308, color * 12.92, 1.055 * np.power(color, 1.0 / 2.4) - 0.055)
     if gamma > 0 and abs(gamma - 1.0) > 1e-6:
         color = np.power(np.clip(color, 0.0, 1.0), 1.0 / gamma)
     out = np.empty(color.shape[:2] + (4,), dtype=np.uint8)

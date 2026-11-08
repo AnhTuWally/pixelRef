@@ -59,8 +59,17 @@ unpadded numbers), `first` / `last` the frames played, plus `fps`, `loop`,
 
 The exr plugin adds sparse attributes to image and sequence nodes, written
 only once changed: `exr_layer` (`""` is the beauty; `"diffuse"`, or
-`"part/layer"` in multi-part files), `exposure` (stops), `gamma` and `channel`
-(`"rgb"`, `"r"`, `"g"`, `"b"`, `"a"`, `"luma"`).
+`"part/layer"` in multi-part files), `exposure` (stops), `gamma`, `channel`
+(`"rgb"`, `"r"`, `"g"`, `"b"`, `"a"`, `"luma"`) and `colorspace` (the OCIO
+input colour space; `""` = the board default).
+
+A board saved with its colour settings (*Save with this board*) has
+`plugins.ocio`: `{"mode": "builtin" | "ocio", "config": "", "display": "",
+"view": "", "look": "", "input": ""}`. `config` is a path, an `ocio://` URI
+or `""` (`$OCIO`, else OCIO's built-in ACES config); empty names mean the
+config's defaults. A config, display or view the opening machine doesn't have
+falls back (your config, then the built-in one) with a warning: the board
+still opens.
 
 Other top-level keys are kept as they are, so tools can add their own
 sections without pixelRef dropping them.

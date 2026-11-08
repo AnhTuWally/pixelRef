@@ -610,7 +610,7 @@ Extension points declared by the built-ins (contribution types are in
 | `color.pickers` | kernel (UI) | `ColorPickerProvider(id, title, create, order, description)`: a colour picker for every swatch (see below) |
 | `canvas.item_hooks` | kernel (UI) | `fn(item, node)` after every canvas item is built (paint filters) |
 | `image.movie_hooks` | image | `fn(item)` when an animated image's item starts its movie (playback restores paused frames with it) |
-| `image.decoders` | image | `ImageDecoder(id, exts, mimes, open_reader(source, attrs), view_key(attrs), label)`: reads a format Qt can't. `open_reader` gets a file path or the embedded bytes and returns an object with the parts of `QImageReader` the image plugin uses (`canRead`, `size`, `transformation`, `supportsOption`, `setAutoTransform`, `setScaledSize`, `setQuality`, `read`); it runs on worker threads. `view_key` names the attributes that change the pixels (the exr plugin's exposure, layer…). Register the extension with `services["images"].register_ext(".ext", mime)` so drops and *Insert Images* accept it |
+| `image.decoders` | image | `ImageDecoder(id, exts, mimes, open_reader(source, attrs), view_key(attrs), label)`: reads a format Qt can't. `open_reader` gets a file path or the embedded bytes and returns an object with the parts of `QImageReader` the image plugin uses (`canRead`, `size`, `transformation`, `supportsOption`, `setAutoTransform`, `setScaledSize`, `setQuality`, `read`); it runs on worker threads. `view_key` names the attributes that change the pixels (the exr plugin's exposure, layer…). An optional `snapshot(attrs)` runs on the main thread as an image opens and its result is passed to `open_reader` as a third argument: app-wide state that changes the pixels (the exr plugin passes the OCIO display), so worker threads never read live settings. Register the extension with `services["images"].register_ext(".ext", mime)` so drops and *Insert Images* accept it |
 | `movie.started` / `sequence.started` | movie / sequence | `fn(item)` when a movie or image sequence item is (re)built (playback follows them) |
 | `interactions.steps` | interactions | `StepKind(command, describe(session, args, kwargs), targets(args, kwargs), icon)`: a command click actions may run, and its sentence. Only these run from a board |
 | `interactions.verbs` | interactions | `ClickVerb(id, label, applies(session, target), build(session, target) -> (steps, back), prepare=None, order)`: what connecting a button to an item offers |
@@ -629,7 +629,10 @@ files or bytes), `image_cache`, `transform` (targets and world-space
 transforms), `ingest`, `gizmo`, `inspector`, `outliner`, `tool_palette`,
 `drawing_session`, `notes`, `text`, `recovery`, `files`, `image_storage`,
 `canvas_background`, `console`, `playback`, `playback.controls`, `links`,
-`minimaps`, `contact_sheets`, `start_panel`, `effects` and `effects_engine`.
+`minimaps`, `contact_sheets`, `start_panel`, `effects`, `effects_engine`,
+`exr` and `color` (the ocio plugin: `display()` is the OCIO display EXRs are
+shown through, or None for the built-in sRGB view; `display().apply(rgba,
+input_space)` runs linear float pixels through it).
 
 ## Testing a plugin
 

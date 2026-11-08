@@ -2,6 +2,42 @@
 
 All notable changes to pixelRef are documented here.
 
+## [1.3.0] - 2026-11-08
+
+### Added — Colour management (OCIO)
+
+- New **Colour Management (OCIO)** plugin (`ocio`): EXR images and EXR
+  sequences can be shown through an OpenColorIO **display / view** (and an
+  optional **look**) instead of the plain sRGB curve, so renders look as they
+  do in Nuke, RV or the renderer's viewer.
+- Config from **`$OCIO`** (the board then starts in OCIO mode), else OCIO's
+  built-in **ACES CG** config; the built-in *ACES Studio* config can be
+  picked, or any `.ocio` / `.ocioz` file opened with a file dialog
+  (**Browse…** in the Colour panel, *File → Colour Management → Open OCIO
+  Config…*); invalid files are refused. *Reload OCIO Config* re-reads an
+  edited one.
+- **Colour** panel in the Attribute Editor with nothing selected: mode
+  (built-in sRGB / OCIO), config, display, view, look, the board's default
+  input colour space, and **Save with this board**, which stores the settings
+  in the scene (`plugins.ocio`, undoable) instead of your preferences. A
+  board whose config is missing falls back with a warning.
+- Per-image **Input** colour space (`colorspace` attribute) in the *EXR View*
+  section; *Auto* uses the board default, then the config's file rules, then
+  its `scene_linear` role. Exposure applies before OCIO, gamma after; alpha is
+  shown raw.
+- `ocio.*` commands: `set`, `save_with_board`, `toggle`, `info`, `displays`,
+  `colorspaces`, `looks`, `reload`, `pick_config`, `install_support`;
+  `exr.set_view(colorspace=…)`.
+- The `opencolorio` and numpy packages are optional (*Image → Install OCIO
+  Support…*); without them, or in built-in mode (the default without
+  `$OCIO`), EXRs look exactly as before.
+
+### Added — for plugin authors
+
+- `ImageDecoder.snapshot(attrs)`: main-thread state handed to `open_reader`
+  as a third argument when an image opens.
+- `color` service (`display()`, `key()`, `settings()`).
+
 ## [1.2.0] - 2026-11-08
 
 ### Added — EXR images

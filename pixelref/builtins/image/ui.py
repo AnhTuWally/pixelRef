@@ -205,7 +205,8 @@ class PixmapCache:
             else:
                 source = key[0]
             try:
-                return open_handle(key, lambda: decoder.open_reader(source, view))
+                extra = (decoder.snapshot(view),) if decoder.snapshot is not None else ()
+                return open_handle(key, lambda: decoder.open_reader(source, view, *extra))
             except Exception:  # noqa: BLE001  (a broken file shows as missing)
                 logging.getLogger(__name__).exception("image decoder %s failed", decoder.id)
                 return None

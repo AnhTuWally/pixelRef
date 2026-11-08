@@ -327,8 +327,8 @@ the rest also work headless (batch mode, scripts).
 | `exr.cycle_channel(nodes: Any = None)` |  | yes | Show the next channel (RGB → R → G → B → A → luminance → RGB). Returns it. |
 | `exr.install_support()` |  |  | Install the OpenEXR and numpy Python packages EXR images need (in the background). |
 | `exr.layers(node: str \| None = None)` | `exr_layers` |  | The layers (AOVs) of an EXR image or sequence ("" is the beauty, RGBA). |
-| `exr.reset_view(nodes: Any = None)` |  | yes | Back to the plain view: beauty layer, exposure 0, gamma 1, RGB. |
-| `exr.set_view(nodes: Any = None, exposure: float \| None = None, gamma: float \| None = None, layer: str \| None = None, channel: str \| None = None)` | `exr_set_view` | yes | Change how EXR images are shown: exposure (stops), gamma, layer ("" = beauty), channel. |
+| `exr.reset_view(nodes: Any = None)` |  | yes | Back to the plain view: beauty layer, exposure 0, gamma 1, RGB, the default input colour space. |
+| `exr.set_view(nodes: Any = None, exposure: float \| None = None, gamma: float \| None = None, layer: str \| None = None, channel: str \| None = None, colorspace: str \| None = None)` | `exr_set_view` | yes | Change how EXR images are shown: exposure (stops), gamma, layer ("" = beauty), channel, |
 
 ## file
 
@@ -528,6 +528,21 @@ the rest also work headless (batch mode, scripts).
 | `navigation.world_to_screen(x: float, y: float, view: str \| None = None)` | `world_to_screen` |  | A world point's position in a view's widget coordinates. |
 | `navigation.zoom(level: float, view: str \| None = None)` | `view_zoom` |  | Set a view's zoom level (1.0 = 100%). Not undoable, like all camera moves. |
 | `navigation.zoom_by(factor: float, view: str \| None = None, around_cursor: bool = False)` | `zoom_by` |  | Multiply a view's zoom by ``factor``. |
+
+## ocio
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `ocio.colorspaces()` |  |  | The colour spaces of the OCIO config in effect. |
+| `ocio.displays()` |  |  | The displays of the OCIO config in effect and their views. |
+| `ocio.info()` | `color_info` |  | The colour settings in effect, where they come from, and the display shown. |
+| `ocio.install_support()` |  |  | Install the opencolorio and numpy Python packages colour management needs (in the background). |
+| `ocio.looks()` |  |  | The looks of the OCIO config in effect. |
+| `ocio.pick_config()` |  |  | Open an OCIO config file (.ocio / .ocioz) and show EXRs through it. |
+| `ocio.reload()` |  |  | Read the OCIO config files again (after editing them). |
+| `ocio.save_with_board(on: bool = True)` |  | yes | Save the colour settings with this board (on) or use your preferences (off). |
+| `ocio.set(mode: str \| None = None, config: str \| None = None, display: str \| None = None, view: str \| None = None, look: str \| None = None, input: str \| None = None)` | `color_set` | yes | Change how EXRs are shown: mode ("builtin" sRGB or "ocio"), config (a path, "ocio://…", |
+| `ocio.toggle()` |  |  | Switch EXR images between the built-in sRGB view and OCIO colour management. |
 
 ## order
 

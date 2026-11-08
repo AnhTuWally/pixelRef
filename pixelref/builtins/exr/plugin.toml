@@ -3,7 +3,7 @@ name = "EXR Support"
 version = "1.0.0"
 api = 1
 requires = ["image"]
-optional = ["sequence", "inspector"]
+optional = ["sequence", "inspector", "ocio"]
 description = "OpenEXR images and EXR frames of image sequences: a linear-to-sRGB view with per-image exposure, gamma, layer (AOV) and channel. Showing EXR pixels needs the OpenEXR and numpy Python packages: Image → Install EXR Support… (right-click menu or Ctrl+K) installs them."
 
 [python]

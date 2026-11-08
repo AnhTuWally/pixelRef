@@ -141,14 +141,20 @@ class ImageDecoder:
 
     ``view_key(attrs)`` names the attributes that change the decoded pixels
     (exposure, layer…): nodes with different keys get separate decoded copies.
+
+    ``snapshot(attrs)``, when given, is called on the main thread as an image is
+    opened (right after ``view_key``); its result is passed to ``open_reader`` as
+    a third argument. Use it for app-wide state that changes the pixels (the
+    colour management display), so worker threads never read live settings.
     """
 
     id: str
     exts: frozenset[str]
     mimes: frozenset[str]
-    open_reader: Callable[[Any, dict[str, Any]], Any]
+    open_reader: Callable[..., Any]
     view_key: Callable[[dict[str, Any]], tuple] = lambda attrs: ()
     label: str = ""  # e.g. "EXR", shown in the node description
+    snapshot: Callable[[dict[str, Any]], Any] | None = None
 
 
 @dataclass

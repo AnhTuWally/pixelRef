@@ -10,7 +10,7 @@ from pixelref.plugin_api.contracts import ImageDecoder, InspectorSection, Select
 from pixelref.plugin_api.ui import widgets as w
 
 from . import EXR_MIME, VIEW_ATTRS, VIEW_TYPES, decode
-from .reader import ExrReader, view_of
+from .reader import ExrReader, colorspace_of, view_of
 
 EXPOSURE_STEP = 0.5  # stops per [ / ] press
 PACKAGES = ("OpenEXR>=3.3", "numpy>=1.26")  # plugin.toml's [python] optional
@@ -45,6 +45,11 @@ class ExrViewSection(w.InspectorSection):
         self.channel.setToolTip("Show the colour, or one channel as grey")
         self.channel.currentIndexChanged.connect(self._on_channel)
         self.form.addRow("Channel", self.channel)
+
+        self.colorspace = w.make_combo((("", "Auto"),), self)
+        self.colorspace.setToolTip("The OCIO colour space the EXR's pixels are in (colour management)")
+        self.colorspace.currentIndexChanged.connect(self._on_colorspace)
+        self.form.addRow("Input", self.colorspace)
 
         self.exposure = w.fields.editor_for(specs["exposure"], self)
         self.exposure.setToolTip("Exposure in stops ([ and ] step it by half a stop)")
@@ -81,16 +86,39 @@ class ExrViewSection(w.InspectorSection):
             w.set_combo(self.channel, channel)
             self.exposure.write(exposure)
             self.gamma.write(gamma)
+            display = self._display()
+            self.form.setRowVisible(self.colorspace, display is not None)
+            if display is not None:
+                self._fill_colorspaces(display, node)
         finally:
             self._updating = False
         if exr is not None:
             width, height = exr.size or (0, 0)
             count = len(layers)
             parts = f" · {len(exr.parts)} parts" if len(exr.parts) > 1 else ""
+            shown = f" · {display.view}" if display is not None else ""
             self.info.setText(f"{width} × {height} · {decode.pixel_type_label(exr)} · "
-                              f"{count} layer{'s' if count != 1 else ''}{parts}")
+                              f"{count} layer{'s' if count != 1 else ''}{parts}{shown}")
         else:
             self.info.setText("")
+
+    def _display(self) -> Any:
+        color = self.ui.session.services.get("color")
+        return color.display() if color is not None else None
+
+    def _fill_colorspaces(self, display: Any, node: Any) -> None:
+        from pixelref.builtins.ocio import config as ocio_config
+
+        source = self.api.source(node)
+        auto = display.input_for("", source if isinstance(source, str) else "")
+        own = colorspace_of(node.attrs)
+        self.colorspace.clear()
+        self.colorspace.addItem(f"Auto ({auto})", "")
+        for name, family in ocio_config.colorspaces(display.config):
+            self.colorspace.addItem(f"{family} / {name}" if family else name, name)
+        if own and self.colorspace.findData(own) < 0:
+            self.colorspace.addItem(f"{own} (missing)", own)
+        w.set_combo(self.colorspace, own)
 
     def _set(self, **view: Any) -> None:
         if not self._updating and self._name:
@@ -102,16 +130,32 @@ class ExrViewSection(w.InspectorSection):
     def _on_channel(self, _index: int) -> None:
         self._set(channel=str(self.channel.currentData() or "rgb"))
 
+    def _on_colorspace(self, _index: int) -> None:
+        self._set(colorspace=str(self.colorspace.currentData() or ""))
+
 
 def activate_exr_ui(ui: Any) -> None:
     session = ui.session
     api = session.services.require("exr")
 
     cache = session.services.require("image_cache")
-    state: dict[str, Any] = {"decoder": None}
+    # "display": the OCIO display of the ocio plugin (None: plain sRGB), kept up to date on the
+    # main thread; images opening take it with them (``snapshot``) to decode with on worker threads.
+    state: dict[str, Any] = {"decoder": None, "display": None, "color_key": ()}
+
+    def current_display() -> tuple[Any, tuple]:
+        color = session.services.get("color")
+        display = color.display() if color is not None else None
+        return display, (display.key if display is not None else ())
 
     def view_key(attrs: dict[str, Any]) -> tuple:
-        return view_of(attrs)
+        return view_of(attrs) + ((colorspace_of(attrs),) + state["color_key"] if state["display"] is not None else ())
+
+    def snapshot(_attrs: dict[str, Any]) -> Any:
+        return state["display"]
+
+    def open_reader(source: Any, attrs: dict[str, Any], display: Any = None) -> ExrReader:
+        return ExrReader(source, attrs, display)
 
     # Items showing EXRs were built before the decoder existed (a placeholder card): rebuild
     # them when it comes or goes (the refresh is deferred to the event loop, so on deactivation
@@ -124,11 +168,25 @@ def activate_exr_ui(ui: Any) -> None:
     def start_decoding() -> bool:
         """Contribute the decoder once OpenEXR and numpy can be imported. True when it is in."""
         if state["decoder"] is None and packages_available():
+            state["display"], state["color_key"] = current_display()
             state["decoder"] = ui.contribute("image.decoders", ImageDecoder(
                 id="exr", exts=frozenset({".exr"}), mimes=frozenset({EXR_MIME}),
-                open_reader=ExrReader, view_key=view_key, label="EXR"))
+                open_reader=open_reader, view_key=view_key, snapshot=snapshot, label="EXR"))
             rebuild_if_exr()
         return state["decoder"] is not None
+
+    def sync_display(_event: Any = None) -> None:
+        """The colour settings may have changed: show EXRs through the new display."""
+        display, key = current_display()
+        if key != state["color_key"] or (display is None) != (state["display"] is None):
+            state["display"], state["color_key"] = display, key
+            if state["decoder"] is not None:
+                rebuild_if_exr()  # new view keys: the EXRs decode again (the old pixels stand in)
+        inspector = session.services.get("inspector")
+        for panel in list(getattr(inspector, "panels", ())):  # the Input menu lists the new config's spaces
+            panel.refresh()
+
+    ui.on("ocio.changed", sync_display)
 
     # Without the packages, EXR cards say how to get them (instead of "switch on the plugin").
     previous_hint = cache.hints.get(EXR_MIME)
