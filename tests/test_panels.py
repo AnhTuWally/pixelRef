@@ -947,7 +947,8 @@ def test_canvas_context_menu_is_organised_by_what_was_clicked():
         assert "Arrange" in layout(two)
         arrange = next(a.menu() for a in two.actions() if a.text() == "Arrange")
         assert "Align Left" in layout(arrange)
-        assert "Distribute Horizontally" not in layout(arrange), "distributing needs three items"
+        distribute = next(a for a in arrange.actions() if a.text() == "Distribute Horizontally")
+        assert distribute.isVisible() and not distribute.isEnabled(), "shown from two items, greyed until three"
     finally:
         h.close()
 

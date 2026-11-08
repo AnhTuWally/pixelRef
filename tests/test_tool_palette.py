@@ -52,7 +52,8 @@ def test_default_palette_comes_from_the_plugins():
                                    "grouping.add_group", "backdrops.make"]
         assert not h.service("tool_palette").layout.customized()
         assert tools_menu_texts(h)[:2] == ["Select Tool", "Rectangle Tool"]
-        assert tools_menu_texts(h)[-1] == "Customize Tools Palette…"
+        # The palette's settings close the menu ("Pasted Text Width…" sits beside Customize).
+        assert "Customize Tools Palette…" in tools_menu_texts(h)[-2:]
     finally:
         h.close()
 
@@ -66,7 +67,8 @@ def test_reorder_hide_sections_and_added_commands_drive_palette_and_tools_menu()
         assert tools_menu_texts(h)[0].startswith("Pen"), "the Tools menu follows the palette"
         h.run("tool_palette.hide", "tool.color_picker")
         assert "tool.color_picker" not in palette.buttons and "color_picker" not in palette.tool_buttons
-        assert not any("Pick" in t for t in tools_menu_texts(h))
+        assert "Color Picker" not in tools_menu_texts(h)
+        assert "Pick Color from Screen" in tools_menu_texts(h), "a command of its own, not the hidden tool"
         assert h.app.keymap.targets_of("I") == ["tool.color_picker"], "hidden tools keep their key"
 
         sid = h.run("tool_palette.add_section", "Annotate")
