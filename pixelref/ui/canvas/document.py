@@ -800,44 +800,56 @@ class CanvasDocument:
         image = QImage(max(1, math.ceil(bounds.width() * scale)), max(1, math.ceil(bounds.height() * scale)),
                        QImage.Format_ARGB32_Premultiplied)
         image.fill(QColor(*self.app.background_spec().color) if opaque else QColor(0, 0, 0, 0))
-        keep = set()
-        for item in items:
-            keep.add(item)
-            stack = list(item.childItems())
-            while stack:
-                child = stack.pop()
-                keep.add(child)
-                stack.extend(child.childItems())
-        # Ancestors of kept items can't go transparent (opacity is inherited, the
-        # kept child would vanish too): only stop them painting their own content.
-        ancestors = set()
-        for item in items:
-            parent = item.parentItem()
-            while parent is not None and parent not in keep:
-                ancestors.add(parent)
-                parent = parent.parentItem()
-        hidden = []
-        muted = []
-        for item in self.content_items():
-            if item in ancestors:
-                if not item.flags() & QGraphicsItem.ItemHasNoContents:
-                    muted.append(item)
-                    item.setFlag(QGraphicsItem.ItemHasNoContents, True)
-            elif item not in keep and item.isVisible() and item.opacity() > 0:
-                hidden.append((item, item.opacity()))
-                item.setOpacity(0.0)
-        self.rendering_final += 1 if final else 0
-        try:
+        with self.isolated_render(items, final=final):
             painter = QPainter(image)
             painter.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform | QPainter.TextAntialiasing)
             self.scene.render(painter, QRectF(0, 0, image.width(), image.height()), bounds)
             painter.end()
+        return image
+
+    @contextmanager
+    def isolated_render(self, keep_items: list[Any] | None = None, hide: Any = (),
+                        final: bool = True) -> Iterator[None]:
+        """While inside, ``scene.render`` paints only ``keep_items`` (with their children;
+        None: every item) minus the ``hide`` items. ``final``: see :meth:`render_items`."""
+        hide_set = set(hide)
+        keep: set[Any] | None = None
+        ancestors: set[Any] = set()
+        if keep_items is not None:
+            keep = set()
+            for item in keep_items:
+                keep.add(item)
+                stack = list(item.childItems())
+                while stack:
+                    child = stack.pop()
+                    keep.add(child)
+                    stack.extend(child.childItems())
+            # Ancestors of kept items can't go transparent (opacity is inherited, the
+            # kept child would vanish too): only stop them painting their own content.
+            for item in keep_items:
+                parent = item.parentItem()
+                while parent is not None and parent not in keep:
+                    ancestors.add(parent)
+                    parent = parent.parentItem()
+        hidden = []
+        muted = []
+        for item in self.items.values():
+            if item in ancestors:
+                if not item.flags() & QGraphicsItem.ItemHasNoContents:
+                    muted.append(item)
+                    item.setFlag(QGraphicsItem.ItemHasNoContents, True)
+            elif ((item in hide_set or (keep is not None and item.is_content and item not in keep))
+                  and item.isVisible() and item.opacity() > 0):
+                hidden.append((item, item.opacity()))
+                item.setOpacity(0.0)
+        self.rendering_final += 1 if final else 0
+        try:
+            yield
         finally:
             self.rendering_final -= 1 if final else 0
             for item, opacity in hidden:
                 item.setOpacity(opacity)
             for item in muted:
                 item.setFlag(QGraphicsItem.ItemHasNoContents, False)
-        return image
 
 

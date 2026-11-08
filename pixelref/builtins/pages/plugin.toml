@@ -1,0 +1,6 @@
+id = "pages"
+name = "Pages"
+version = "1.0.0"
+api = 1
+requires = ["gizmo"]
+description = "Page frames: frame parts of the board as numbered pages (paper presets or free) and export them as one multi-page PDF."

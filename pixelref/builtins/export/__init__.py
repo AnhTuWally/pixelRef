@@ -45,9 +45,12 @@ def activate_ui(ui: Any) -> None:
 
     def items_for(nodes: Any) -> list[Any]:
         if nodes is None:
-            return canvas.outline_items() or canvas.visible_content_items()
-        names = [nodes] if isinstance(nodes, str) else list(nodes)
-        return [i for i in (canvas.item(session.scene.resolve(n)) for n in names) if i is not None]
+            items = canvas.outline_items() or canvas.visible_content_items()
+        else:
+            names = [nodes] if isinstance(nodes, str) else list(nodes)
+            items = [i for i in (canvas.item(session.scene.resolve(n)) for n in names) if i is not None]
+        # Items that never appear in renders (page frames) mustn't stretch the image either.
+        return [i for i in items if getattr(i, "in_exports", True)]
 
     def export_image_text() -> str:
         return "Export Selected as Image…" if canvas.outline_items() else "Export as Image…"

@@ -88,7 +88,13 @@ QComboBox {
     border-radius: 3px;
     padding: 2px 6px;
 }
-QComboBox QAbstractItemView { background-color: #1e2128; selection-background-color: #2e3440; }
+QComboBox QAbstractItemView {
+    background-color: #1e2128;
+    color: #d5d8df;
+    selection-background-color: #1a3457;
+    selection-color: #ffffff;
+    outline: none;
+}
 QScrollArea { background: transparent; }
 #menuSection {
     color: #6f7787;
@@ -257,6 +263,8 @@ QTabBar::tab:selected { background: #1f2229; color: #d5e8ff; border-color: #2e32
 #quickEditBar QWidget { background-color: transparent; }
 #quickEditBar #quickEditDivider { color: #2c313b; }
 #quickEditBar QDoubleSpinBox, #quickEditBar QLineEdit, #quickEditBar QComboBox { background-color: #14161a; }
+/* A drop-down's list is a separate pop-up window inside the bar: "transparent" above would show it white. */
+#quickEditBar QComboBox QFrame, #quickEditBar QComboBox QAbstractItemView { background-color: #1e2128; }
 #consoleOutput, #consoleInput {
     font-family: Consolas, "Courier New", monospace; font-size: 12px; background-color: #121418;
 }
