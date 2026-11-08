@@ -32,7 +32,7 @@ jobs:
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "bad tag: $TAG"; exit 1; }
           VERSION=$(python -c "import re;print(re.search(r'__version__\s*=\s*\"([^\"]+)\"', open('pixelref/__init__.py').read())[1])")
           [ "$TAG" = "v$VERSION" ] || { echo "tag $TAG does not match pixelref.__version__ $VERSION"; exit 1; }
-      - run: python -m pip install -r packaging/requirements-build.txt
+      - run: python -m pip install -r packaging/requirements-build.txt pyyaml
       - name: Update system tests
         env:
           QT_QPA_PLATFORM: offscreen
