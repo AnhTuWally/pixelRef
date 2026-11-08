@@ -414,6 +414,7 @@ def _note(row: dict[str, Any]) -> PurText:
 
 
 ARROW_KIND = 2  # the stroke "kind" bit that PureRef sets for the arrow pen style
+DASHED_KIND = 1  # ... and for the dashed line style
 
 
 def _drawing(row: dict[str, Any]) -> PurDrawing:
@@ -428,12 +429,13 @@ def _drawing(row: dict[str, Any]) -> PurDrawing:
         width = reader.f64()
         paths = painter_path(reader)
         reader.skip(16)  # the drag's start point
-        kind = reader.u32()  # 0 for a plain stroke; bit 2 is the arrow pen style (boards saved by 2.1.3)
+        kind = reader.u32()  # pen style bits (boards saved by 2.1.3): 0 plain, 1 dashed, 2 arrow, 3 both
         for points in paths:
             if points:
                 # PureRef draws the head only on open strokes: closed shapes drawn with the arrow pen show none.
                 drawing.strokes.append(PurStroke(color=color, width=width, points=points,
-                                                 arrow=bool(kind & ARROW_KIND) and points[0] != points[-1]))
+                                                 arrow=bool(kind & ARROW_KIND) and points[0] != points[-1],
+                                                 dashed=bool(kind & DASHED_KIND)))
     # Bytes after the last stroke (a newer PureRef may add fields) are ignored, not an error.
     return drawing
 

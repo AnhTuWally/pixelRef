@@ -124,8 +124,11 @@ the open board stays as it was.
 - PureRef 2 groups become groups (a group's background colour becomes a
   backdrop behind its members), and pen strokes become a drawing (it needs
   the *Pen* plugin).
-- Not carried over: arrowheads on PureRef 2 pen strokes and animation playback
-  settings. Free-form (non-rectangular) crops become their bounding rectangle,
+- PureRef 2 pen strokes keep their colour, width, dashed line style and an
+  arrowhead at the end of an open stroke. Text alignment comes across too (one
+  per note: the one most paragraphs use).
+- Not carried over: arrowheads at the start of a stroke (none seen in PureRef's
+  own boards), note borders and styles, and animation playback settings. Free-form (non-rectangular) crops become their bounding rectangle,
   and the import says how many. PureRef 1.x text has no font information,
   so it uses pixelRef's default size, scaled like the PureRef item.
 - From scripts: `pxcmd.open_pureref(path)`, `pxcmd.import_pureref(path,

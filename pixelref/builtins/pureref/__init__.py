@@ -338,6 +338,8 @@ class PureRefImporter:
                 attrs["opacity"] = round(stroke.color[3] / 255.0, 4)
             if stroke.arrow:
                 attrs["arrow"] = 1
+            if stroke.dashed:
+                attrs["stroke_style"] = "dash"
             scene.create_node("annotation_path", scene.unique_name("Stroke"), parent=name, attrs=attrs)
         self.report["drawings"] += 1
         return name

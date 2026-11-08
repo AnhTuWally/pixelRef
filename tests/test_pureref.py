@@ -705,13 +705,15 @@ def test_pureref2_arrow_strokes_and_unfamiliar_stroke_bytes():
                         (_as_text(_q_user("QList<GraphicsDrawItem::Stroke>", blob)),))
         return write_pur2(tmp_dir() / "arrows.pur", fill)
 
-    parsed = read_board(board(0, 2))
+    parsed = read_board(board(0, 2, 1, 3))
     drawing = next(i for i in parsed.walk() if isinstance(i, PurDrawing))
-    assert [s.arrow for s in drawing.strokes] == [False, True]
+    assert [s.arrow for s in drawing.strokes] == [False, True, False, True]
+    assert [s.dashed for s in drawing.strokes] == [False, False, True, True]
     # Bytes after the last stroke (fields a newer PureRef may add) don't make the drawing unreadable.
     extra = read_board(board(2, extra=b"\x00\x01\x02\x03"))
     assert next(i for i in extra.walk() if isinstance(i, PurDrawing)).strokes[0].arrow
     session = headless()
-    session.run("pureref.open", str(board(0, 2)))
-    arrows = sorted(n.attrs.get("arrow", 0) for n in session.scene.nodes.values() if n.node_type == "annotation_path")
-    assert arrows == [0, 1], arrows
+    session.run("pureref.open", str(board(0, 2, 1)))
+    paths = [n.attrs for n in session.scene.nodes.values() if n.node_type == "annotation_path"]
+    assert sorted(a.get("arrow", 0) for a in paths) == [0, 0, 1]
+    assert sorted(a.get("stroke_style", "solid") for a in paths) == ["dash", "solid", "solid"]

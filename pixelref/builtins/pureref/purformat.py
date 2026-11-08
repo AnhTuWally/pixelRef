@@ -164,6 +164,7 @@ class PurStroke:
     width: float = 1.0
     points: list[tuple[float, float]] = field(default_factory=list)  # item coordinates
     arrow: bool = False  # an arrowhead at the end of the stroke
+    dashed: bool = False  # PureRef's dashed line style
 
 
 @dataclass
