@@ -343,7 +343,7 @@ class QuickEdit:
         self.bar = None
 
     def schedule(self) -> None:
-        if not self.scrubbing:
+        if not self.scrubbing and not self._timer.isActive():  # (asked per item per drag step)
             self._timer.start(0)
 
     def set_scrubbing(self, scrubbing: bool) -> None:
@@ -354,6 +354,10 @@ class QuickEdit:
     # ---- What to show ----------------------------------------------------------------------
 
     def targets(self) -> tuple[list[str], list[Any]]:
+        """The selected nodes that are shown and their items (the same lists until something changes)."""
+        return self.canvas.cached("quick_edit.targets", self._targets)
+
+    def _targets(self) -> tuple[list[str], list[Any]]:
         names, items = [], []
         for name in self.ui.session.selection.names:
             item = self.canvas.items.get(name)
@@ -405,7 +409,8 @@ class QuickEdit:
             self.hide()
             return
         names, items = self.targets()
-        types = list(dict.fromkeys(self.canvas.nodes[n]["type"] for n in names))
+        types = self.canvas.cached("quick_edit.types", lambda: list(dict.fromkeys(
+            self.canvas.nodes[n]["type"] for n in names)))
         specs = self.fields_for(types)
         registered = self.service.sections()
         self.sections = [s for s in registered if names and self._applies(s, names)]
@@ -435,7 +440,8 @@ class QuickEdit:
     def place(self, bar: QuickBar, view: Any, items: list[Any]) -> None:
         bar.fit()
         area = view.viewport().geometry()  # in view coordinates
-        bounds = view.mapFromScene(self.canvas.scene_bounds(items)).boundingRect().translated(area.topLeft())
+        scene_bounds = self.canvas.cached("quick_edit.bounds", lambda: self.canvas.scene_bounds(items))
+        bounds = view.mapFromScene(scene_bounds).boundingRect().translated(area.topLeft())
         width, height = bar.width(), bar.height()
         x = bounds.center().x() - width // 2
         x = max(area.left() + MARGIN, min(x, area.right() - width - MARGIN))

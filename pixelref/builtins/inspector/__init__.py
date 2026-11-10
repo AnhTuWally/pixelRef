@@ -189,8 +189,8 @@ class Inspector(QWidget):
                         row.refresh(info)
 
     def on_item_changed(self, item: Any) -> None:
-        names = self.ui.session.selection.names
-        if len(names) != 1 or names[0] != item.node_name:
+        selection = self.ui.session.selection
+        if len(selection) != 1 or item.node_name not in selection:  # (asked per item per drag step)
             return
         for section in self.sections.values():
             if section.isVisible() and hasattr(section, "on_item_changed"):

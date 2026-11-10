@@ -6,10 +6,10 @@ import inspect
 from typing import Any
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF, QTransform
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from PySide6.QtWidgets import QGraphicsItem
 
-from pixelref.plugin_api.ui import DEFAULT, HANDLED, PointerEvent, Tool, theme
+from pixelref.plugin_api.ui import DEFAULT, HANDLED, NodeItemMixin, PointerEvent, Tool, theme
 
 
 class SelectTool(Tool):
@@ -36,11 +36,13 @@ class SelectTool(Tool):
     def cancel(self) -> bool:
         if self.op is not None and self.op["kind"] == "rubber":
             self.op = None
+            self.ui.app.set_selection_live(False)
             return True
         return False
 
     def deactivate(self) -> None:
         self.op = None
+        self.ui.app.set_selection_live(False)
         self.hover_item = None
 
     def pointer(self, e: PointerEvent) -> str | None:
@@ -63,6 +65,7 @@ class SelectTool(Tool):
             if not additive and self.ui.session.selection.names:
                 self.ui.app.run_command("select", clear=True)
             self.op = {"kind": "rubber", "origin": e.pos, "rect": QRectF(), "initial": initial, "view": e.view}
+            self.ui.app.set_selection_live(True)  # panels follow the band at intervals, not per mouse move
             return HANDLED
         op = self.op
         if e.kind == "move":
@@ -91,6 +94,7 @@ class SelectTool(Tool):
                 if op.get("snap") is not None:
                     e.view.viewport().update()
                 return DEFAULT
+            self.ui.app.set_selection_live(False)
             e.view.viewport().update()
             return HANDLED
         if e.kind == "double":
@@ -176,7 +180,7 @@ class SelectTool(Tool):
         hovered = self.hover_item
         if hovered is None or op is not None or not view.display.show_overlays:
             return
-        if hovered in self.ui.canvas.outline_items():
+        if self.ui.canvas.is_outlined(hovered):
             return
         try:
             polygon = QPolygonF([view.to_viewport(p) for p in hovered.scene_polygon()])
@@ -203,29 +207,71 @@ class SelectTool(Tool):
             painter.drawLine(QPointF(0.0, vy), QPointF(size.width(), vy))
 
 
+def _hidden_key(view: Any) -> Any:
+    """What a view's filters hide, as a cache key (None when it shows everything)."""
+    hidden = view.display.hidden
+    return frozenset(hidden) if hidden else None
+
+
+def _outline_paths(ui: Any, view: Any) -> tuple[QPainterPath, QPainterPath]:
+    """The outlines of the selection in scene coordinates: (unlocked, locked) items."""
+    canvas = ui.canvas
+
+    def build() -> tuple[QPainterPath, QPainterPath]:
+        free, locked = QPainterPath(), QPainterPath()
+        shows = view.display.shows
+        plain = NodeItemMixin.scene_polygon
+        for item in canvas.outline_items():
+            if not shows(item.node_name):
+                continue
+            target = locked if item.locked else free
+            outline_path = getattr(item, "outline_path", None)  # e.g. links: their path, in scene space
+            path = outline_path() if outline_path is not None else None
+            if path is not None:
+                target.addPath(path)
+                continue
+            line = item.outline_line()
+            if line is not None:
+                target.moveTo(line[0])
+                target.lineTo(line[1])
+                continue
+            if type(item).scene_polygon is plain:
+                # The content rect through the item's scene transform, in one call: a closed polygon.
+                target.addPolygon(item.mapToScene(item.content_rect()))
+                target.closeSubpath()
+                continue
+            polygon = item.scene_polygon()
+            polygon.append(polygon[0])
+            target.addPolygon(polygon)
+        return free, locked
+
+    return canvas.cached(("select.outlines", _hidden_key(view)), build)
+
+
 def paint_outlines(ui: Any, view: Any, painter: QPainter) -> None:
     tool = ui.tools.active
     if tool is not None and not tool.show_selection:
         return
-    transform = view.viewportTransform()  # once per frame, not per point (large selections)
+    # The outlines are kept as two paths in scene coordinates (rebuilt when the selection or an item
+    # changes) and drawn through the camera with a cosmetic pen: a frame of a pan or zoom then costs
+    # two draw calls, not a transform and a draw call per selected item.
+    free, locked = _outline_paths(ui, view)
+    if free.isEmpty() and locked.isEmpty():
+        return
+    painter.save()
+    painter.setWorldTransform(view.viewportTransform(), True)
     painter.setBrush(Qt.NoBrush)
-    for item in ui.canvas.outline_items():
-        if not view.display.shows(item.node_name):
-            continue
-        pen = QPen(theme.ACCENT if not item.locked else theme.MUTED, 1.0)
-        if item.locked:
-            pen.setStyle(Qt.DashLine)
+    if not free.isEmpty():
+        pen = QPen(theme.ACCENT, 1.0)
+        pen.setCosmetic(True)
         painter.setPen(pen)
-        outline_path = getattr(item, "outline_path", None)  # e.g. links: their path, in scene space
-        path = outline_path() if outline_path is not None else None
-        if path is not None:
-            painter.drawPath(transform.map(path))
-            continue
-        line = item.outline_line()
-        if line is not None:
-            painter.drawLine(transform.map(line[0]), transform.map(line[1]))
-            continue
-        painter.drawPolygon(transform.map(item.scene_polygon()))
+        painter.drawPath(free)
+    if not locked.isEmpty():
+        pen = QPen(theme.MUTED, 1.0, Qt.DashLine)
+        pen.setCosmetic(True)
+        painter.setPen(pen)
+        painter.drawPath(locked)
+    painter.restore()
 
 
 def activate_ui(ui: Any) -> None:

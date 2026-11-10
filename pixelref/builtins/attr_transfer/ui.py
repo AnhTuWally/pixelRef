@@ -25,18 +25,67 @@ def _plural(count: int, word: str) -> str:
 def shared_attrs(scene: Any, names: list[str], ref: str) -> dict[str, tuple[Any, list[str]]]:
     """The style attributes of ``ref`` that at least one other selected item has too (same name,
     same kind of value): attribute name -> (ref's spec, the selected items that have it)."""
+    global _shared_memo
+    memo_key = (scene.revision, ref, tuple(names))
+    if _shared_memo is not None and _shared_memo[0] == memo_key:
+        return _shared_memo[1]  # asked twice per inspector refresh (does the section apply, then its rows)
     out: dict[str, tuple[Any, list[str]]] = {}
+    # A node without attributes of its own has what its type has: look each type up once, not each
+    # node (a selection of thousands is mostly a few types).
+    nodes = [scene.get_node(name) for name in names]
+    plain = [not node.dynamic for node in nodes]
+    types = {node.node_type for node, is_plain in zip(nodes, plain) if is_plain}
     for key, spec in transfer.specs_of(scene, ref).items():
         if key in SKIP_SHARED or spec.hidden or transfer.kind_of(spec) != transfer.STYLE:
             continue
-        have = []
-        for name in names:
-            other = transfer.spec_for(scene, name, key)
-            if other is not None and transfer.family(other.type) == transfer.family(spec.type):
-                have.append(name)
+        wanted = transfer.family(spec.type)
+
+        def has(node: Any) -> bool:
+            other = transfer._spec(scene, node, key)
+            return other is not None and transfer.family(other.type) == wanted
+
+        by_type = {}
+        for node, is_plain in zip(nodes, plain):
+            if is_plain and node.node_type not in by_type:
+                by_type[node.node_type] = has(node)
+                if len(by_type) == len(types):
+                    break
+        have = [name for name, node, is_plain in zip(names, nodes, plain)
+                if (by_type[node.node_type] if is_plain else has(node))]
         if len(have) >= 2:
             out[key] = (spec, have)
+    _shared_memo = (memo_key, out)
     return out
+
+
+_shared_memo: tuple[Any, dict[str, tuple[Any, list[str]]]] | None = None
+
+
+def _differs(scene: Any, names: list[str], ref: str, key: str, value: Any) -> bool:
+    """Whether any of ``names`` (but ``ref``) has another value for ``key`` than ``value``.
+    Like comparing ``transfer.value_of`` of each, without copying every value to compare it."""
+    nodes = scene.nodes
+    defaults: dict[str, Any] = {}
+    for name in names:
+        if name == ref:
+            continue
+        node = nodes[name]
+        if key in node.attrs:
+            if node.attrs[key] != value:
+                return True
+            continue
+        if node.dynamic:
+            spec = scene.attr_spec(node, key)
+            default = spec.default_value() if spec is not None else None
+        else:
+            try:
+                default = defaults[node.node_type]
+            except KeyError:
+                spec = scene.attr_spec(node, key)
+                default = defaults[node.node_type] = spec.default_value() if spec is not None else None
+        if default != value:
+            return True
+    return False
 
 
 class Row:
@@ -89,7 +138,7 @@ class SharedSection(w.InspectorSection):
                 row = self._rows[key]
                 value = transfer.value_of(scene, ref, key)
                 row.editor.write(value)
-                mixed = any(transfer.value_of(scene, n, key) != value for n in row.names if n != ref)
+                mixed = _differs(scene, row.names, ref, key, value)
                 row.mixed.setVisible(mixed)
                 row.push.setEnabled(mixed)
         finally:
@@ -102,9 +151,8 @@ class SharedSection(w.InspectorSection):
         self._rows = {}
         self.combo = QComboBox(self.body)
         self.combo.setToolTip("The item whose values are shown, and given to the others by ⇉")
-        for name in names:
-            self.combo.addItem(name, name)
-        self.combo.setCurrentIndex(max(0, self.combo.findData(ref)))
+        self.combo.addItems(names)  # one call: a row per call is slow with thousands selected
+        self.combo.setCurrentIndex(max(0, self.combo.findText(ref)))
         self.combo.currentIndexChanged.connect(self._on_ref_chosen)
         self.form.addRow("Values from", self.combo)
         hint = QLabel(f"Editing a value sets it on every item that has it ({len(names)} selected). "
@@ -149,7 +197,7 @@ class SharedSection(w.InspectorSection):
     # ---- Doing things -----------------------------------------------------------------------------------------
 
     def _on_ref_chosen(self, _index: int) -> None:
-        name = self.combo.currentData() if self.combo is not None else None
+        name = self.combo.currentText() if self.combo is not None else None
         if name and name != self._ref:
             self._ref = name
             self._signature = None

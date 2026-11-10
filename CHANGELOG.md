@@ -4,6 +4,25 @@ All notable changes to pixelRef are documented here.
 
 ## [Unreleased]
 
+### Performance — big boards and big selections
+
+Measured on 3000 items with `tests/bench_selection.py` (details and limits in
+`docs/performance/09-big-selections-and-item-index.md`).
+
+- Qt's item index now works: the scene rect is fitted to the board instead of
+  spanning the whole canvas, so hit tests and tile renders look only at nearby
+  items (hover 48 ms to 6 ms, one tile 7.2 ms to 0.33 ms).
+- Panning and zooming with everything selected: about 85 ms to 10 ms per
+  frame. Selection outlines, the gizmo and the other overlays compute what
+  they need once per change, not once per frame.
+- Selecting no longer re-renders tiles; select all 1.2 s to 0.14 s.
+- Rubber band over a big board: 742 ms to 66 ms per move. Panels follow the
+  band at most every 120 ms and catch up at release.
+- Dragging a big selection: 418 ms to 166 ms per move, release 5.7 s to
+  0.33 s. Still slow for thousands of items.
+- New command `set_attrs_many({node: {attr: value}})`: what moving several
+  items now writes (one command instead of one `set_attrs` per item).
+
 ### Added — Name labels
 
 - New **Name Labels** plugin (`name_labels`): a **label button** on the

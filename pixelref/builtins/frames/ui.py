@@ -607,11 +607,12 @@ def activate_frames_ui(ui: Any) -> None:
         painter.save()
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setFont(font)
-        for name in session.selection.names:
+        # The selected annotations of an animation: found once per change, not on every frame.
+        hosted = service.canvas.cached("frames.badged", lambda: [
+            name for name in session.selection.names if service.host_item(name) is not None])
+        for name in hosted:
             item = service.canvas.items.get(name)
             if item is None or not item.isVisible() or not view.display.shows(name):
-                continue
-            if service.host_item(name) is None:
                 continue
             frame = service.frame_of(name)
             text = f"f{frame}" if frame else "all"
@@ -640,8 +641,10 @@ def activate_frames_ui(ui: Any) -> None:
         painter.save()
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setFont(font)
-        for name, item in list(service.canvas.items.items()):
-            if not hasattr(item, "route_points") or not item.isVisible() or not view.display.shows(name):
+        routed = service.canvas.cached("frames.routed", lambda: [
+            (name, item) for name, item in service.canvas.items.items() if hasattr(item, "route_points")])
+        for name, item in routed:
+            if not item.isVisible() or not view.display.shows(name):
                 continue
             ends = service.link_ends(name)
             points = item.route_points()

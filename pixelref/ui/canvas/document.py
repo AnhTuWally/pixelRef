@@ -72,6 +72,14 @@ class CanvasDocument:
         self.rendering_final = 0  # > 0 while render_items(final=True) runs (see there)
         self.item_hooks: list[Callable[[Any, dict[str, Any]], None]] = []
         self._signatures: dict[str, tuple[Any, ...]] = {}
+        # Counts everything that can change what overlays show of the items: a refresh, an item moved
+        # or repainted, groups opened. With the selection's revision it keys ``cached``.
+        self.epoch = 0
+        # Counts the changes that can move the board's extent (an item moved or resized, a refresh):
+        # views measure the board again when it differs from the count they measured at.
+        self.geometry_serial = 0
+        self._cache: dict[Any, Any] = {}
+        self._cache_key: tuple[int, int] | None = None
         # Scene revisions the items were last synced at (None: never): a refresh after
         # attribute edits only looks at the nodes changed since (SceneGraph.node_revisions).
         self._synced_revision: int | None = None
@@ -102,6 +110,29 @@ class CanvasDocument:
             self.session.commands.on_before(self._before_command),
         ]
         self.scene.selectionChanged.connect(self._on_scene_selection_changed)
+        # The safety net of ``epoch``: any item that changed shape or place repaints.
+        self.scene.content_changed.connect(self.touch)
+
+    def touch(self, *_args: Any) -> None:
+        """Items, their geometry or their state may have changed: values from ``cached`` are computed again."""
+        self.epoch += 1
+
+    def cached(self, key: Any, compute: Callable[[], Any]) -> Any:
+        """``compute()``, remembered until the items, their geometry or the selection change.
+
+        Overlays are painted on every frame of a pan or zoom; what they derive from the selection
+        (its items, its bounds, its outline) costs time per selected item, so with thousands selected
+        it is computed once per change, not once per frame. Do not modify the returned value.
+        """
+        valid = (self.epoch, self.session.selection.revision)
+        if valid != self._cache_key:
+            self._cache_key = valid
+            self._cache = {}
+        try:
+            return self._cache[key]
+        except KeyError:
+            value = self._cache[key] = compute()
+            return value
 
     def shutdown(self) -> None:
         self._coalesce_timer.stop()
@@ -247,6 +278,8 @@ class CanvasDocument:
         self._synced_revision = scene.revision
         self._synced_structure = scene.structure_revision
         self._dirty.clear()
+        self.epoch += 1
+        self.geometry_serial += 1
         self._apply_selection_to_items()
         self.app.on_canvas_refreshed()
 
@@ -423,6 +456,7 @@ class CanvasDocument:
         """Items inside a closed compound (a group, a pen drawing) take no clicks of
         their own, so Qt picks, selects and drags the compound. Call it again when
         a compound is opened for editing or closed."""
+        self.epoch += 1
         for item in self.items.values():
             blocked = False
             parent = item.parentItem()
@@ -490,22 +524,24 @@ class CanvasDocument:
     # ---- Selection ------------------------------------------------------------------------
 
     def _on_selection_model_changed(self) -> None:
+        self.epoch += 1
         self._apply_selection_to_items()
         self.app.on_selection_changed()
 
     def _apply_selection_to_items(self) -> None:
-        wanted = set(self.session.selection.names)
+        wanted = self.session.selection.name_set
         self._syncing_selection = True
         changed = False
         try:
             # Inside the guard: closing a group deselects its members in Qt.
             self._open_compounds_for(wanted)
-            for name, item in self.items.items():
-                if item.is_content:
-                    selected = name in wanted
-                    if item.isSelected() != selected:
-                        item.setSelected(selected)
-                        changed = True
+            stale = [item for name, item in self.items.items()
+                     if item.is_content and item.isSelected() != (name in wanted)]
+            if stale:
+                changed = True
+                with self.scene.unchanged_pixels():  # selecting repaints no item (see there)
+                    for item in stale:
+                        item.setSelected(item.node_name in wanted)
         finally:
             self._syncing_selection = False
         if changed:
@@ -532,8 +568,9 @@ class CanvasDocument:
 
     def open_compounds(self) -> list[Any]:
         """Groups currently open (something inside them is selected)."""
-        return [item for item in self.items.values()
-                if getattr(item, "opens_for_selection", False) and getattr(item, "editing", False)]
+        return list(self.cached("open_compounds", lambda: [
+            item for item in self.items.values()
+            if getattr(item, "opens_for_selection", False) and getattr(item, "editing", False)]))
 
     def _on_scene_selection_changed(self) -> None:
         if self.syncing or self._syncing_selection:
@@ -599,11 +636,19 @@ class CanvasDocument:
 
     def transform_targets(self) -> list[Any]:
         """Selected items the gizmo and transform commands may move/scale/rotate."""
-        names = set(self.session.selection.names)
+        targets, dynamic = self.cached("transform_targets", self._transform_targets)
+        if dynamic:  # e.g. a text note being edited: that state changes without the item changing
+            return [item for item in targets if not item.blocks_transform]
+        return list(targets)
+
+    def _transform_targets(self) -> tuple[list[Any], bool]:
+        names = self.session.selection.name_set
+        static = NodeItemMixin.blocks_transform
         targets = []
+        dynamic = False
         for name in names:
             item = self.items.get(name)
-            if item is None or not item.is_content or item.locked or not item.isVisible() or item.blocks_transform:
+            if item is None or not item.is_content or item.locked or not item.isVisible():
                 continue
             ancestor = item.parentItem()
             covered = False
@@ -614,16 +659,29 @@ class CanvasDocument:
                 ancestor = ancestor.parentItem()
             if not covered:
                 targets.append(item)
+                dynamic = dynamic or type(item).blocks_transform is not static
         targets.sort(key=lambda it: it.node_name)
-        return targets
+        return targets, dynamic
 
     def outline_items(self) -> list[Any]:
+        """The selected items that are shown (what gets a selection outline)."""
+        return list(self.cached("outline_items", self._outline_items))
+
+    def _outline_items(self) -> list[Any]:
         items = []
         for name in self.session.selection.names:
             item = self.items.get(name)
             if item is not None and item.is_content and item.isVisible():
                 items.append(item)
         return items
+
+    def is_outlined(self, item: Any) -> bool:
+        """Whether ``item`` is one of ``outline_items()``."""
+        return item in self.cached("outline_set", lambda: set(self._outline_items()))
+
+    def selection_bounds(self) -> QRectF:
+        """Scene rect around ``outline_items()`` (null when nothing is selected)."""
+        return QRectF(self.cached("selection_bounds", lambda: self.scene_bounds(self._outline_items())))
 
     @staticmethod
     def scene_bounds(items: list[Any]) -> QRectF:
@@ -667,12 +725,15 @@ class CanvasDocument:
     # ---- Edits made on the canvas -------------------------------------------------------------
 
     def on_item_geometry_changed(self, item: Any) -> None:
+        self.epoch += 1
+        self.geometry_serial += 1
         if self.syncing:
             return
         self._dirty.add(item.node_name)
         self.app.on_item_geometry_changed(item)
 
     def mark_dirty(self, item: Any) -> None:
+        self.epoch += 1
         self._dirty.add(item.node_name)
 
     def commit_dirty(self) -> list[str]:
@@ -681,17 +742,23 @@ class CanvasDocument:
         if not dirty:
             return []
         scene = self.session.scene
-        committed = []
+        changes: dict[str, dict[str, Any]] = {}
+        for name in sorted(dirty):
+            item = self.items.get(name)
+            if item is None or not scene.has(name):
+                continue
+            stored = scene.get_node(name).attrs
+            updates = {k: v for k, v in item.commit_values().items() if differs(stored.get(k), v, 1e-9)}
+            if updates:
+                changes[name] = updates
+        committed = list(changes)
         with self.batch():
-            for name in sorted(dirty):
-                item = self.items.get(name)
-                if item is None or not scene.has(name):
-                    continue
-                stored = scene.get_node(name).attrs
-                updates = {k: v for k, v in item.commit_values().items() if differs(stored.get(k), v, 1e-9)}
-                if updates:
-                    self.session.run("set_attrs", name, updates)
-                    committed.append(name)
+            if len(changes) == 1:
+                self.session.run("set_attrs", committed[0], changes[committed[0]])
+            elif changes:
+                # One command for all of them: a command per node runs every before/after/tidy hook
+                # per node (seconds when a few thousand items were dragged).
+                self.session.run("set_attrs_many", changes)
             # The items already show the new values: don't rebuild them.
             for name in committed:
                 node = scene.get_node(name).to_dict()

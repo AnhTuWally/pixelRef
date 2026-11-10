@@ -368,7 +368,8 @@ class PageTabs(InputHandler):
 
     def frames(self) -> list[PageFrameItem]:
         canvas = self.ui.canvas
-        return [i for i in canvas.items.values() if isinstance(i, PageFrameItem) and i.isVisible()]
+        return list(canvas.cached("pages.frames", lambda: [
+            i for i in canvas.items.values() if isinstance(i, PageFrameItem) and i.isVisible()]))
 
     def tabs(self, view: Any) -> list[tuple[QRectF, PageFrameItem]]:
         out = []
@@ -785,7 +786,9 @@ def activate_pages_ui(ui: Any) -> None:
     # ---- Context ---------------------------------------------------------------------------------
 
     def selected_pages() -> list[str]:
-        return [n for n in session.selection.names if scene.has(n) and scene.get_node(n).node_type == PAGE]
+        # Asked by a dozen menu conditions on every selection change: once per change is enough.
+        return list(ui.canvas.cached("pages.selected", lambda: [
+            n for n in session.selection.names if scene.has(n) and scene.get_node(n).node_type == PAGE]))
 
     ui.context_key("pages.selected", lambda: bool(selected_pages()))
     ui.context_key("pages.single", lambda: len(selected_pages()) == 1)

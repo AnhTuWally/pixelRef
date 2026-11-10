@@ -962,7 +962,11 @@ def activate_interactions_ui(ui: Any) -> None:
         build=lambda parent, _inspector: ClickActionSection(ui, controller, parent)))
 
     def has_actions(names: list[str]) -> bool:
-        return api.demo is None and any(scene.has(n) and scene.get_node(n).attrs.get("on_click") for n in names)
+        if api.demo is not None:
+            return False
+        nodes = scene.nodes
+        return ui.canvas.cached(("interactions.has_actions", len(names), names[0] if names else None), lambda: any(
+            (node := nodes.get(n)) is not None and node.attrs.get("on_click") for n in names))
 
     ui.contribute("quick_edit.sections", QuickSection(
         key="click_action", title="Click Action Controls", order=5, applies=has_actions,

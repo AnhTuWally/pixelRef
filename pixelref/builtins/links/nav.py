@@ -66,7 +66,9 @@ class LinkNav:
     # ---- Ends -----------------------------------------------------------------------------
 
     def link_items(self) -> list[LinkItem]:
-        return [item for item in list(self.ui.canvas.items.values()) if isinstance(item, LinkItem)]
+        canvas = self.ui.canvas
+        return list(canvas.cached("links.items", lambda: [
+            item for item in list(canvas.items.values()) if isinstance(item, LinkItem)]))
 
     def _end(self, link: LinkItem, end: str, role: str) -> Target | None:
         try:
@@ -207,8 +209,15 @@ class LinkFinder(InputHandler):
         return tool is not None and tool.id == "select" and not getattr(tool, "busy", False)
 
     def _sources(self) -> list[str]:
-        names = [n for n in self.ui.session.selection.names if self.ui.canvas.item(n) is not None]
-        return names if len(names) <= self.MAX_SOURCES else []
+        canvas = self.ui.canvas
+
+        def sources() -> list[str]:
+            if len(self.ui.session.selection) > 4 * self.MAX_SOURCES + 64:
+                return []  # far more selected than could count: don't look every name up
+            names = [n for n in self.ui.session.selection.names if canvas.item(n) is not None]
+            return names if len(names) <= self.MAX_SOURCES else []
+
+        return canvas.cached("links.nav_sources", sources)
 
     def _hover_target(self, item: Any) -> str | None:
         """The hovered item, or the first group around it, that has links."""

@@ -86,6 +86,7 @@ the rest also work headless (batch mode, scripts).
 | `selected()` |  |  | The selected node names. |
 | `set_attr(target: str, *values: Any)` |  | yes | ``set_attr("Node.attr", value)`` or ``set_attr("Node", "attr", value)``. |
 | `set_attrs(node: str, attrs: dict[str, Any])` |  | yes | Set several attributes of one node. |
+| `set_attrs_many(changes: dict[str, dict[str, Any]])` |  | yes | Set attributes of several nodes at once: ``{node: {attr: value}}`` (one undo step). |
 | `set_plugin_source(path: str, enabled: bool \| None = None, policy: str \| None = None, label: str \| None = None)` |  |  | Switch a source on or off, or change its policy: "ask", "signed_only" or "trust_all". |
 | `set_tags(tags: Any, nodes: Any = None)` |  | yes | Replace the tags of nodes (default: the selection); ``[]`` clears them. |
 | `set_transform(nodes: Any = None, translate: Iterable[float] \| None = None, rotate: float \| None = None, scale: Iterable[float] \| float \| None = None, pivot: Iterable[float] \| None = None, relative: bool = False, world_space: bool = False)` |  | yes | Set the core transform attributes. |

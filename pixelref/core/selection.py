@@ -14,6 +14,9 @@ class Selection:
         self._removals = removals
         self._pruned_at: int | None = None
         self._names: list[str] = []
+        self._name_set: frozenset[str] | None = frozenset()
+        # Counts the changes of the selection: caches of things derived from it compare this.
+        self.revision = 0
         self._active: str | None = None
         self._listeners: list[Callable[[list[str]], None]] = []
 
@@ -31,7 +34,14 @@ class Selection:
         return len(self._names)
 
     def __contains__(self, name: object) -> bool:
-        return name in self._names
+        return name in self.name_set
+
+    @property
+    def name_set(self) -> frozenset[str]:
+        """The selected names as a set (built once per change: membership tests on a big selection)."""
+        if self._name_set is None:
+            self._name_set = frozenset(self._names)
+        return self._name_set
 
     def subscribe(self, callback: Callable[[list[str]], None]) -> Disposable:
         self._listeners.append(callback)
@@ -53,6 +63,8 @@ class Selection:
         elif self._active not in seen:
             self._active = cleaned[-1] if cleaned else None
         self._names = cleaned
+        self._name_set = frozenset(seen)
+        self.revision += 1
         for callback in list(self._listeners):
             callback(list(self._names))
         return True
@@ -95,6 +107,8 @@ class Selection:
     def rename(self, old: str, new: str) -> None:
         if old in self._names:
             self._names = [new if n == old else n for n in self._names]
+            self._name_set = None
+            self.revision += 1
             if self._active == old:
                 self._active = new
             for callback in list(self._listeners):

@@ -810,8 +810,8 @@ class LinkFeedback:
         tool = self.ui.tools.active
         if tool is not None and not tool.show_selection:
             return
-        links = [canvas.item(n) for n in self.ui.session.selection.names]
-        links = [item for item in links if isinstance(item, LinkItem)]
+        links = canvas.cached("links.selected", lambda: [
+            item for item in map(canvas.item, self.ui.session.selection.names) if isinstance(item, LinkItem)])
         if len(links) > 3:  # a big selection would be all labels
             return
         for item in links:

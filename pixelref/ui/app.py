@@ -106,6 +106,13 @@ class App:
         self.menu_scene_pos: QPointF | None = None
         self.views: dict[str, CanvasView] = {}
         self._syncing_cameras = False
+        # While a selection is being dragged out (rubber band) it changes on every mouse move: the
+        # canvas shows it at once, panels and action states follow at most every SELECTION_LIVE_MS.
+        self._selection_live = False
+        self._selection_unannounced = False
+        self._selection_timer = QTimer()
+        self._selection_timer.setSingleShot(True)
+        self._selection_timer.timeout.connect(self._announce_selection)
         self.closed = False
         self.started = False
         self.load_user_files = load_user_files
@@ -836,6 +843,7 @@ class App:
     # ---- Hooks from the canvas / WM ----------------------------------------------------------------
 
     def on_canvas_refreshed(self) -> None:
+        self.canvas.scene.schedule_fit_index()
         for view in self.views.values():
             view.invalidate_content_bounds()
             if view.display.filters_active:
@@ -845,15 +853,39 @@ class App:
         self.events.emit("canvas.refreshed", {})
 
     def on_canvas_rebuilt(self) -> None:
+        self.canvas.scene.fit_index()  # now: the first frames of a board just opened render every tile
         self.events.emit("canvas.rebuilt", {})
 
+    SELECTION_LIVE_MS = 120
+
     def on_selection_changed(self) -> None:
+        if self._selection_live:
+            self._selection_unannounced = True
+            if not self._selection_timer.isActive():
+                self._selection_timer.start(self.SELECTION_LIVE_MS)
+            return
+        self._announce_selection()
+
+    def _announce_selection(self) -> None:
+        self._selection_timer.stop()
+        self._selection_unannounced = False
+        if self.closed:
+            return
         self.actions.refresh_states()
         self.events.emit("ui.selection_changed", {"names": self.session.selection.names})
 
+    def set_selection_live(self, live: bool) -> None:
+        """A tool is changing the selection continuously (dragging a rubber band): ``ui.selection_changed``
+        (the inspector, the outliner, action states...) is then sent at most every SELECTION_LIVE_MS,
+        and once more when the tool is done. Refreshing every panel for every mouse move is what made
+        a rubber band over a big board crawl."""
+        self._selection_live = bool(live)
+        if not live and self._selection_unannounced:
+            self._announce_selection()
+
     def on_item_geometry_changed(self, item: Any) -> None:
-        for view in self.views.values():
-            view.invalidate_content_bounds()
+        # Called per item per mouse move while a selection is dragged: the views notice the moved
+        # board themselves (canvas.geometry_serial), so this only tells the listeners.
         self.events.emit("item.geometry_changed", {"item": item})
 
     def on_focus_changed(self, tile: str) -> None:

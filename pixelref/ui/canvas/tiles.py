@@ -46,6 +46,8 @@ if TYPE_CHECKING:
 
 TILE = 256  # device pixels
 MAX_RUN = 8  # adjacent missing tiles rendered by one scene.render
+MERGE_RECTS = 64  # more changed rects than this are merged onto the tile grid first (see _merge_rects)
+MERGE_SPAN = 4096  # a rect covering more grid cells than this is kept as it is
 MAX_LEVELS = 3  # zoom levels kept (the current one and fallbacks for zooming back)
 BUDGET_BYTES = 256 * 1024 * 1024  # per view
 SETTLE_MS = 140  # after the last zoom step, render the new level
@@ -153,6 +155,13 @@ class TileCache:
         self.levels.clear()
         self._drop_overview()
 
+    def drop(self) -> None:
+        """Forget every tile, if there are any (the view is hidden and its scene changed)."""
+        if self.levels or self.overview is not None:
+            self.clear()
+            self._settle.stop()
+            self._idle_timer.stop()
+
     def _drop_overview(self) -> None:
         self.overview = None
         self._ov_keys = []
@@ -188,6 +197,8 @@ class TileCache:
         rects = list(rects)
         if not rects:
             return
+        if len(rects) > MERGE_RECTS:
+            rects = self._merge_rects(rects)
         ov = self.overview
         if ov is not None and ov.tiles:
             self._ov_changed = time.monotonic()
@@ -231,6 +242,54 @@ class TileCache:
                                 level.dirty.add((i, j))
                 if not tiles:
                     break
+
+    def _merge_rects(self, rects: list[QRectF]) -> list[QRectF]:
+        """Many changed rects (dragging a big selection reports thousands per frame) as a few: the
+        cells of the newest level's tile grid they touch, joined into one rect per run of a row.
+
+        Looking every rect up in every level is what took the time (60 ms per frame for 3000 moved
+        items). The merged rects cover at least the same area, at most one tile more around it.
+        """
+        level = next(reversed(self.levels.values()), None) if self.levels else self.overview
+        if level is None:
+            return rects
+        step = level.step
+        pad = 2.0 / level.r  # antialiased edges, as invalidate() pads single rects
+        floor = math.floor
+        cells: set[Key] = set()
+        large: list[QRectF] = []
+        for rect in rects:
+            try:
+                i0, i1 = floor((rect.left() - pad) / step), floor((rect.right() + pad) / step)
+                j0, j1 = floor((rect.top() - pad) / step), floor((rect.bottom() + pad) / step)
+            except (OverflowError, ValueError):
+                large.append(rect)
+                continue
+            if i0 == i1 and j0 == j1:
+                cells.add((i0, j0))
+            elif (i1 - i0 + 1) * (j1 - j0 + 1) > MERGE_SPAN:
+                large.append(rect)
+            else:
+                for j in range(j0, j1 + 1):
+                    for i in range(i0, i1 + 1):
+                        cells.add((i, j))
+        rows: dict[int, list[int]] = {}
+        for i, j in cells:
+            rows.setdefault(j, []).append(i)
+        # Inset by the pad invalidate() adds again, so a run does not spill into the next cells.
+        inset = 2.0 * pad
+        for j, columns in rows.items():
+            columns.sort()
+            start = previous = columns[0]
+            for i in columns[1:]:
+                if i != previous + 1:
+                    large.append(QRectF(start * step + inset, j * step + inset,
+                                        (previous - start + 1) * step - 2 * inset, step - 2 * inset))
+                    start = i
+                previous = i
+            large.append(QRectF(start * step + inset, j * step + inset,
+                                (previous - start + 1) * step - 2 * inset, step - 2 * inset))
+        return large
 
     # ---- Painting --------------------------------------------------------------------------
 
@@ -280,6 +339,7 @@ class TileCache:
             self.clear()
         level = self._current_level()
         progressive = progressive_mode()
+        view.sync_geometry()
         if progressive and not self._ov_done and not self._ov_timer.isActive():
             self._ov_timer.start(200)
         visible = self._visible_keys(level)
@@ -530,6 +590,7 @@ class TileCache:
         view = self.view
         if not progressive_mode() or not view.isVisible() or not view.uses_tiles():
             return
+        view.sync_geometry()
         level = self._current_level()
         if self.overview is not None and self.overview.dpr != view.devicePixelRatioF():
             self._drop_overview()

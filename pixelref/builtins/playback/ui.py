@@ -41,7 +41,9 @@ class PlaybackService(QObject):
         return item if getattr(item, "animated", False) else None
 
     def animated_selection(self) -> list[str]:
-        return [n for n in self.session.selection.names if self.item(n) is not None]
+        return list(self.ui.canvas.cached(
+            "playback.animated_selection",
+            lambda: [n for n in self.session.selection.names if self.item(n) is not None]))
 
     def targets(self, nodes: Any = None) -> list[str]:
         if nodes is None:
@@ -397,7 +399,9 @@ def activate_playback_ui(ui: Any) -> None:
 
     ui.contribute("quick_edit.sections", QuickSection(
         key="playback", title="Playback Controls", order=10,
-        applies=lambda names: any(service.item(n) is not None for n in names),
+        applies=lambda names: ui.canvas.cached(
+            ("playback.quick", len(names), names[0] if names else None),
+            lambda: any(service.item(n) is not None for n in names)),
         build=lambda parent: PlaybackQuickControls(ui, service, parent)))
 
     controls = PlaybackControls(ui, service)

@@ -57,21 +57,63 @@ def frame_interval_ms() -> int:
 
 
 class CanvasScene(QGraphicsScene):
-    """The one item scene of a session (shared by all canvas views)."""
+    """The one item scene of a session (shared by all canvas views).
+
+    The canvas is endless for the user (every view scrolls over ``EXTENT``; see CanvasView), but the
+    scene's own rect is kept close to the board. Qt's item index (a BSP tree) divides the *scene rect*
+    into cells: over the whole extent one cell is bigger than most boards, so every hit test and every
+    tile render looked at every item (6.6 ms per ``view.items(pos)`` and 7.2 ms per tile on 3000 items,
+    against 0.02 and 0.33 ms with a fitted rect). Items outside the rect still work; they only index
+    less well until the rect is fitted again (``fit_index``, after each canvas refresh).
+    """
 
     EXTENT = 1_000_000.0
+    INDEX_MIN = 4096.0  # half size of the index rect of an empty board
+    INDEX_SLACK = 16.0  # the index rect is fitted again when it is this many times larger (in area) than needed
 
     # Scene areas whose pixels changed (what view tile caches drop). Like
     # ``changed``, except that removing items reports where they were: Qt
     # reports any removal as a change of the whole scene.
-    content_changed = Signal(list)
+    # (``object``: the list goes to the listeners as it is. Declared as ``list`` it was converted to a
+    # Qt list and back for every listener, milliseconds each with the thousands of rects of a big drag.)
+    content_changed = Signal(object)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        # Huge rect so the canvas is effectively infinite in every direction.
-        self.setSceneRect(-self.EXTENT, -self.EXTENT, 2 * self.EXTENT, 2 * self.EXTENT)
+        self.setSceneRect(-self.INDEX_MIN, -self.INDEX_MIN, 2 * self.INDEX_MIN, 2 * self.INDEX_MIN)
         self._removed: list[QRectF] = []
+        self._muted = False
+        self._fit_timer = QTimer(self)
+        self._fit_timer.setSingleShot(True)
+        self._fit_timer.setInterval(50)
+        self._fit_timer.timeout.connect(self.fit_index)
         self.changed.connect(self._on_changed)
+
+    @classmethod
+    def extent_rect(cls) -> QRectF:
+        """The area views can scroll over (the canvas is effectively infinite in every direction)."""
+        return QRectF(-cls.EXTENT, -cls.EXTENT, 2 * cls.EXTENT, 2 * cls.EXTENT)
+
+    def schedule_fit_index(self) -> None:
+        """Items were added, removed or moved: fit the index rect to the board soon (once per burst)."""
+        if not self._fit_timer.isActive():
+            self._fit_timer.start()
+
+    def fit_index(self) -> None:
+        """Fit the scene rect (what Qt's item index divides) to the items, with room to move them."""
+        self._fit_timer.stop()
+        bounds = self.itemsBoundingRect()
+        if bounds.isNull() or not bounds.isValid():
+            wanted = QRectF(-self.INDEX_MIN, -self.INDEX_MIN, 2 * self.INDEX_MIN, 2 * self.INDEX_MIN)
+        else:
+            pad = max(self.INDEX_MIN / 2.0, 0.5 * max(bounds.width(), bounds.height()))
+            wanted = bounds.adjusted(-pad, -pad, pad, pad).intersected(self.extent_rect())
+        current = self.sceneRect()
+        if (current.contains(bounds) and not bounds.isNull()
+                and current.width() * current.height() <= self.INDEX_SLACK * wanted.width() * wanted.height()):
+            return  # still a good fit: setting the rect makes Qt index every item again
+        if wanted != current:
+            self.setSceneRect(wanted)
 
     def remove_items(self, items: list[QGraphicsItem]) -> None:
         """Remove items, reporting only their areas as changed (not the whole scene)."""
@@ -87,11 +129,32 @@ class CanvasScene(QGraphicsScene):
         for _ in range(2):  # processing dirty items queues the emission of ``changed``
             QCoreApplication.sendPostedEvents(self, QEvent.MetaCall)
 
+    @contextmanager
+    def unchanged_pixels(self) -> Iterator[None]:
+        """Item changes made inside repaint nothing: no ``content_changed`` for them.
+
+        Qt marks an item for repaint whenever its selected state changes, but items here never draw
+        their selection (the view paints outlines on top), so selecting a thousand items would drop
+        and re-render every tile under them for nothing. Changes pending from before are reported first.
+        """
+        self.flush_changes()
+        self._muted = True
+        try:
+            yield
+            self.flush_changes()
+        finally:
+            self._muted = False
+
     def _on_changed(self, rects: list[QRectF]) -> None:
+        if self._muted:
+            return
         removed, self._removed = self._removed, []
+        # Qt reports "everything changed" as the scene rect, which is only the index rect here.
+        whole = self.sceneRect()
         if removed:
-            whole = self.sceneRect()
             rects = [r for r in rects if not r.contains(whole)] + removed
+        elif any(r.contains(whole) for r in rects):
+            rects = [self.extent_rect()]
         self.content_changed.emit(rects)
 
 
@@ -184,6 +247,8 @@ class CanvasView(QGraphicsView):
 
     def __init__(self, app: "App", name: str = "", parent: QWidget | None = None) -> None:
         super().__init__(app.canvas.scene, parent)
+        # The view scrolls over the whole extent; the scene's own rect only serves Qt's item index.
+        self.setSceneRect(CanvasScene.extent_rect())
         self.app = app
         self.view_name = name
         self.display = DisplaySettings()
@@ -233,6 +298,7 @@ class CanvasView(QGraphicsView):
         # net for geometry changes that bypass the refresh hooks. Measuring walks every item (42 ms on
         # 5000) and min_zoom() runs once per wheel notch.
         self._content_bounds: QRectF | None = None
+        self._bounds_serial = -1  # canvas.geometry_serial the bounds were measured at
         self._bounds_stale = False
         self._bounds_time = 0.0
         self._camera_batching = 0
@@ -266,6 +332,12 @@ class CanvasView(QGraphicsView):
     def _on_scene_changed(self, rects: list[QRectF]) -> None:
         self._bounds_stale = True
         self._invalidate_gray_cache()
+        if not self.isVisible():
+            # A view nobody sees (another workspace, a hidden tab) keeps no tiles up to date: finding
+            # the tiles under thousands of changed rects, per hidden view, is wasted on every frame
+            # of a drag. It renders what it shows when it is shown again.
+            self.tiles.drop()
+            return
         self.tiles.invalidate(rects)
 
     def _invalidate_gray_cache(self, *_args: Any) -> None:
@@ -347,9 +419,18 @@ class CanvasView(QGraphicsView):
         self._content_bounds = None
         self.tiles.content_geometry_changed()
 
+    def sync_geometry(self) -> None:
+        """Notice items moved since the board was measured (``canvas.geometry_serial``). Checked where
+        the bounds are used, instead of every view being told for every item of every drag step."""
+        serial = self.app.canvas.geometry_serial
+        if serial != self._bounds_serial:
+            self._bounds_serial = serial
+            self.invalidate_content_bounds()
+
     def min_zoom(self) -> float:
         """How far zooming out may go: MIN_ZOOM, or further until the board fits in
         ZOOM_OUT_FIT of the view (so a board spread wide can still be seen whole)."""
+        self.sync_geometry()
         now = time.monotonic()
         if self._content_bounds is None or (self._bounds_stale and now - self._bounds_time > self.BOUNDS_REMEASURE_S):
             canvas = self.app.canvas
@@ -882,6 +963,9 @@ class CanvasView(QGraphicsView):
             painter = QPainter(self.viewport())
             self.tiles.paint(painter)
         else:
+            if not self._rendering_gray:
+                # As with tiles: what the overlays remember of the items (canvas.cached) is up to date.
+                self.app.canvas.scene.flush_changes()
             super().paintEvent(event)
             painter = QPainter(self.viewport())
         if self._hide_overlay or self._rendering_gray:

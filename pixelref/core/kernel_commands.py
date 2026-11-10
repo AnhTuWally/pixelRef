@@ -350,6 +350,14 @@ def register_kernel_commands(session: "Session") -> None:
         """Set several attributes of one node."""
         scene.set_attrs(scene.resolve(node), attrs)
 
+    def set_attrs_many(changes: dict[str, dict[str, Any]]) -> None:
+        """Set attributes of several nodes at once: ``{node: {attr: value}}`` (one undo step).
+
+        One command and one refresh however many nodes: what moving a big selection on the canvas writes."""
+        resolved = [(scene.resolve(node), attrs) for node, attrs in changes.items()]
+        for name, attrs in resolved:
+            scene.set_attrs(name, attrs)
+
     def add_attr(node: str, name: Any, type: str = "any", default: Any = None, value: Any = None,  # noqa: A002
                  **spec: Any) -> None:
         """Add a dynamic attribute to one node (saved with the scene); ``name`` may also be an ``Attr``."""
@@ -399,6 +407,7 @@ def register_kernel_commands(session: "Session") -> None:
     reg("get_attr", get_attr, undoable=False, echo=False)
     reg("set_attr", set_attr, label=lambda target, *v: f"Set {target if '.' in target else target + '.' + str(v[0])}")
     reg("set_attrs", set_attrs, label=lambda node, *a, **k: f"Edit {node}")
+    reg("set_attrs_many", set_attrs_many, label=lambda changes, *a, **k: f"Edit {len(changes)} nodes")
     reg("add_attr", add_attr, label="Add attribute")
     reg("delete_attr", delete_attr, label="Delete attribute")
     reg("attrs", attrs, undoable=False, echo=False)

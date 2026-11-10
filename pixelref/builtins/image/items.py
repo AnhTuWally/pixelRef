@@ -464,10 +464,18 @@ class PixmapItem(NodeItemMixin, QGraphicsItem):
     # ---- QGraphicsItem ------------------------------------------------------------------
 
     def content_rect(self) -> QRectF:
+        if self._crop is None:  # the usual case, without the calls in between (see boundingRect)
+            size = self.image_size()
+            return QRectF(0.0, 0.0, size.width(), size.height())
         return self.crop_rect()
 
     def boundingRect(self) -> QRectF:
-        return self.full_rect() if self._crop_preview else self.crop_rect()
+        # Qt asks for this all the time (indexing, hit tests, every repaint): the uncropped case
+        # answers with one call instead of three nested ones.
+        if self._crop is None or self._crop_preview:
+            size = self.image_size()
+            return QRectF(0.0, 0.0, size.width(), size.height())
+        return self.crop_rect()
 
     def itemChange(self, change, value):  # noqa: ANN001
         if change == QGraphicsItem.ItemPositionHasChanged:

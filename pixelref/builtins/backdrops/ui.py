@@ -288,6 +288,7 @@ class DragPreview:
         self.ui = ui
         self.engine = engine
         self._stamp = 0.0
+        self._cost = 0.0  # how long the last compute took
         self._result: list[tuple[str, str | None, str | None]] = []  # (node, current backdrop, target)
 
     def active(self) -> bool:
@@ -297,7 +298,9 @@ class DragPreview:
 
     def compute(self, view: Any) -> list[tuple[str, str | None, str | None]]:
         now = time.monotonic()
-        if now - self._stamp < self.REFRESH_S:
+        # At most every REFRESH_S, and never more than a tenth of the time: deciding for each of
+        # thousands of dragged items takes longer than a frame.
+        if now - self._stamp < max(self.REFRESH_S, 10.0 * self._cost):
             return self._result
         self._stamp = now
         canvas, session = self.ui.canvas, self.ui.session
@@ -319,6 +322,7 @@ class DragPreview:
         except Exception:  # noqa: BLE001  (a preview must never break a drag)
             result = []
         self._result = result
+        self._cost = time.monotonic() - now
         return result
 
     def paint(self, view: Any, painter: QPainter) -> None:
@@ -375,11 +379,12 @@ def paint_contents_outline(ui: Any, view: Any, painter: QPainter) -> None:
     pen.setDashPattern([3.0, 4.0])
     painter.setPen(pen)
     painter.setBrush(Qt.NoBrush)
-    for name in session.selection.names:
-        if not scene.has(name) or not scene.get_node(name).children:
-            continue
-        if scene.get_node(name).node_type != BACKDROP:
-            continue
+    def selected_backdrops() -> list[str]:
+        nodes = scene.nodes
+        return [name for name in session.selection.names
+                if (node := nodes.get(name)) is not None and node.node_type == BACKDROP and node.children]
+
+    for name in canvas.cached("backdrops.selected", selected_backdrops):
         item = canvas.items.get(name)
         if item is None:
             continue

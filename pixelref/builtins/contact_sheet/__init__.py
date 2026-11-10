@@ -12,7 +12,7 @@ THUMB = 128
 
 
 def activate_ui(ui: Any) -> None:
-    from PySide6.QtCore import QSize, Qt, QTimer
+    from PySide6.QtCore import QItemSelection, QItemSelectionModel, QSize, Qt, QTimer
     from PySide6.QtGui import QIcon, QPixmap
     from PySide6.QtWidgets import QAbstractItemView, QListWidget, QListWidgetItem, QSlider, QVBoxLayout, QWidget
 
@@ -43,6 +43,7 @@ def activate_ui(ui: Any) -> None:
             layout.addWidget(self.size_slider)
             self.items: dict[str, QListWidgetItem] = {}
             self._syncing = False
+            self._selection_stale = False
             self._signature: list[tuple[str, str, str]] = []
             self._timer = QTimer(self)
             self._timer.setSingleShot(True)
@@ -89,12 +90,35 @@ def activate_ui(ui: Any) -> None:
                 self._syncing = False
             self.sync_selection()
 
+        def showEvent(self, event) -> None:  # noqa: ANN001, N802
+            super().showEvent(event)
+            if self._selection_stale:
+                self.sync_selection()
+
         def sync_selection(self) -> None:
+            if not self.isVisible():
+                self._selection_stale = True  # a hidden sheet catches up when it is shown
+                return
+            self._selection_stale = False
             self._syncing = True
             try:
-                selected = set(session.selection.names)
-                for name, item in self.items.items():
-                    item.setSelected(name in selected)
+                # One selection update for the whole grid: selecting row by row costs a relayout
+                # each (0.2-0.7 ms), seconds for a board of thousands on every selection change.
+                selected = session.selection.name_set
+                model = self.grid.model()
+                selection = QItemSelection()
+                start = None
+                row = -1
+                for row, name in enumerate(self.items):  # in row order
+                    if name in selected:
+                        if start is None:
+                            start = row
+                    elif start is not None:
+                        selection.select(model.index(start, 0), model.index(row - 1, 0))
+                        start = None
+                if start is not None:
+                    selection.select(model.index(start, 0), model.index(row, 0))
+                self.grid.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
             finally:
                 self._syncing = False
 

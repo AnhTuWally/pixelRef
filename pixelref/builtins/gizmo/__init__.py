@@ -116,8 +116,11 @@ class GizmoService:
     # ---- Geometry ------------------------------------------------------------------------
 
     def gizmo(self, view: Any) -> dict[str, Any] | None:
-        targets = self.ui.canvas.transform_targets()
-        targets = [t for t in targets if view.display.shows(t.node_name)]
+        canvas = self.ui.canvas
+        targets = canvas.transform_targets()
+        hidden = view.display.hidden
+        if hidden:
+            targets = [t for t in targets if t.node_name not in hidden]
         if not targets:
             return None
         single = len(targets) == 1
@@ -129,9 +132,14 @@ class GizmoService:
             corners_scene = [st.map(local[name]) for name in CORNERS]
             center_scene = st.map(item.content_rect().center())
         else:
-            rect = QRectF()
-            for item in targets:
-                rect = rect.united(item.scene_content_rect())
+            def measure() -> QRectF:
+                rect = QRectF()
+                for item in targets:
+                    rect = rect.united(item.scene_content_rect())
+                return rect
+
+            # Once per change of the selection or of an item, not on every frame and mouse move.
+            rect = canvas.cached(("gizmo.bounds", frozenset(hidden) if hidden else None), measure)
             corners_scene = [rect.topLeft(), rect.topRight(), rect.bottomRight(), rect.bottomLeft()]
             center_scene = rect.center()
         vp = [view.to_viewport(p) for p in corners_scene]
