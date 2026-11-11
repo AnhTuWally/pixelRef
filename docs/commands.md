@@ -287,6 +287,16 @@ the rest also work headless (batch mode, scripts).
 | `color_popover.choose_picker()` |  |  | Choose which colour picker the swatches open. |
 | `color_popover.use_picker(picker: str)` |  |  | Use a colour picker for every swatch: its id (see ``colors list``), or "default". |
 
+## compare
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `compare.compare_nodes(node_a: str, node_b: str, name: str = 'CompareViewer', link_cables: bool = True, **attrs: Any)` |  | yes | Create a compare viewer comparing two nodes, placing it adjacent and linking them. |
+| `compare.compare_selected()` | `compare_selected` | yes | Compare the two selected items in a new compare viewer. |
+| `compare.create(x: float = 0.0, y: float = 0.0, input_a: str = '', input_b: str = '', name: str = 'CompareViewer', **attrs: Any)` |  | yes | Create a compare viewer node on the canvas. |
+| `compare.swap_inputs(node: str \| None = None)` |  | yes | Swap input_a and input_b on the given or selected compare viewer. |
+| `compare.toggle_active(node: str \| None = None)` |  | yes | Toggle active_input between 'a' and 'b' on the given or selected compare viewer. |
+
 ## console
 
 | Command | Alias | Undo | Description |

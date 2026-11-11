@@ -1,0 +1,15 @@
+id = "compare"
+name = "Compare Viewer"
+version = "1.0.0"
+api = 1
+requires = ["image"]
+description = "A/B image comparison viewer node with wipe, difference, mix, and toggle modes."
+category = "Tools"
+tags = ["compare", "wipe", "viewer", "vfx", "nuke"]
+min_app_version = "1.0.0"
+
+[author]
+name = "pixelRef"
+
+[permissions]
+
