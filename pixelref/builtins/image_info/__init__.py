@@ -48,12 +48,15 @@ def activate_ui(ui: Any) -> None:
         crop = item.crop_rect()
         if not crop.contains(local):
             return None
+        cpath = getattr(item, "crop_path", lambda: None)()
+        if cpath is not None and not cpath.contains(local):
+            return None
         full = item.full_rect()
         transform = item.sceneTransform()
         screen_scale = math.hypot(transform.m11(), transform.m12()) * view.zoom_level()
         node = canvas.nodes.get(item.node_name, {})
         size = f"{crop.width():.0f} × {crop.height():.0f} px"
-        if crop != full:
+        if crop != full or cpath is not None:
             size += f"  (cropped from {full.width():.0f} × {full.height():.0f})"
         return {
             "x": math.floor(local.x()), "y": math.floor(local.y()),

@@ -673,7 +673,20 @@ def activate_image_ui(ui: Any) -> None:
                   if isinstance(canvas.item(n), PixmapItem) and canvas.item(n).node_type == "image"]
         if len(images) == 1:
             item = images[0]
-            mime.setImageData(item.pixmap().copy(item.crop_rect().toRect()).toImage())
+            rect = item.crop_rect().toRect()
+            cpath = item.crop_path()
+            if cpath is not None and not rect.isEmpty():
+                cutout = QImage(rect.size(), QImage.Format_ARGB32_Premultiplied)
+                cutout.fill(Qt.transparent)
+                p = QPainter(cutout)
+                p.setRenderHint(QPainter.Antialiasing, True)
+                p.translate(-rect.x(), -rect.y())
+                p.setClipPath(cpath)
+                p.drawPixmap(0, 0, item.pixmap())
+                p.end()
+                mime.setImageData(cutout)
+            else:
+                mime.setImageData(item.pixmap().copy(rect).toImage())
         linked = [session.resolve_path(str(canvas.nodes[i.node_name]["attrs"].get("path", "")))
                   for i in images if not canvas.nodes[i.node_name]["attrs"].get("asset")]
         if linked:

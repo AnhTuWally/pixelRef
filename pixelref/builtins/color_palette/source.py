@@ -9,10 +9,10 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from PySide6.QtCore import QRect, Qt
-from PySide6.QtGui import QImage
+from PySide6.QtCore import QRect, QRectF, Qt
+from PySide6.QtGui import QImage, QPainter
 
-from pixelref.plugin_api import CommandError
+from pixelref.plugin_api import CommandError, crop as crop_geom
 
 from .extract import SAMPLE_BUDGET
 
@@ -38,11 +38,24 @@ def sample_pixels(session: Any, node: Any, budget: int = SAMPLE_BUDGET) -> bytes
     if image.isNull():
         raise CommandError(f"'{node.name}': the image can't be read")
     crop = attrs.get("crop")
-    if crop and len(crop) == 4:
+    if crop_geom.is_rect_crop(crop):
         rect = QRect(int(crop[0]), int(crop[1]), int(math.ceil(crop[2])), int(math.ceil(crop[3])))
         rect = rect.intersected(image.rect())
         if not rect.isEmpty():
             image = image.copy(rect)
+    elif crop is not None:
+        qpath = crop_geom.crop_to_qpath(crop, full_rect=QRectF(image.rect()))
+        if qpath is not None and not qpath.isEmpty():
+            brect = qpath.boundingRect().toAlignedRect().intersected(image.rect())
+            if not brect.isEmpty():
+                masked = QImage(brect.size(), QImage.Format_RGBA8888)
+                masked.fill(Qt.transparent)
+                p = QPainter(masked)
+                p.translate(-brect.x(), -brect.y())
+                p.setClipPath(qpath)
+                p.drawImage(0, 0, image)
+                p.end()
+                image = masked
     pixels = image.width() * image.height()
     if pixels > budget:
         scale = math.sqrt(budget / pixels)

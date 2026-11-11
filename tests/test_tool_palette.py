@@ -48,8 +48,8 @@ def test_default_palette_comes_from_the_plugins():
         sections = dict(shown(h))
         assert list(sections) == ["tools", "add"]
         assert sections["tools"][:3] == ["tool.select", "tool.rect", "tool.arrow"]
-        assert sections["add"] == ["image.insert", "movie.insert", "sequence.insert", "text.add", "code.add",
-                                   "grouping.add_group", "backdrops.make"]
+        assert sections["add"] == ["image.insert", "movie.insert", "sequence.insert", "model3d.insert", "text.add",
+                                   "code.add", "grouping.add_group", "backdrops.make", "compare.compare_selected"]
         assert not h.service("tool_palette").layout.customized()
         assert tools_menu_texts(h)[:2] == ["Select Tool", "Rectangle Tool"]
         # The palette's settings close the menu ("Pasted Text Width…" sits beside Customize).

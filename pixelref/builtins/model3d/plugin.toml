@@ -1,0 +1,6 @@
+id = "model3d"
+name = "3D Objects"
+version = "1.0.0"
+api = 1
+optional = ["inspector", "quick_edit", "gizmo"]
+description = "3D reference objects (.obj, .glb, .gltf, .stl, .ply and built-in artist primitives): double-click to orbit, pan, zoom and rotate lighting on the board, with Studio, Clay, MatCap, Normal, Flat, Wireframe and Silhouette shading."

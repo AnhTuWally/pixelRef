@@ -1,0 +1,499 @@
+"""The 3D object canvas item: renders a 3D mesh offscreen to a cached QImage."""
+
+from __future__ import annotations
+
+import weakref
+from pathlib import Path
+from typing import Any
+
+from PySide6.QtCore import QObject, QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QFontMetricsF, QImage, QPainter, QPen, QPixmap
+from PySide6.QtWidgets import QGraphicsItem
+
+from pixelref.plugin_api.ui import NodeItemMixin, theme
+
+from . import DEFAULT_SIZE, TYPE
+from .loader import (
+    ASYNC_FILE_THRESHOLD,
+    ASYNC_LOADER,
+    CACHE,
+    MeshData,
+    file_cache_key,
+    load_mesh_bytes,
+    load_mesh_file,
+    load_primitive,
+)
+from .renderer import RenderParams, paint_axes_gizmo, paint_light_gizmo, render_mesh
+
+# Items currently in interactive 3D View Mode (normally none or one).
+EDITING_3D: "weakref.WeakSet[Model3DItem]" = weakref.WeakSet()
+
+
+class _MeshLoadedBridge(QObject):
+    """Marshals background-thread mesh load completions onto the main Qt GUI thread."""
+
+    loaded = Signal(object, object, object)  # (cache_key, mesh, error)
+
+    def __init__(self, item: "Model3DItem") -> None:
+        super().__init__()
+        self._item_ref = weakref.ref(item)
+        self.loaded.connect(self._on_loaded, Qt.QueuedConnection)
+
+    def _on_loaded(self, key: Any, mesh: Any, error: Any) -> None:
+        item = self._item_ref()
+        if item is not None:
+            item._on_async_mesh_loaded(key, mesh, error)
+
+
+def placeholder_card(size: QSize, title: str, subtitle: str = "") -> QImage:
+    w = max(60, size.width())
+    h = max(60, size.height())
+    image = QImage(w, h, QImage.Format_ARGB32_Premultiplied)
+    image.fill(QColor("#1a1c21"))
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.Antialiasing, True)
+    painter.setPen(QPen(QColor("#3d4452"), 1.0, Qt.DashLine))
+    painter.drawRoundedRect(QRectF(1.0, 1.0, w - 2.0, h - 2.0), 6.0, 6.0)
+    painter.setPen(QColor("#8a93a6"))
+    text = f"{title}\n{subtitle}".strip()
+    painter.drawText(QRectF(8.0, 8.0, w - 16.0, h - 16.0), Qt.AlignCenter | Qt.TextWordWrap, text)
+    painter.end()
+    return image
+
+
+def _rgb_tuple(val: Any, default: tuple[int, int, int] = (196, 200, 208)) -> tuple[int, int, int]:
+    try:
+        return (
+            max(0, min(255, int(val[0]))),
+            max(0, min(255, int(val[1]))),
+            max(0, min(255, int(val[2]))),
+        )
+    except (TypeError, ValueError, IndexError):
+        return default
+
+
+def _rgba_tuple(val: Any, default: tuple[int, int, int, int] = (24, 27, 34, 0)) -> tuple[int, int, int, int]:
+    try:
+        a = int(val[3]) if len(val) >= 4 else 255
+        return (
+            max(0, min(255, int(val[0]))),
+            max(0, min(255, int(val[1]))),
+            max(0, min(255, int(val[2]))),
+            max(0, min(255, a)),
+        )
+    except (TypeError, ValueError, IndexError):
+        return default
+
+
+class Model3DItem(NodeItemMixin, QGraphicsItem):
+    """Canvas item displaying an interactive 3D reference mesh."""
+
+    MIN_SIZE = 60.0
+
+    def __init__(self, node_name: str, session: Any) -> None:
+        super().__init__()
+        self._init_node(node_name, TYPE, None)
+        self.session = session
+        self.cache_key: Any = None
+        self._attrs: dict[str, Any] = {}
+        self._size = QPointF(*DEFAULT_SIZE)
+        self._mesh: MeshData | None = None
+        self._missing = False
+        self._loading = False
+        self._loading_label = ""
+        self._pending_load_key: Any = None
+        self._bridge = _MeshLoadedBridge(self)
+        self._error_text = ""
+        self._editing = False
+        self._interactive_drag = False
+        self._render_key: Any = None
+        self._rendered: QImage = QImage()
+        self._rendered_pixmap: QPixmap | None = None
+        self.setFlag(QGraphicsItem.ItemIsSelectable, True)
+        self.setFlag(QGraphicsItem.ItemIsMovable, True)
+        self.setFlag(QGraphicsItem.ItemSendsGeometryChanges, True)
+        self.setFlag(QGraphicsItem.ItemDoesntPropagateOpacityToChildren, True)
+
+    # ---- Source & Attributes -------------------------------------------------------------------
+
+    def apply_attrs(self, attrs: dict[str, Any]) -> None:
+        self._attrs = dict(attrs)
+        raw_size = attrs.get("size", DEFAULT_SIZE)
+        try:
+            w = max(self.MIN_SIZE, float(raw_size[0]))
+            h = max(self.MIN_SIZE, float(raw_size[1]))
+        except (TypeError, ValueError, IndexError):
+            w, h = DEFAULT_SIZE
+        if QPointF(w, h) != self._size:
+            self.prepareGeometryChange()
+            self._size = QPointF(w, h)
+        self._resolve_mesh(attrs)
+        self._invalidate_render()
+        self.update()
+
+    def _resolve_mesh(self, attrs: dict[str, Any]) -> None:
+        self._missing = False
+        self._loading = False
+        self._loading_label = ""
+        self._pending_load_key = None
+        self._error_text = ""
+        asset_id = str(attrs.get("asset", "") or "")
+        path_str = str(attrs.get("path", "") or "")
+        primitive = str(attrs.get("primitive", "") or "")
+
+        try:
+            if asset_id:
+                asset = self.session.scene.get_asset(asset_id)
+                if asset is None:
+                    self._mesh = None
+                    self._missing = True
+                    self._error_text = f"Missing embedded 3D asset\n{asset_id[:8]}"
+                    return
+                ckey = ("asset", asset_id)
+                cached = CACHE.get(ckey)
+                if cached is not None:
+                    self._mesh = cached
+                    return
+                if len(asset.data) > ASYNC_FILE_THRESHOLD:
+                    self._loading = True
+                    self._loading_label = f"Loading 3D model…\n{asset.name or asset_id[:8]}"
+                    self._pending_load_key = ckey
+                    base_dir = self.session.base_dir()
+                    data = asset.data
+                    fname = asset.name
+                    ASYNC_LOADER.submit(
+                        ckey,
+                        lambda: load_mesh_bytes(data, filename=fname, base_dir=base_dir, cache_key=ckey),
+                        self._bridge.loaded.emit,
+                    )
+                    return
+                self._mesh = load_mesh_bytes(
+                    asset.data,
+                    filename=asset.name,
+                    base_dir=self.session.base_dir(),
+                    cache_key=ckey,
+                )
+            elif path_str:
+                path = self.session.resolve_path(path_str)
+                if not path.is_file():
+                    self._mesh = None
+                    self._missing = True
+                    self._error_text = f"Missing 3D file\n{Path(path_str).name}"
+                    return
+                ckey = file_cache_key(path)
+                cached = CACHE.get(ckey) if ckey is not None else None
+                if cached is not None:
+                    self._mesh = cached
+                    return
+                file_size = path.stat().st_size
+                if file_size > ASYNC_FILE_THRESHOLD and ckey is not None:
+                    self._loading = True
+                    mb = file_size / (1024.0 * 1024.0)
+                    self._loading_label = f"Loading 3D model…\n{path.name} ({mb:.1f} MB)"
+                    self._pending_load_key = ckey
+                    ASYNC_LOADER.submit(
+                        ckey,
+                        lambda p=path: load_mesh_file(p),
+                        self._bridge.loaded.emit,
+                    )
+                    return
+                self._mesh = load_mesh_file(path)
+            else:
+                self._mesh = load_primitive(primitive or "loomis_head")
+        except Exception as exc:  # noqa: BLE001
+            self._mesh = None
+            self._missing = True
+            label = Path(path_str).name if path_str else (primitive or "3D model")
+            self._error_text = f"Can't load {label}\n{exc}"
+
+    def _on_async_mesh_loaded(self, key: Any, mesh: MeshData | None, error: Exception | None) -> None:
+        if key != self._pending_load_key:
+            return
+        self._loading = False
+        self._pending_load_key = None
+        if error is not None or mesh is None:
+            self._mesh = None
+            self._missing = True
+            path_str = str(self._attrs.get("path", "") or "")
+            label = Path(path_str).name if path_str else "3D model"
+            self._error_text = f"Can't load {label}\n{error}"
+        else:
+            self._mesh = mesh
+            self._missing = False
+            self._error_text = ""
+        self._invalidate_render()
+        self.update()
+        scene = self.scene()
+        if scene is not None:
+            for view in scene.views():
+                view.viewport().update()
+
+    def wait_for_load(self, timeout: float = 30.0) -> MeshData | None:
+        """Synchronously wait if an async load is in flight (useful for tests/CLI)."""
+        if not self._loading:
+            return self._mesh
+        self._loading = False
+        self._pending_load_key = None
+        asset_id = str(self._attrs.get("asset", "") or "")
+        path_str = str(self._attrs.get("path", "") or "")
+        try:
+            if asset_id:
+                asset = self.session.scene.get_asset(asset_id)
+                if asset is not None:
+                    self._mesh = load_mesh_bytes(
+                        asset.data,
+                        filename=asset.name,
+                        base_dir=self.session.base_dir(),
+                        cache_key=("asset", asset_id),
+                    )
+            elif path_str:
+                path = self.session.resolve_path(path_str)
+                if path.is_file():
+                    self._mesh = load_mesh_file(path)
+        except Exception as exc:  # noqa: BLE001
+            self._mesh = None
+            self._missing = True
+            self._error_text = str(exc)
+        self._invalidate_render()
+        self.update()
+        return self._mesh
+
+    def _invalidate_render(self) -> None:
+        self._render_key = None
+        self._rendered_pixmap = None
+
+    # ---- Live 3D View Mode & Interactive Preview ----------------------------------------------
+
+    @property
+    def editing(self) -> bool:
+        return self._editing
+
+    def set_editing(self, on: bool) -> None:
+        on = bool(on) and not self._locked
+        if self._editing == on:
+            return
+        self._editing = on
+        if on:
+            EDITING_3D.add(self)
+        else:
+            EDITING_3D.discard(self)
+            self._interactive_drag = False
+            self._invalidate_render()
+        self.update()
+
+    @property
+    def blocks_transform(self) -> bool:
+        return self._editing
+
+    def set_interactive_drag(self, active: bool) -> None:
+        if self._interactive_drag != bool(active):
+            self._interactive_drag = bool(active)
+            self._invalidate_render()
+            self.update()
+
+    def preview_attrs(self, updates: dict[str, Any], interactive: bool = True) -> None:
+        """Update camera/light/shading attributes in-place for live 60fps feedback during drag."""
+        self._attrs.update(updates)
+        self._interactive_drag = interactive
+        self._invalidate_render()
+        self.update()
+
+    def current_attrs(self) -> dict[str, Any]:
+        return dict(self._attrs)
+
+    # ---- Viewport Box Resize (Gizmo handles) --------------------------------------------------
+
+    def viewport_size(self) -> QPointF:
+        return QPointF(self._size)
+
+    def set_viewport_size(self, width: float, height: float) -> None:
+        w = max(self.MIN_SIZE, float(width))
+        h = max(self.MIN_SIZE, float(height))
+        if QPointF(w, h) != self._size:
+            self.prepareGeometryChange()
+            self._size = QPointF(w, h)
+            self._attrs["size"] = [round(w, 1), round(h, 1)]
+            self._invalidate_render()
+            self.update()
+
+    def commit_values(self) -> dict[str, Any]:
+        values = self.transform_attrs()
+        values["size"] = [round(self._size.x(), 1), round(self._size.y(), 1)]
+        return values
+
+    # ---- Info & Effect Source ------------------------------------------------------------------
+
+    @property
+    def mesh(self) -> MeshData | None:
+        return self._mesh
+
+    def is_missing(self) -> bool:
+        return self._missing
+
+    def is_loading(self) -> bool:
+        return self._loading
+
+    @property
+    def has_texture(self) -> bool:
+        if self._attrs.get("texture_asset") or self._attrs.get("texture_path"):
+            return True
+        return bool(self._mesh is not None and self._mesh.has_texture)
+
+    def _resolve_texture_override(self) -> tuple[Path | None, bytes | None, str]:
+        tex_asset_id = str(self._attrs.get("texture_asset", "") or "")
+        if tex_asset_id:
+            asset = self.session.scene.get_asset(tex_asset_id)
+            if asset is not None and asset.data:
+                return None, asset.data, f"asset:{tex_asset_id}"
+        tex_path_str = str(self._attrs.get("texture_path", "") or "")
+        if tex_path_str:
+            tex_path = self.session.resolve_path(tex_path_str)
+            if tex_path.is_file():
+                return tex_path, None, f"path:{tex_path}"
+        return None, None, ""
+
+    def _build_render_params(self) -> RenderParams:
+        attrs = self._attrs
+        target_raw = attrs.get("target", [0.0, 0.0])
+        try:
+            target = (round(float(target_raw[0]), 4), round(float(target_raw[1]), 4))
+        except (TypeError, ValueError, IndexError):
+            target = (0.0, 0.0)
+        tex_key = (
+            str(attrs.get("texture_asset", "") or ""),
+            str(attrs.get("texture_path", "") or ""),
+        )
+        return RenderParams(
+            width=max(60, round(self._size.x())),
+            height=max(60, round(self._size.y())),
+            dpr=1.0 if self._interactive_drag else 1.5,
+            yaw=round(float(attrs.get("yaw", 35.0)), 2),
+            pitch=round(float(attrs.get("pitch", 20.0)), 2),
+            roll=round(float(attrs.get("roll", 0.0)), 2),
+            distance=round(float(attrs.get("distance", 2.6)), 3),
+            target=target,
+            projection=str(attrs.get("projection", "perspective")),
+            fov=round(float(attrs.get("fov", 45.0)), 1),
+            shading=str(attrs.get("shading", "studio")),
+            wireframe_overlay=bool(attrs.get("wireframe_overlay", False)),
+            show_texture=bool(attrs.get("show_texture", True)),
+            base_color=_rgb_tuple(attrs.get("base_color", [196, 200, 208])),
+            background_color=_rgba_tuple(attrs.get("background_color", [24, 27, 34, 0])),
+            light_azimuth=round(float(attrs.get("light_azimuth", 45.0)), 2),
+            light_elevation=round(float(attrs.get("light_elevation", 35.0)), 2),
+            light_intensity=round(float(attrs.get("light_intensity", 1.0)), 2),
+            ambient=round(float(attrs.get("ambient", 0.25)), 2),
+            interactive=self._interactive_drag,
+            texture_key=tex_key,
+        )
+
+    def rendered_image(self) -> QImage:
+        params = self._build_render_params()
+        key = (id(self._mesh), self._loading, self._missing, self._error_text, params)
+        if self._render_key == key and not self._rendered.isNull():
+            return self._rendered
+        if self._loading:
+            self._rendered = placeholder_card(
+                QSize(params.width, params.height),
+                self._loading_label or "Loading 3D model…",
+            )
+        elif self._mesh is None or self._missing:
+            self._rendered = placeholder_card(
+                QSize(params.width, params.height),
+                self._error_text or "Missing 3D model",
+            )
+        else:
+            ov_path, ov_bytes, ov_id = self._resolve_texture_override()
+            self._rendered = render_mesh(
+                self._mesh,
+                params,
+                override_tex_path=ov_path,
+                override_tex_bytes=ov_bytes,
+                override_tex_id=ov_id,
+            )
+        self._render_key = key
+        self._rendered_pixmap = None
+        return self._rendered
+
+    def effect_source(self) -> tuple[Any, Any] | None:
+        if self._missing or self._loading or self._mesh is None:
+            return None
+        image = self.rendered_image()
+        if self._rendered_pixmap is None:
+            self._rendered_pixmap = QPixmap.fromImage(image)
+        return self._rendered_pixmap, ("model3d", self.node_name, self._render_key)
+
+    def paint_source(self, painter: QPainter, pixmap: Any) -> None:
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        painter.drawPixmap(self.boundingRect(), pixmap, QRectF(pixmap.rect()))
+
+    # ---- QGraphicsItem -------------------------------------------------------------------------
+
+    def content_rect(self) -> QRectF:
+        return QRectF(0.0, 0.0, self._size.x(), self._size.y())
+
+    def boundingRect(self) -> QRectF:
+        return self.content_rect()
+
+    def itemChange(self, change, value):  # noqa: ANN001
+        if change == QGraphicsItem.ItemPositionHasChanged:
+            self._notify_moved()
+        elif change == QGraphicsItem.ItemSelectedHasChanged and not value and self._editing:
+            self.set_editing(False)
+        return super().itemChange(change, value)
+
+    def paint_content(self, painter: QPainter, option, widget=None) -> None:  # noqa: ANN001
+        image = self.rendered_image()
+        painter.save()
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        painter.drawImage(self.boundingRect(), image)
+        painter.restore()
+
+    def paint_decorations(self, painter: QPainter, option, widget=None) -> None:  # noqa: ANN001
+        if not self._editing:
+            return
+        rect = self.content_rect()
+        attrs = self._attrs
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+
+        # Interactive 3D View Mode border
+        pen = QPen(QColor(theme.ACCENT), 2.0)
+        pen.setCosmetic(True)
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 4.0, 4.0)
+
+        # Orientation XYZ axes and Key Light direction gizmos
+        paint_axes_gizmo(
+            painter,
+            rect,
+            float(attrs.get("yaw", 35.0)),
+            float(attrs.get("pitch", 20.0)),
+            float(attrs.get("roll", 0.0)),
+        )
+        paint_light_gizmo(
+            painter,
+            rect,
+            float(attrs.get("light_azimuth", 45.0)),
+            float(attrs.get("light_elevation", 35.0)),
+        )
+
+        # Compact HUD hint banner at the top of the 3D viewport
+        if rect.width() >= 180.0 and rect.height() >= 90.0:
+            font = QFont()
+            font.setPixelSize(11)
+            painter.setFont(font)
+            metrics = QFontMetricsF(font)
+            hint = "3D View · Drag: Orbit · Shift/Mid: Pan · Alt: Light · Esc: Done"
+            if metrics.horizontalAdvance(hint) + 24.0 > rect.width() - 96.0:
+                hint = "3D View · Drag: Orbit · Esc: Done"
+            tw = min(rect.width() - 16.0, metrics.horizontalAdvance(hint) + 18.0)
+            pill = QRectF(rect.center().x() - tw * 0.5, rect.top() + 8.0, tw, 22.0)
+            painter.setPen(QPen(QColor(255, 255, 255, 35), 1.0))
+            painter.setBrush(QColor(18, 21, 28, 210))
+            painter.drawRoundedRect(pill, 6.0, 6.0)
+            painter.setPen(QColor("#e2e6f0"))
+            painter.drawText(pill, Qt.AlignCenter, hint)
+
+        painter.restore()

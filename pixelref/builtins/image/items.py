@@ -9,10 +9,10 @@ from collections import OrderedDict
 from typing import Any
 
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, QRectF, QRunnable, QSize, Qt, QThreadPool, Signal
-from PySide6.QtGui import QColor, QImage, QMovie, QPainter, QPixmap
+from PySide6.QtGui import QColor, QImage, QMovie, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import QGraphicsItem
 
-from pixelref.plugin_api import perf
+from pixelref.plugin_api import crop as crop_geom, perf
 from pixelref.plugin_api.ui import NodeItemMixin, view_for
 
 from .source import STORE, ImageHandle, LazySource, level_for
@@ -213,6 +213,8 @@ class PixmapItem(NodeItemMixin, QGraphicsItem):
         # Draws an export (or another final render) at full quality: decodes what it needs at once.
         self.final_render: Any = lambda: False
         self._crop: QRectF | None = None
+        self._crop_path: QPainterPath | None = None
+        self._crop_data: Any = None
         self._crop_preview = False
         self._movie: QMovie | None = None
         self.frame_listeners: list[Any] = []
@@ -440,19 +442,43 @@ class PixmapItem(NodeItemMixin, QGraphicsItem):
 
     def set_crop(self, crop: Any) -> None:
         rect: QRectF | None = None
-        if crop and len(crop) == 4:
+        path: QPainterPath | None = None
+        data: Any = None
+        full = self.full_rect()
+        if crop_geom.is_rect_crop(crop):
             rect = QRectF(float(crop[0]), float(crop[1]), float(crop[2]), float(crop[3]))
-            if rect.contains(self.full_rect()) and self.full_rect().contains(rect):
+            if rect.contains(full) and full.contains(rect):
                 rect = None
+            elif rect is not None:
+                data = [rect.x(), rect.y(), rect.width(), rect.height()]
+        elif crop is not None:
+            qpath = crop_geom.crop_to_qpath(crop, full_rect=full)
+            if qpath is not None and not qpath.isEmpty():
+                brect = qpath.boundingRect().intersected(full)
+                if brect.width() >= 1.0 and brect.height() >= 1.0:
+                    rect = brect
+                    path = qpath
+                    data = crop
         self.prepareGeometryChange()
         self._crop = rect
+        self._crop_path = path
+        self._crop_data = data
         self.update()
+
+    def has_freeform_crop(self) -> bool:
+        return self._crop_path is not None
+
+    def crop_path(self) -> QPainterPath | None:
+        return self._crop_path
+
+    def crop_data(self) -> Any:
+        return self._crop_data if self._crop_path is not None else self.crop_value()
 
     def crop_value(self) -> list[float] | None:
         if self._crop is None:
             return None
         rect = self.crop_rect()
-        if rect == self.full_rect():
+        if rect == self.full_rect() and self._crop_path is None:
             return None
         return [rect.x(), rect.y(), rect.width(), rect.height()]
 
@@ -462,6 +488,18 @@ class PixmapItem(NodeItemMixin, QGraphicsItem):
         self.update()
 
     # ---- QGraphicsItem ------------------------------------------------------------------
+
+    def shape(self) -> QPainterPath:
+        if self._crop_path is not None and not self._crop_preview:
+            return self._crop_path
+        path = QPainterPath()
+        path.addRect(self.boundingRect())
+        return path
+
+    def outline_path(self) -> QPainterPath | None:
+        if self._crop_path is not None and not self._crop_preview:
+            return self.sceneTransform().map(self._crop_path)
+        return None
 
     def content_rect(self) -> QRectF:
         if self._crop is None:  # the usual case, without the calls in between (see boundingRect)
@@ -553,7 +591,14 @@ class PixmapItem(NodeItemMixin, QGraphicsItem):
         sy = picture.height() / max(1, size.height())
         source = rect if sx == 1.0 and sy == 1.0 else QRectF(rect.x() * sx, rect.y() * sy,
                                                               rect.width() * sx, rect.height() * sy)
+        clip = self._crop_path if not self._crop_preview else None
+        if clip is not None:
+            painter.save()
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setClipPath(clip, Qt.IntersectClip)
         if isinstance(picture, QImage):
             painter.drawImage(rect, picture, source)
         else:
             painter.drawPixmap(rect, picture, source)
+        if clip is not None:
+            painter.restore()

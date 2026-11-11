@@ -3,4 +3,4 @@ name = "Crop"
 version = "1.0.0"
 api = 1
 requires = ["image"]
-description = "Crop images (C) with handles and rule-of-thirds guides; Reset Crop (Shift+C)."
+description = "Crop and mask images (C) with Rectangle, Polygon, Freehand Lasso, Bezier Pen, Knife Line and boolean Add/Subtract; Reset Crop (Shift+C)."

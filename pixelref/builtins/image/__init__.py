@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from pixelref.plugin_api import CAP_CONTENT, Attr, CommandError, NodeType
+from pixelref.plugin_api import CAP_CONTENT, Attr, CommandError, NodeType, crop as crop_geom
 
 SUPPORTED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".exr"}  # .exr: the exr plugin
 MIME_EXTENSIONS = {
@@ -39,7 +39,8 @@ IMAGE_TYPE = NodeType(
     attrs=(
         Attr("asset", "asset", "", group="Image", doc="Embedded image id (scene file 'assets'); wins over path"),
         Attr("path", "path", "", group="Image", doc="Linked image file, used when asset is empty"),
-        Attr("crop", "rect", None, group="Image", doc="[x, y, w, h] in source pixels, None = uncropped"),
+        Attr("crop", "any", None, group="Image", transfer="geometry", validator=crop_geom.validate_crop,
+             doc="[x, y, w, h], [[x, y], ...] polygon/Bezier points, or {'contours': [...]} in source pixels, None = uncropped"),
     ),
 )
 
@@ -132,8 +133,12 @@ def activate(ctx: Any) -> None:
 
     def local_bounds(sess: Any, node: Any) -> list[float] | None:
         crop = node.attrs.get("crop")
-        if crop and len(crop) == 4:
-            return [float(v) for v in crop]
+        if crop is not None:
+            if crop_geom.is_rect_crop(crop):
+                return [float(v) for v in crop]
+            box = crop_geom.crop_bounds(crop, headless_size(sess, node.attrs))
+            if box is not None:
+                return box
         size = headless_size(sess, node.attrs)
         return [0.0, 0.0, float(size[0]), float(size[1])] if size else [0.0, 0.0, 300.0, 200.0]
 

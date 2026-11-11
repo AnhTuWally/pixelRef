@@ -183,13 +183,27 @@ class SelectTool(Tool):
         if self.ui.canvas.is_outlined(hovered):
             return
         try:
-            polygon = QPolygonF([view.to_viewport(p) for p in hovered.scene_polygon()])
+            outline_fn = getattr(hovered, "outline_path", None)
+            scene_path = outline_fn() if outline_fn is not None else None
+            if scene_path is not None:
+                polygon = None
+            else:
+                polygon = QPolygonF([view.to_viewport(p) for p in hovered.scene_polygon()])
         except RuntimeError:  # the item was replaced by a refresh
             self.hover_item = None
             return
         painter.setPen(QPen(QColor(61, 142, 240, 140), 1.0, Qt.DashLine))
         painter.setBrush(Qt.NoBrush)
-        painter.drawPolygon(polygon)
+        if polygon is not None:
+            painter.drawPolygon(polygon)
+        elif scene_path is not None:
+            painter.save()
+            painter.setTransform(view.viewportTransform(), False)
+            pen = QPen(QColor(61, 142, 240, 140), 1.0, Qt.DashLine)
+            pen.setCosmetic(True)
+            painter.setPen(pen)
+            painter.drawPath(scene_path)
+            painter.restore()
 
 
     def _paint_guides(self, view: Any, painter: QPainter, guides: tuple[list[float], list[float]]) -> None:

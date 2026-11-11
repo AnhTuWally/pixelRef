@@ -62,6 +62,23 @@ def extract_subset(
 def _bind_assets(scene: SceneGraph, subset: SceneGraph, node: Any, resolve_path: Callable[[str], Path] | None,
                  max_bytes: int, warnings: list[str]) -> None:
     attrs = node.attrs
+    tex_asset_id = attrs.get("texture_asset")
+    if tex_asset_id:
+        tex_asset = scene.get_asset(str(tex_asset_id))
+        if tex_asset is not None:
+            subset.assets[str(tex_asset_id)] = tex_asset
+        else:
+            attrs["texture_asset"] = ""
+    elif attrs.get("texture_path") and subset.types.inherits(node.node_type, "model3d"):
+        tex_path = attrs.get("texture_path")
+        attrs["texture_path"] = ""
+        tex_source = resolve_path(str(tex_path)) if resolve_path is not None else Path(str(tex_path))
+        try:
+            if tex_source.is_file() and tex_source.stat().st_size <= max_bytes:
+                attrs["texture_asset"] = subset.add_asset(tex_source.read_bytes(), name=tex_source.name)
+        except OSError:
+            pass
+
     asset_id = attrs.get("asset")
     if asset_id:
         asset = scene.get_asset(str(asset_id))
@@ -72,7 +89,8 @@ def _bind_assets(scene: SceneGraph, subset: SceneGraph, node: Any, resolve_path:
             warnings.append(f"{node.name}: its embedded image is missing")
         return
     path = attrs.get("path")
-    if not path or not subset.types.inherits(node.node_type, "image"):
+    if not path or not (subset.types.inherits(node.node_type, "image")
+                        or subset.types.inherits(node.node_type, "model3d")):
         return
     attrs["path"] = ""  # a linked file's location is never written into an export
     source = resolve_path(str(path)) if resolve_path is not None else Path(str(path))

@@ -19,6 +19,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QGraphicsItem
 
+from pixelref.plugin_api import crop as crop_geom
 from pixelref.plugin_api.contracts import PaletteButton
 from pixelref.plugin_api.ui import HANDLED, InputHandler, KeyEvent, NodeItemMixin, PointerEvent, theme, widgets as w
 from . import COMPARE_TYPE_NAME
@@ -113,8 +114,8 @@ class CompareViewerItem(NodeItemMixin, QGraphicsItem):
             if asset is not None:
                 pix = QPixmap()
                 pix.loadFromData(asset.data)
-                crop_vals = node.attrs.get("crop")
-                crop_rect = QRectF(*crop_vals) if crop_vals and len(crop_vals) == 4 else None
+                box = crop_geom.crop_bounds(node.attrs.get("crop"))
+                crop_rect = QRectF(*box) if box else None
                 return pix, crop_rect
 
         path = str(node.attrs.get("path", "") or "")
@@ -122,8 +123,8 @@ class CompareViewerItem(NodeItemMixin, QGraphicsItem):
             resolved = self.session.resolve_path(path)
             pix = QPixmap(str(resolved))
             if not pix.isNull():
-                crop_vals = node.attrs.get("crop")
-                crop_rect = QRectF(*crop_vals) if crop_vals and len(crop_vals) == 4 else None
+                box = crop_geom.crop_bounds(node.attrs.get("crop"))
+                crop_rect = QRectF(*box) if box else None
                 return pix, crop_rect
 
         return None, None

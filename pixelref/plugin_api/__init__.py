@@ -26,7 +26,7 @@ A plugin package::
 """
 
 from .. import __version__ as APP_VERSION
-from ..core import perf, xform
+from ..core import crop, perf, xform
 from ..core.attributes import Attr
 from ..core.docs import DocEntry, docs_folder
 from ..core.errors import CommandError, PluginError, SceneError
@@ -68,6 +68,7 @@ __all__ = [
     "read_thumbnail",
     "SCENE_EXT",
     "SCENE_EXTS",
+    "crop",
     "perf",
     "xform",
     "docs_folder",

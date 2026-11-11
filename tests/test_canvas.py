@@ -528,6 +528,92 @@ def test_crop_mode():
         h.close()
 
 
+def test_freeform_crop_modes():
+    from PySide6.QtCore import QRectF
+
+    h = make()
+    try:
+        h.add_image("Back", 0, 0, w=200, h=200)
+        h.add_image("Img", 0, 0, w=200, h=200)
+        h.select(["Img"])
+
+        # 1. Polygonal crop mode (key 2)
+        h.trigger("crop.start")
+        h.key(Qt.Key_2)
+        tool = h.app.tools.get("crop")
+        assert tool.mode == "poly"
+        h.click(h.vp(20, 20))
+        h.click(h.vp(180, 20))
+        h.click(h.vp(100, 180))
+        h.click(h.vp(20, 20))  # close polygon by clicking start vertex
+        assert not tool.draft_points and tool.has_custom_contours
+        # Drag bottom vertex from (100, 180) to (100, 160)
+        h.drag(h.vp(100, 180), h.vp(100, 160))
+        h.key(Qt.Key_Return)
+        assert h.tool() == "select"
+
+        crop_val = h.attr("Img", "crop")
+        assert crop_val == [[20.0, 20.0], [180.0, 20.0], [100.0, 160.0]]
+        item = h.item("Img")
+        assert item.has_freeform_crop()
+        assert item.crop_rect() == QRectF(20.0, 20.0, 160.0, 140.0)
+        # Click-through hit test: (30, 150) is inside the bounding box but outside the triangle!
+        assert not item.shape().contains(QPointF(30.0, 150.0))
+        assert item.shape().contains(QPointF(100.0, 80.0))
+        # Clicking at (30, 150) on the canvas picks "Back" behind "Img"!
+        h.click(h.vp(30, 150))
+        assert h.session.selection.names == ["Back"]
+
+        # 2. Re-open crop on free-form image, subtract a hole with Lasso (key 3 + Alt) and slice with Knife (key 5)
+        h.select(["Img"])
+        h.trigger("crop.start")
+        assert tool.mode == "poly" and tool.has_custom_contours
+        h.key(Qt.Key_3)
+        assert tool.mode == "lasso"
+        tool.boolean_op = "subtract"
+        h.drag(h.vp(80, 50), h.vp(120, 50), steps=5)
+        # Programmatically complete a triangular hole in lasso or poly mode
+        h.key(Qt.Key_2)
+        h.click(h.vp(85, 50), modifiers=Qt.AltModifier)
+        h.click(h.vp(115, 50), modifiers=Qt.AltModifier)
+        h.click(h.vp(100, 90), modifiers=Qt.AltModifier)
+        h.click(h.vp(85, 50), modifiers=Qt.AltModifier)
+        h.key(Qt.Key_Return)
+
+        crop_with_hole = h.attr("Img", "crop")
+        assert isinstance(crop_with_hole, dict) and len(crop_with_hole["contours"]) == 2
+        assert crop_with_hole["contours"][1]["subtract"] is True
+        assert not h.item("Img").shape().contains(QPointF(100.0, 65.0)), "punched hole is transparent to clicks"
+
+        # 3. Bezier curve mode (key 4): click-drag to pull out smooth cubic handles
+        h.trigger("crop.reset")
+        h.trigger("crop.start")
+        h.key(Qt.Key_4)
+        assert tool.mode == "bezier"
+        h.drag(h.vp(40, 40), h.vp(60, 20))  # anchor at (40,40) with handle out at (60,20)
+        h.click(h.vp(160, 40))
+        h.click(h.vp(100, 160))
+        h.key(Qt.Key_Return)  # auto-closes draft and applies
+        bezier_crop = h.attr("Img", "crop")
+        assert len(bezier_crop) == 3 and len(bezier_crop[0]) == 6
+        assert bezier_crop[0][:2] == [40.0, 40.0]
+
+        # 4. Knife cut mode (key 5) & Tab flip
+        h.trigger("crop.reset")
+        h.trigger("crop.start")
+        h.key(Qt.Key_5)
+        assert tool.mode == "knife"
+        h.drag(h.vp(0, 50), h.vp(200, 50))
+        # Larger part (y: 50..200, height 150) is kept by default; Tab flips to top part (y: 0..50, height 50)
+        assert approx(tool.rect.height(), 150.0)
+        h.key(Qt.Key_Tab)
+        assert approx(tool.rect.height(), 50.0)
+        h.key(Qt.Key_Return)
+        assert h.item("Img").crop_rect() == QRectF(0.0, 0.0, 200.0, 50.0)
+    finally:
+        h.close()
+
+
 def test_flip_rotate_reset_grayscale():
     h = make()
     try:

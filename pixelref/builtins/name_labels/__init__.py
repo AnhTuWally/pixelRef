@@ -38,7 +38,7 @@ from typing import Any, Callable
 
 from pixelref.plugin_api import Attr, CommandError, differs
 
-MEDIA_TYPES = ("image", "movie", "sequence")
+MEDIA_TYPES = ("image", "movie", "sequence", "model3d")
 LABEL_TYPE = "annotation_text"
 TEXT_HEIGHT = 0.05  # a new label's text height, as a share of the media's height
 MARGIN = 0.015  # gap between a pinned label and the media's edges, as a share of its height

@@ -776,6 +776,33 @@ def _draw_command(name: str, painter: QPainter, color: QColor) -> bool:
                                        QPointF(1.5, 8)]))
         painter.drawLine(QPointF(8, 6.2), QPointF(11.6, 9.8))
         painter.drawLine(QPointF(11.6, 6.2), QPointF(8, 9.8))
+    elif name == "cube":  # isometric 3D box
+        painter.drawPolygon(QPolygonF([
+            QPointF(8, 1.8), QPointF(13.8, 5.0), QPointF(13.8, 11.2),
+            QPointF(8, 14.4), QPointF(2.2, 11.2), QPointF(2.2, 5.0),
+        ]))
+        painter.drawLine(QPointF(2.2, 5.0), QPointF(8, 8.2))
+        painter.drawLine(QPointF(13.8, 5.0), QPointF(8, 8.2))
+        painter.drawLine(QPointF(8, 8.2), QPointF(8, 14.4))
+    elif name == "orbit":  # 3D orbit rings + centre sphere
+        painter.save()
+        painter.translate(8, 8)
+        painter.rotate(-25)
+        painter.drawEllipse(QRectF(-6.2, -2.6, 12.4, 5.2))
+        painter.rotate(50)
+        painter.drawEllipse(QRectF(-6.2, -2.6, 12.4, 5.2))
+        painter.restore()
+        painter.setBrush(color)
+        painter.drawEllipse(QPointF(8, 8), 1.6, 1.6)
+    elif name == "sun":  # key light / sun
+        painter.setBrush(color)
+        painter.drawEllipse(QPointF(8, 8), 2.8, 2.8)
+        painter.save()
+        painter.translate(8, 8)
+        for _ray in range(8):
+            painter.drawLine(QPointF(0, -4.6), QPointF(0, -6.5))
+            painter.rotate(45)
+        painter.restore()
     else:
         return False
     return True
