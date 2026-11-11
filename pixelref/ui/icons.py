@@ -441,9 +441,344 @@ def _draw(name: str, painter: QPainter, color: QColor) -> None:
         painter.drawEllipse(QPointF(6.8, 6.8), 4.3, 4.3)
         painter.setPen(QPen(color, 2.2, Qt.SolidLine, Qt.RoundCap))
         painter.drawLine(QPointF(10, 10), QPointF(13.8, 13.8))
-    else:  # unknown icon: a small dot so buttons still show something
+    elif not _draw_command(name, painter, color):  # unknown icon: a small dot so buttons still show something
         painter.setBrush(color)
         painter.drawEllipse(QPointF(8, 8), 2.5, 2.5)
+
+
+def _line(painter: QPainter, *points: tuple[float, float]) -> None:
+    painter.drawPolyline(QPolygonF([QPointF(*p) for p in points]))
+
+
+def _filled(painter: QPainter, color: QColor, *points: tuple[float, float]) -> None:
+    painter.save()
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(color)
+    painter.drawPolygon(QPolygonF([QPointF(*p) for p in points]))
+    painter.restore()
+
+
+def _faint(color: QColor, divisor: int = 3) -> QColor:
+    faint = QColor(color)
+    faint.setAlpha(max(0, color.alpha() // divisor))
+    return faint
+
+
+def _page(painter: QPainter) -> None:
+    """A sheet with a folded corner."""
+    painter.drawPolygon(QPolygonF([QPointF(3, 1.5), QPointF(10.5, 1.5), QPointF(13, 4),
+                                   QPointF(13, 14.5), QPointF(3, 14.5)]))
+    _line(painter, (10.5, 1.5), (10.5, 4), (13, 4))
+
+
+def _circular_arrow(painter: QPainter, color: QColor) -> None:
+    """Most of a circle, clockwise, ending in an arrowhead at the upper right."""
+    painter.drawArc(QRectF(3, 3, 10, 10), -30 * 16, -290 * 16)
+    _filled(painter, color, (13.6, 7.8), (14.6, 3.6), (10.2, 5.2))
+
+
+def _draw_command(name: str, painter: QPainter, color: QColor) -> bool:
+    """The glyphs of menu commands (transforming, arranging, files, view…). False when the
+    name is unknown."""
+    if name in ("flip_h", "flip_v"):  # a shape and its mirror image across a dashed axis
+        painter.save()
+        if name == "flip_v":
+            painter.translate(8, 8)
+            painter.rotate(90)
+            painter.translate(-8, -8)
+        dashed = _pen(color, 1.2)
+        dashed.setStyle(Qt.CustomDashLine)
+        dashed.setDashPattern([1.5, 1.8])
+        painter.setPen(dashed)
+        painter.drawLine(QPointF(8, 1.5), QPointF(8, 14.5))
+        painter.setPen(_pen(color, 1.3))
+        painter.drawPolygon(QPolygonF([QPointF(10.5, 3.5), QPointF(10.5, 12.5), QPointF(14.5, 8)]))
+        painter.setBrush(color)
+        painter.drawPolygon(QPolygonF([QPointF(5.5, 3.5), QPointF(5.5, 12.5), QPointF(1.5, 8)]))
+        painter.restore()
+    elif name in ("rotate_cw", "rotate_ccw"):  # a square and a quarter turn around it
+        painter.save()
+        if name == "rotate_ccw":
+            painter.translate(16, 0)
+            painter.scale(-1, 1)
+        painter.drawRoundedRect(QRectF(2, 8.5, 5.5, 5.5), 1, 1)
+        painter.drawArc(QRectF(-2, 3.5, 13, 13), 90 * 16, -80 * 16)
+        _filled(painter, color, (11, 14.2), (8.4, 10.2), (13.6, 10.2))
+        painter.restore()
+    elif name == "refresh":
+        _circular_arrow(painter, color)
+    elif name == "reset":  # back to where it started: a counter-clockwise arrow around a dot
+        painter.save()
+        painter.translate(16, 0)
+        painter.scale(-1, 1)
+        _circular_arrow(painter, color)
+        painter.restore()
+        painter.setBrush(color)
+        painter.drawEllipse(QPointF(8, 8), 1.5, 1.5)
+    elif name == "crop":
+        _line(painter, (4.5, 1.5), (4.5, 11.5), (14.5, 11.5))
+        _line(painter, (1.5, 4.5), (11.5, 4.5), (11.5, 14.5))
+    elif name == "grayscale":  # a disc, half filled
+        painter.drawEllipse(QPointF(8, 8), 5.8, 5.8)
+        painter.setBrush(color)
+        painter.drawPie(QRectF(2.2, 2.2, 11.6, 11.6), -90 * 16, 180 * 16)
+    elif name == "opacity":  # a square, half solid and half faint
+        painter.fillRect(QRectF(2.5, 2.5, 5.5, 11), color)
+        painter.fillRect(QRectF(8, 2.5, 5.5, 11), _faint(color, 4))
+        painter.drawRect(QRectF(2.5, 2.5, 11, 11))
+    elif name == "palette":  # a strip of swatches
+        painter.setPen(Qt.NoPen)
+        for index, alpha in enumerate((255, 190, 125, 70)):
+            shade = QColor(color)
+            shade.setAlpha(color.alpha() * alpha // 255)
+            painter.setBrush(shade)
+            painter.drawRect(QRectF(1.5 + index * 3.4, 4.5, 2.8, 7))
+    elif name in ("exposure_up", "exposure_down"):  # a sun with a plus or a minus
+        painter.setPen(_pen(color, 1.2))
+        painter.drawEllipse(QPointF(6.5, 9.5), 2.3, 2.3)
+        for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0), (-0.7, -0.7), (0.7, 0.7), (-0.7, 0.7)):
+            painter.drawLine(QPointF(6.5 + dx * 3.7, 9.5 + dy * 3.7), QPointF(6.5 + dx * 5, 9.5 + dy * 5))
+        painter.setPen(_pen(color, 1.5))
+        painter.drawLine(QPointF(10.5, 3.5), QPointF(14.5, 3.5))
+        if name == "exposure_up":
+            painter.drawLine(QPointF(12.5, 1.5), QPointF(12.5, 5.5))
+    elif name == "channels":  # three overlapping rings
+        painter.setPen(_pen(color, 1.3))
+        for x, y in ((8, 5.6), (5.4, 10.2), (10.6, 10.2)):
+            painter.drawEllipse(QPointF(x, y), 3.6, 3.6)
+    elif name == "download":  # an arrow into a tray
+        painter.drawLine(QPointF(8, 2), QPointF(8, 10))
+        _line(painter, (4.5, 6.8), (8, 10.3), (11.5, 6.8))
+        _line(painter, (2.5, 11), (2.5, 13.8), (13.5, 13.8), (13.5, 11))
+    elif name == "embed":  # an arrow going into a box (the opposite of export)
+        _line(painter, (7, 3), (3, 3), (3, 13), (13, 13), (13, 9))
+        painter.drawLine(QPointF(13.5, 2.5), QPointF(7.8, 8.2))
+        _line(painter, (7.8, 4), (7.8, 8.2), (12, 8.2))
+    elif name == "link_file":  # a sheet with a chain link on it
+        _page(painter)
+        painter.setPen(_pen(color, 1.2))
+        painter.drawRoundedRect(QRectF(4.8, 8, 4, 3), 1.5, 1.5)
+        painter.drawRoundedRect(QRectF(7.2, 8, 4, 3), 1.5, 1.5)
+    elif name == "next_file":  # a sheet with an arrow to the next one
+        _page(painter)
+        _line(painter, (6.5, 7), (9.3, 9.6), (6.5, 12.2))
+    elif name == "paper":  # a blank sheet
+        _page(painter)
+    elif name == "save_as":  # a floppy disk with an ellipsis: asks where
+        painter.drawPolygon(QPolygonF([QPointF(2.5, 2.5), QPointF(11.5, 2.5), QPointF(13.5, 4.5),
+                                       QPointF(13.5, 13.5), QPointF(2.5, 13.5)]))
+        painter.drawRect(QRectF(5, 2.5, 5.5, 3.5))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(color)
+        for x in (5.2, 8, 10.8):
+            painter.drawEllipse(QPointF(x, 10.2), 0.95, 0.95)
+    elif name == "images":  # a stack of pictures
+        painter.drawRoundedRect(QRectF(4.5, 2, 10, 8), 1.2, 1.2)
+        painter.setBrush(_faint(color))
+        painter.drawRoundedRect(QRectF(1.5, 6, 10, 8), 1.2, 1.2)
+    elif name == "history":  # a clock
+        painter.drawEllipse(QPointF(8, 8), 6, 6)
+        _line(painter, (8, 4.6), (8, 8), (10.6, 9.6))
+    elif name in ("align_left", "align_right", "align_top", "align_bottom", "align_center_h", "align_center_v"):
+        painter.save()
+        if name in ("align_top", "align_bottom", "align_center_v"):  # the same drawing, turned
+            painter.translate(8, 8)
+            painter.rotate(90)
+            painter.scale(1, -1)
+            painter.translate(-8, -8)
+        if name in ("align_right", "align_bottom"):
+            painter.translate(16, 0)
+            painter.scale(-1, 1)
+        if name in ("align_center_h", "align_center_v"):
+            painter.drawLine(QPointF(8, 1.5), QPointF(8, 14.5))
+            bars = (QRectF(3, 4, 10, 3), QRectF(5, 9, 6, 3))
+        else:
+            painter.drawLine(QPointF(2.5, 1.5), QPointF(2.5, 14.5))
+            bars = (QRectF(4.8, 4, 9, 3), QRectF(4.8, 9, 5.5, 3))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(color)
+        for bar in bars:
+            painter.drawRoundedRect(bar, 0.6, 0.6)
+        painter.restore()
+    elif name in ("distribute_h", "distribute_v"):  # a bar centred between two edges
+        painter.save()
+        if name == "distribute_v":
+            painter.translate(8, 8)
+            painter.rotate(90)
+            painter.translate(-8, -8)
+        painter.drawLine(QPointF(2.5, 2), QPointF(2.5, 14))
+        painter.drawLine(QPointF(13.5, 2), QPointF(13.5, 14))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(color)
+        painter.drawRoundedRect(QRectF(6.2, 4, 3.6, 8), 0.6, 0.6)
+        painter.restore()
+    elif name in ("arrange_row", "arrange_column"):  # three items in a line
+        painter.save()
+        if name == "arrange_column":
+            painter.translate(8, 8)
+            painter.rotate(90)
+            painter.scale(1, -1)
+            painter.translate(-8, -8)
+        painter.setPen(_pen(color, 1.2))
+        for x, width in ((1.5, 3.6), (6.3, 3.4), (10.9, 3.6)):
+            painter.drawRect(QRectF(x, 5, width, 6))
+        painter.restore()
+    elif name == "arrange_auto":  # items of different sizes packed together
+        painter.setPen(_pen(color, 1.2))
+        for rect in (QRectF(2, 2, 7, 6), QRectF(10.5, 2, 3.5, 6), QRectF(2, 9.5, 4, 4.5), QRectF(7.5, 9.5, 6.5, 4.5)):
+            painter.drawRect(rect)
+    elif name in ("size_height", "size_width"):  # a box and the dimension it is matched on
+        painter.save()
+        if name == "size_width":
+            painter.translate(8, 8)
+            painter.rotate(90)
+            painter.scale(1, -1)
+            painter.translate(-8, -8)
+        painter.drawRoundedRect(QRectF(2.5, 3, 5, 10), 1, 1)
+        painter.drawLine(QPointF(11.5, 3), QPointF(11.5, 13))
+        _line(painter, (9.5, 5), (11.5, 3), (13.5, 5))
+        _line(painter, (9.5, 11), (11.5, 13), (13.5, 11))
+        painter.restore()
+    elif name == "size_both":  # a box and a diagonal: its whole size
+        painter.drawRoundedRect(QRectF(2, 6, 8, 8), 1, 1)
+        painter.drawLine(QPointF(9, 7), QPointF(13.5, 2.5))
+        _line(painter, (10, 2.5), (13.5, 2.5), (13.5, 6))
+    elif name in ("to_front", "forward", "backward", "to_back"):  # an arrow up or down, to a limit or one step
+        painter.save()
+        if name in ("backward", "to_back"):
+            painter.translate(0, 16)
+            painter.scale(1, -1)
+        painter.setPen(_pen(color, 1.6))
+        if name in ("to_front", "to_back"):
+            painter.drawLine(QPointF(3, 2.5), QPointF(13, 2.5))
+            painter.drawLine(QPointF(8, 13.5), QPointF(8, 6))
+            _line(painter, (4.8, 9.2), (8, 6), (11.2, 9.2))
+        else:
+            painter.drawLine(QPointF(8, 13), QPointF(8, 3.5))
+            _line(painter, (4.5, 7), (8, 3.5), (11.5, 7))
+        painter.restore()
+    elif name == "ungroup":  # two items apart
+        painter.drawRoundedRect(QRectF(2, 2, 5.5, 5.5), 1, 1)
+        painter.setBrush(color)
+        painter.drawRoundedRect(QRectF(8.5, 8.5, 5.5, 5.5), 1, 1)
+    elif name == "combine":  # two overlapping squares merged into one outline
+        painter.drawPolygon(QPolygonF([QPointF(2, 2), QPointF(9, 2), QPointF(9, 7), QPointF(14, 7), QPointF(14, 14),
+                                       QPointF(7, 14), QPointF(7, 9), QPointF(2, 9)]))
+    elif name == "code":  # </>
+        _line(painter, (5.2, 4.5), (1.8, 8), (5.2, 11.5))
+        _line(painter, (10.8, 4.5), (14.2, 8), (10.8, 11.5))
+        painter.drawLine(QPointF(9.2, 3), QPointF(6.8, 13))
+    elif name == "checklist":
+        _line(painter, (2, 4.8), (3.6, 6.4), (6.2, 3.2))
+        painter.drawLine(QPointF(8.5, 5), QPointF(14, 5))
+        painter.drawRect(QRectF(2.2, 9.5, 3.6, 3.6))
+        painter.drawLine(QPointF(8.5, 11.3), QPointF(14, 11.3))
+    elif name == "style":  # a paint brush
+        painter.setPen(_pen(color, 1.9))
+        painter.drawLine(QPointF(13.5, 2.5), QPointF(8, 8))
+        _filled(painter, color, (8.6, 7), (9.6, 9), (7, 12.6), (2.2, 13.8), (4.2, 9.6), (6.4, 7.6))
+    elif name == "goto":  # an arrow up to a mark
+        painter.drawLine(QPointF(2, 8), QPointF(10, 8))
+        _line(painter, (7, 5), (10, 8), (7, 11))
+        painter.setPen(_pen(color, 1.8))
+        painter.drawLine(QPointF(13, 3), QPointF(13, 13))
+    elif name == "note":  # a sticky note
+        painter.drawPolygon(QPolygonF([QPointF(2.5, 2.5), QPointF(13.5, 2.5), QPointF(13.5, 9.5), QPointF(9.5, 13.5),
+                                       QPointF(2.5, 13.5)]))
+        _line(painter, (13.5, 9.5), (9.5, 9.5), (9.5, 13.5))
+    elif name == "label":  # a tag
+        painter.drawPolygon(QPolygonF([QPointF(2.5, 2.5), QPointF(8, 2.5), QPointF(13.8, 8.3), QPointF(8.3, 13.8),
+                                       QPointF(2.5, 8)]))
+        painter.setBrush(color)
+        painter.drawEllipse(QPointF(5.4, 5.4), 1.1, 1.1)
+    elif name == "invert":  # a square, half filled along the diagonal
+        painter.drawRect(QRectF(2.5, 2.5, 11, 11))
+        _filled(painter, color, (2.5, 2.5), (13.5, 2.5), (2.5, 13.5))
+    elif name == "straighten":  # a straight line between two ends
+        painter.drawLine(QPointF(3.5, 12.5), QPointF(12.5, 3.5))
+        painter.setBrush(color)
+        painter.drawEllipse(QPointF(3.5, 12.5), 1.7, 1.7)
+        painter.drawEllipse(QPointF(12.5, 3.5), 1.7, 1.7)
+    elif name == "reverse":  # two arrows in opposite directions
+        painter.drawLine(QPointF(2.5, 5.5), QPointF(13.5, 5.5))
+        _line(painter, (10.8, 2.8), (13.5, 5.5), (10.8, 8.2))
+        painter.drawLine(QPointF(13.5, 10.5), QPointF(2.5, 10.5))
+        _line(painter, (5.2, 7.8), (2.5, 10.5), (5.2, 13.2))
+    elif name in ("zoom_in", "zoom_out"):  # a magnifying glass with a plus or a minus
+        painter.drawEllipse(QPointF(6.8, 6.8), 4.8, 4.8)
+        painter.drawLine(QPointF(4.6, 6.8), QPointF(9, 6.8))
+        if name == "zoom_in":
+            painter.drawLine(QPointF(6.8, 4.6), QPointF(6.8, 9))
+        painter.setPen(QPen(color, 2.2, Qt.SolidLine, Qt.RoundCap))
+        painter.drawLine(QPointF(10.4, 10.4), QPointF(13.8, 13.8))
+    elif name in ("arrow_left", "arrow_right"):
+        painter.save()
+        if name == "arrow_left":
+            painter.translate(16, 0)
+            painter.scale(-1, 1)
+        painter.setPen(_pen(color, 1.6))
+        painter.drawLine(QPointF(2.5, 8), QPointF(13, 8))
+        _line(painter, (9.2, 4.2), (13, 8), (9.2, 11.8))
+        painter.restore()
+    elif name == "ghost":
+        body = QPainterPath(QPointF(3, 14))
+        body.lineTo(3, 7.5)
+        body.arcTo(QRectF(3, 2, 10, 11), 180, -180)
+        body.lineTo(13, 14)
+        body.lineTo(10.5, 12)
+        body.lineTo(8, 14)
+        body.lineTo(5.5, 12)
+        body.closeSubpath()
+        painter.drawPath(body)
+        painter.setBrush(color)
+        painter.drawEllipse(QPointF(6.2, 7.5), 0.9, 0.9)
+        painter.drawEllipse(QPointF(9.8, 7.5), 0.9, 0.9)
+    elif name == "click_through":  # a pointer passing through a dashed window
+        dashed = _pen(color, 1.3)
+        dashed.setStyle(Qt.CustomDashLine)
+        dashed.setDashPattern([1.6, 1.8])
+        dashed.setCapStyle(Qt.FlatCap)
+        painter.setPen(dashed)
+        painter.drawRect(QRectF(2, 2, 12, 12))
+        _filled(painter, color, (6, 5), (6, 12.6), (8, 10.7), (9.4, 13.3), (10.7, 12.7), (9.3, 10.1), (11.8, 10))
+    elif name == "plugin":  # a plug
+        painter.drawLine(QPointF(6, 2), QPointF(6, 5.5))
+        painter.drawLine(QPointF(10, 2), QPointF(10, 5.5))
+        painter.setBrush(color)
+        body = QPainterPath(QPointF(3.5, 5.5))
+        body.lineTo(12.5, 5.5)
+        body.lineTo(12.5, 8)
+        body.arcTo(QRectF(3.5, 3.5, 9, 9), 0, -180)
+        body.closeSubpath()
+        painter.drawPath(body)
+        painter.drawLine(QPointF(8, 12.5), QPointF(8, 14.5))
+    elif name == "settings":  # a cog
+        painter.save()
+        painter.translate(8, 8)
+        painter.drawEllipse(QPointF(0, 0), 4.2, 4.2)
+        painter.drawEllipse(QPointF(0, 0), 1.5, 1.5)
+        painter.setPen(QPen(color, 2.1, Qt.SolidLine, Qt.FlatCap))
+        for _tooth in range(8):
+            painter.drawLine(QPointF(0, -4.6), QPointF(0, -6.6))
+            painter.rotate(45)
+        painter.restore()
+    elif name == "shield":
+        painter.drawPolygon(QPolygonF([QPointF(8, 1.8), QPointF(13.5, 3.8), QPointF(13.5, 8.2), QPointF(8, 14.4),
+                                       QPointF(2.5, 8.2), QPointF(2.5, 3.8)]))
+        _line(painter, (5.4, 7.6), (7.3, 9.5), (10.6, 5.8))
+    elif name == "flag":
+        painter.drawLine(QPointF(4, 2), QPointF(4, 14.5))
+        painter.setBrush(color)
+        painter.drawPolygon(QPolygonF([QPointF(4, 2.8), QPointF(13.2, 2.8), QPointF(10.8, 6), QPointF(13.2, 9.2),
+                                       QPointF(4, 9.2)]))
+    elif name == "step_back":  # a backspace key
+        painter.drawPolygon(QPolygonF([QPointF(5.5, 3.5), QPointF(14, 3.5), QPointF(14, 12.5), QPointF(5.5, 12.5),
+                                       QPointF(1.5, 8)]))
+        painter.drawLine(QPointF(8, 6.2), QPointF(11.6, 9.8))
+        painter.drawLine(QPointF(11.6, 6.2), QPointF(8, 9.8))
+    else:
+        return False
+    return True
 
 
 @lru_cache(maxsize=None)
@@ -458,6 +793,28 @@ def icon(name: str, color: str = ICON_COLOR, alpha: int = 255) -> QIcon:
     painter.end()
     pixmap.setDevicePixelRatio(SCALE)
     return QIcon(pixmap)
+
+
+CHECKED_COLOR = "#5aa2ff"
+
+
+@lru_cache(maxsize=None)
+def toggle_icon(name: str, color: str = ICON_COLOR, checked_color: str = CHECKED_COLOR) -> QIcon:
+    """The icon of a checkable action: drawn in the accent colour while the action is checked.
+    (A menu shows an item's icon in place of its check mark, so the icon has to carry the state.)"""
+    result = QIcon()
+    for state, tint in ((QIcon.Off, color), (QIcon.On, checked_color)):
+        pixmap, painter = _canvas()
+        _draw(name, painter, QColor(tint))
+        painter.end()
+        pixmap.setDevicePixelRatio(SCALE)
+        result.addPixmap(pixmap, QIcon.Normal, state)
+    return result
+
+
+def is_known(name: str) -> bool:
+    """Whether an icon of this name is drawn (unknown names fall back to a dot)."""
+    return icon_pixmap(name, 16, scale=1).toImage() != icon_pixmap("\0unknown", 16, scale=1).toImage()
 
 
 def icon_pixmap(name: str, size: int, color: str = ICON_COLOR, scale: int = SCALE) -> QPixmap:

@@ -70,7 +70,7 @@ searches every command.
 - **Always linked:** EXRs and numbered files (`shot.0001.png`, `frame12.jpg`,
   render frames) are linked even when new images are embedded, so boards stay
   small. *Embed in Scene* still packs one in on purpose.
-- *File → Embed New Images in Scene* switches the default for new images, and
+- *File → Preferences → Embed New Images in Scene* switches the default for new images, and
   *File → Embed All Linked Images* packs a scene into one self-contained file.
 - **Copy, cut, paste and duplicate** work between scenes.
 
@@ -106,7 +106,7 @@ A sequence node plays numbered image files (`shot.1001.exr` …
   and drag them in: they become one sequence (stills dropped with them are
   added as images). *File → Insert Image Sequence…* takes any one frame and
   finds the rest. A single frame dropped alone is just an image. Turn
-  detection off with *File → Dropped Frames Become Sequences*.
+  detection off with *File → Preferences → Dropped Frames Become Sequences*.
 - **Always linked**, like movies. The node stores the file *pattern* with a `#`
   per digit (`shot.####.exr`), relative to the scene, and the frame range it
   plays (`first`, `last`). `%04d`, `@@@@` and `$F4` patterns are understood
@@ -146,8 +146,8 @@ curve and an extra display gamma.
   grey), the **exposure** and the **gamma**. `[` and `]` step the exposure by
   half a stop; *Image → Cycle Channel (EXR)* and *Reset EXR View* are in the
   right-click menu. Each image keeps its own view, saved with the board.
-- **EXRs are always linked** when added, even with *File → Embed New Images in
-  Scene* on: they're often hundreds of MB and would swell the board file.
+- **EXRs are always linked** when added, even with *File → Preferences → Embed
+  New Images in Scene* on: they're often hundreds of MB and would swell the board file.
   To pack one into the scene anyway, use *Embed in Scene* on it (or *Embed All
   Linked Images*).
 - Changing the view is quick: the pixels of the layers shown last are kept in
@@ -317,7 +317,7 @@ right-click a note.
 
 To show an image's, movie's or sequence's name on the board, select it and
 click the **label button** (the **T** in its top-right corner), press
-`Shift+N`, or right-click → **Show Name Label**. The label is a text note
+`Shift+N`, or right-click → **Name Label ▸ Show Name Label**. The label is a text note
 attached to the item:
 
 - It sits in the item's **bottom-left corner**, locked there. It stays there
@@ -446,7 +446,7 @@ goes forward again (*View → Go Back / Go Forward*).
   pointing the way. Click the chip to go there.
 - **Double-click a link** to go to its far end (the end away from where you
   clicked). Double-click a selected link's end handle to go to the other end.
-- **Linked To** in the right-click menu lists everything the selection is
+- **Select ▸ Linked To** in the right-click menu lists everything the selection is
   linked to (`→` the link points to it, `←` it points here). Pick one to go
   there.
 - **Count badge:** a selected or hovered element with links shows how many it
@@ -491,8 +491,9 @@ that hold matching rows stay listed in italics so you can see where the rows
 live. *On the Canvas* has a sub-menu per type and collection: **Show All**,
 **Hide All**, **Isolate** (hide everything else), **Lock All**, **Unlock All**
 and **Select All**. Each one is a single undo step, and `Alt+H` shows
-everything again. The right-click menu's **Same Type** sub-menu does the same
-for the types of the selected items. From scripts:
+everything again. The right-click menu's **Select** sub-menu does the same
+for the types of the selected items (Select, Hide and Lock All of Same Type,
+Isolate Type). From scripts:
 `pxcmd.outliner.isolate_types("image")` or
 `pxcmd.outliner.set_type_flag("annotation_*", "visibility", 0)`.
 
@@ -601,7 +602,7 @@ the backdrop as a whole.
   their backdrop; *Bring to front* cannot lift a backdrop over its neighbours.
 
 **Anything can be a backdrop.** Select a rectangle or image and choose
-**Act as Backdrop** (right-click menu or command search): it captures what it
+**Backdrop ▸ Act as Backdrop** (right-click menu or command search): it captures what it
 covers, and the same item switches it off again, putting its contents back
 where they were. A hollow rectangle is moved by its border. The Attribute Editor's **Backdrop** section (shown for rectangles, images and
 backdrops) has the same switch as a tick box, plus **Join when** to choose how
@@ -612,7 +613,7 @@ By default (**strict** hosting) only backdrops act as backdrops. In **free**
 hosting, rectangles and images do too, so dropping a small image on a big one
 stacks it. Switch with **View ▸ Free Backdrop Mode** (a tick; it is
 remembered), or `pxcmd.backdrops.set_mode("free")` / `"strict"`; a node's own
-setting always wins. **Settle Backdrops** (right-click menu, with something
+setting always wins. **Backdrop ▸ Settle Backdrops** (right-click menu, with something
 selected) re-applies the rules to the selection, for example after changing a
 node's setting or switching modes.
 
@@ -860,7 +861,7 @@ data, and every other image, import as before.
   Folder* shows that folder in your system file browser. They are greyed out
   until the scene has been saved.
 - **Auto-refresh.** pixelRef watches the open file for changes made outside
-  it (another copy, a sync tool, a script). *File → When the File Changes*
+  it (another copy, a sync tool, a script). *File → Preferences → When the File Changes*
   picks the behaviour: *Notify When Changed* (default) shows a toast at the
   bottom of the board with a **Reload** button; *Reload Automatically* reloads
   at once; *Manual Only* turns watching off. *File → Reload from Disk* (**F5**)
@@ -884,7 +885,7 @@ data, and every other image, import as before.
   sign and can be pointed at its new place with *Locate File…*. With Session
   Resume on, the list, its order, colours and active file come back at launch;
   only the active board is loaded, the rest load when you select them.
-- **Session Resume.** *File → Resume Last Session on Launch*, or the checkbox
+- **Session Resume.** *File → Preferences → Resume Last Session on Launch*, or the checkbox
   on the start panel (on by default; the start panel shows the checkbox from the
   very first launch), reopens your workspace
   exactly as you left it. With a saved file open, closing pixelRef skips the

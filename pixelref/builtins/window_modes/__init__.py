@@ -51,11 +51,12 @@ def activate_ui(ui: Any) -> None:
     ui.command("ghost", ghost, alias="toggle_ghost_mode", undoable=False)
     a = ui.action
     a("window_modes.on_top", "window_modes.toggle_on_top", "Always on Top", keywords="pin float window",
-      category="Window", checked=lambda: flag("on_top"))
+      category="Window", checked=lambda: flag("on_top"), icon="pin")
     a("window_modes.frameless", "window_modes.toggle_frameless", "Frameless Window",
-      keywords="borderless fullscreen window", category="Window", checked=lambda: flag("frameless"))
+      keywords="borderless fullscreen window", category="Window", checked=lambda: flag("frameless"), icon="rect")
     a("window_modes.ghost", "window_modes.ghost", "Ghost Mode (25% opacity)", keywords="transparent see through opacity window",
-      category="Window", checked=lambda: float(wm.doc.attr(output(), "opacity", 1.0) or 1.0) < 1.0 if output() else False)
+      category="Window", icon="ghost",
+      checked=lambda: float(wm.doc.attr(output(), "opacity", 1.0) or 1.0) < 1.0 if output() else False)
     ui.bind("Ctrl+T", "window_modes.on_top")
     ui.bind("F11", "window_modes.frameless")
     ui.bind("Ctrl+G", "window_modes.ghost")
@@ -66,7 +67,7 @@ def activate_ui(ui: Any) -> None:
         for value in (1.0, 0.75, 0.5, 0.25):
             menu.addAction(f"{value * 100:.0f}%", lambda v=value: app.run_command("window_modes.set_opacity", v))
 
-    ui.menu("canvas", builder=opacity_menu, text="Opacity", path="Window", group="w_modes", order=10)
+    ui.menu("canvas", builder=opacity_menu, text="Opacity", icon="opacity", path="Window", group="w_modes", order=10)
 
     class WindowDrag(InputHandler):
         """Alt+drag moves the window (when the active tool doesn't use Alt)."""
@@ -210,7 +211,7 @@ def activate_ui(ui: Any) -> None:
     ui.command("toggle_click_through_auto_off", toggle_auto_off, undoable=False)
     a("window_modes.click_through", "window_modes.toggle_click_through", "Click-Through (Transparent to Mouse)",
       keywords="mouse transparent pass through trace overlay ignore input", category="Window",
-      checked=lambda: wm.focused_output() in through)
+      checked=lambda: wm.focused_output() in through, icon="click_through")
     a("window_modes.click_through_auto_off", "window_modes.toggle_click_through_auto_off",
       "Click-Through Turns Off When Activated", keywords="mouse transparent pass through automatic",
       category="Window", checked=auto_off)

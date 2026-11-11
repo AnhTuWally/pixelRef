@@ -311,11 +311,11 @@ def activate_attr_transfer_ui(ui: Any) -> None:
     ui.context_key("attr_transfer.copied", lambda: service.clipboard is not None)
     keywords = "copy paste attributes style properties match batch apply"
     ui.action("attr_transfer.copy", "attr_transfer.copy_selected", "Copy Attributes", keywords=keywords,
-              category="Edit")
+              category="Edit", icon="copy")
     ui.action("attr_transfer.paste_dialog", "attr_transfer.paste_dialog", "Paste Attributes…", keywords=keywords,
-              category="Edit")
+              category="Edit", icon="paste")
     ui.action("attr_transfer.paste_style", "attr_transfer.paste_style", "Paste Style Attributes", keywords=keywords,
-              category="Edit")
+              category="Edit", icon="style")
     ui.bind("Ctrl+Alt+Shift+C", "attr_transfer.copy")
     ui.bind("Ctrl+Alt+Shift+V", "attr_transfer.paste_dialog")
 
@@ -326,7 +326,7 @@ def activate_attr_transfer_ui(ui: Any) -> None:
             when="selection.count > 0")
     ui.menu("canvas", "attr_transfer.paste_dialog", path="Attributes", group="attributes", order=1, when=can_paste)
     ui.menu("canvas", "attr_transfer.paste_style", path="Attributes", group="attributes", order=2, when=can_paste)
-    ui.place_submenu("canvas", "Attributes", "state", 5, when="selection.count > 0")
+    ui.place_submenu("canvas", "Attributes", "state", 5, when="selection.count > 0", icon="style")
 
     def shared_applies(info: SelectionInfo) -> bool:
         if info.single or not all(scene.has(n) for n in info.names):

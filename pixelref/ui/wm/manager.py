@@ -1749,18 +1749,19 @@ class WindowManager:
     def fill_workspace_actions(self, menu: QMenu, workspace: str) -> None:
         self.fill_new_workspace_menu(menu.addMenu(icon("plus"), "New Workspace"))
         title = self._workspace_title(workspace)
-        menu.addAction(f"Rename “{title}”…", lambda: self.rename_workspace_prompt(workspace))
-        apply = menu.addMenu(f"Apply Template to “{title}”")
+        menu.addAction(icon("text"), f"Rename “{title}”…", lambda: self.rename_workspace_prompt(workspace))
+        apply = menu.addMenu(icon("tools"), f"Apply Template to “{title}”")
         for name in self.templates():
             apply.addAction(name, lambda n=name: self.run("wm.apply_workspace_template", n, workspace))
-        menu.addAction(f"Save “{title}” as Template…", lambda: self.save_template_prompt(workspace))
+        menu.addAction(icon("save"), f"Save “{title}” as Template…", lambda: self.save_template_prompt(workspace))
         user = self.user_templates()
         if user:
-            forget = menu.addMenu("Delete Template")
+            forget = menu.addMenu(icon("close"), "Delete Template")
             for name in user:
                 forget.addAction(name, lambda n=name: self.delete_template_prompt(n))
         menu.addSeparator()
-        delete = menu.addAction(f"Delete “{title}”…", lambda: self.delete_workspace_prompt(workspace))
+        delete = menu.addAction(icon("delete"), f"Delete “{title}”…",
+                                lambda: self.delete_workspace_prompt(workspace))
         delete.setEnabled(len(self.doc.workspaces()) > 1)
 
     def fill_new_workspace_menu(self, menu: QMenu) -> None:

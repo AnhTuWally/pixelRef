@@ -102,5 +102,5 @@ def activate_popover_ui(ui: Any) -> None:
     ui.command("use_picker", use_picker, undoable=False)
     ui.command("choose_picker", choose_picker, undoable=False, echo=False)
     ui.action("color_popover.choose", "color_popover.choose_picker", "Choose Color Picker…",
-              keywords="colour color picker dialog popover qt swatch", category="Preferences")
+              keywords="colour color picker dialog popover qt swatch", category="Preferences", icon="palette")
     ui.menu("canvas", "color_popover.choose", path="Window", group="window.extras", order=50)

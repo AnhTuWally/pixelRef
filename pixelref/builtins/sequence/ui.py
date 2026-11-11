@@ -288,18 +288,19 @@ def activate_sequence_ui(ui: Any) -> None:
               keywords="add import frames render exr png numbered sequence", category="File")
     ui.command("refresh_frames", refresh_frames, undoable=False)
     ui.action("sequence.rescan", "sequence.refresh_frames", "Refresh Frames",
-              keywords="rescan reload frames render update range new sequence", category="Image")
+              keywords="rescan reload frames render update range new sequence", category="Image", icon="refresh")
     ui.bind("Shift+F5", "sequence.rescan", scope="canvas")
     ui.action("sequence.open_folder", "sequence.open_folder", "Show Sequence Folder",
-              keywords="reveal explorer finder frames sequence", category="Image")
+              keywords="reveal explorer finder frames sequence", category="Image", icon="folder")
     ui.action("sequence.detect", "sequence.toggle_detect", "Dropped Frames Become Sequences",
-              keywords="detect numbered frames sequence drop", category="File", checked=lambda: api.detect_on_drop)
+              keywords="detect numbered frames sequence drop", category="File", checked=lambda: api.detect_on_drop,
+              icon="movie")
 
     def has_sequence() -> bool:
         return bool(selected_sequences())
 
     ui.menu("canvas", "sequence.insert", path="File", group="file.import", order=2)
-    ui.menu("canvas", "sequence.detect", path="File", group="file.storage", order=5)
+    ui.menu("canvas", "sequence.detect", path="File/Preferences", group="file.storage", order=5)
     for order, key in enumerate(("sequence.rescan", "sequence.open_folder")):
         ui.menu("canvas", key, path="Image", group="sequence", order=order, when=has_sequence)
     ui.contribute("palette.buttons", PaletteButton("sequence.insert", "Sequence", "movie", order=12))

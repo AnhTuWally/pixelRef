@@ -699,7 +699,7 @@ def activate_image_ui(ui: Any) -> None:
     ui.action("image.insert", "image.insert_dialog", "Insert Images…", icon="image",
               keywords="add import picture photo file", category="File")
     ui.action("image.grayscale", "image.toggle_grayscale", "Toggle Grayscale",
-              keywords="greyscale black white monochrome desaturate", category="Transform")
+              keywords="greyscale black white monochrome desaturate", category="Transform", icon="grayscale")
     ui.bind("Ctrl+I", "image.insert")
     ui.bind("Shift+G", "image.grayscale")
 
@@ -709,5 +709,5 @@ def activate_image_ui(ui: Any) -> None:
     ui.menu("canvas", "image.insert", group="create", order=10, when="selection.count == 0")
     ui.menu("canvas", "image.insert", path="File", group="file.import", order=0)
     ui.menu("canvas", "image.grayscale", path="Image", group="image", order=20, when=selection_has_image)
-    ui.place_submenu("canvas", "Image", "transform", 1, icon="image")
+    ui.place_submenu("canvas", "Image", "item", 0, icon="image")
     ui.contribute("palette.buttons", PaletteButton("image.insert", "Image", "image", order=10))

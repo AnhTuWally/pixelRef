@@ -4,6 +4,36 @@ All notable changes to pixelRef are documented here.
 
 ## [Unreleased]
 
+### Changed — Right-click menu: regrouped, with an icon on every command
+
+- The menu now runs in one order: clipboard, **what only the clicked thing can
+  do** (Image, Text, Code, Playback, Frame Notes, Page, drawing and link
+  commands), its state, shape and layout (Transform, Effects, Arrange, Order
+  together), combining (Group, Ungroup, Backdrop ▸, link, page around),
+  selecting and framing, export, undo, then File / View / Window / Scripts and
+  Help. With one image selected it is about seven rows shorter.
+- New sub-menus replace flat rows: **Select ▸** (invert, same type, linked,
+  find, Linked To ▸, and hide / lock / isolate the type; it replaces *Same
+  Type*), **Backdrop ▸** and **Name Label ▸**. *Click Action ▸* also lists
+  *Click Action Log…*.
+- On an empty canvas *Paste* stays the first row, *Add Page from View* sits
+  with the other things to add, and Select All, Find, Frame All, Show All and
+  Unlock All are one block.
+- **File ▸**: the settings moved into **Preferences ▸** (embedding, dropped
+  frames, session resume, File Opening, When the File Changes, Colour
+  Management); *Next Open File* sits with the Close commands. **View ▸** is
+  split into getting around (with Go Back / Forward), zoom, flip, how the
+  canvas looks (with Background ▸), overlays and behaviour. **Image ▸** lists
+  Crop and Grayscale first, then EXR, sequence and storage. **Effects ▸ Add**
+  is one list. *Keyboard Shortcuts…* is in Help only.
+- Every command and sub-menu has an icon (about 60 new ones); background
+  presets show their colour. A checked switch shows its icon in blue.
+- *Edit Attributes…* shows its `Alt+A` key; the *Plugins & Scripts* help entry
+  shows its `&`.
+- Plugins: new menu groups `item`, `view.overlays`, `view.behaviour`,
+  `select.pick` / `.linked` / `.type`, and `ui.action(..., keys_of=…)` to show
+  another action's shortcut. The old group names still work.
+
 ### Performance — big boards and big selections
 
 Measured on 3000 items with `tests/bench_selection.py` (details and limits in

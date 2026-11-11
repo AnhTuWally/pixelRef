@@ -10,7 +10,7 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QMenu, QToolButton
 
 from pixelref.plugin_api import CommandError
-from pixelref.plugin_api.ui import ContainerItem, WorkspacePreset, icon, theme
+from pixelref.plugin_api.ui import ContainerItem, WorkspacePreset, icon, theme, toggle_icon
 from pixelref.plugin_api.ui import widgets
 
 from . import BUILTIN_PRESETS, FRAME_GUIDES, MARKER_COLORS, next_marker_color
@@ -350,7 +350,8 @@ def activate_views_ui(ui: Any) -> None:
     a("views.isolate", "views.isolate", "Isolate Selection", keywords="solo focus hide others", category="View",
       icon="isolate")
     a("views.value_check", "views.value_check", "Value Check (Greyscale View)", keywords="grayscale greyscale values",
-      category="View", checked=lambda: bool(app.active_view() and app.active_view().display.grayscale))
+      category="View", checked=lambda: bool(app.active_view() and app.active_view().display.grayscale),
+      icon="grayscale")
     a("views.toggle_markers", "views.toggle_markers", "Show View Markers",
       keywords="show hide marker dots view markers", category="View",
       checked=lambda: bool(app.active_view() and app.active_view().display.show_markers))
@@ -364,14 +365,14 @@ def activate_views_ui(ui: Any) -> None:
     # Show View Markers is the first entry of the View Markers sub-menu below, so it isn't listed twice.
     for order, key in enumerate(("views.value_check", "views.isolate")):
         ui.menu("canvas", key, path="View", group="view.display", order=order)
-    ui.menu("canvas", "views.isolate", group="focus", order=10, when="selection.count > 0")
+    ui.menu("canvas", "views.isolate", group="select", order=41, when="selection.count > 0")
 
     def fill_marker_menu(menu: QMenu, view: Any) -> None:
         """Every marker (its colour, Ctrl+N key, the view's current one checked), then what
         Update would do to the current one, New, and the current one's colour."""
         names = cameras()
         current = current_marker(view)
-        show = menu.addAction("Show markers in canvas\tCtrl+M",
+        show = menu.addAction(toggle_icon("eye"), "Show markers in canvas\tCtrl+M",
                               lambda: app.run_command("views.toggle_markers", view.view_name))
         show.setCheckable(True)
         show.setChecked(view.display.show_markers)
@@ -395,7 +396,7 @@ def activate_views_ui(ui: Any) -> None:
         else:
             hint = menu.addAction("Update: look through a marker first")
             hint.setEnabled(False)
-        menu.addAction("New marker from this view",
+        menu.addAction(icon("plus"), "New marker from this view",
                        lambda: app.run_command("views.create_camera", "View marker", view.view_name))
         if current is not None:
             colours = menu.addMenu(swatch_icon(marker_color(current)), f"Colour of “{current}”")

@@ -668,21 +668,25 @@ def activate_outliner_ui(ui: Any) -> None:
                         ("Alt+L", "outliner.unlock_all"), ("F2", "outliner.rename")):
         ui.bind(key, action)
     a("outliner.select_same_type", "outliner.select_types", "Select All of Same Type",
-      keywords="similar kind type select", category="Select")
+      keywords="similar kind type select", category="Select", icon="select_all")
     a("outliner.hide_same_type", "outliner.set_type_flag", "Hide All of Same Type", kwargs={"value": 0},
-      keywords="similar kind type visibility invisible", category="Arrange")
+      keywords="similar kind type visibility invisible", category="Arrange", icon="eye_off")
     a("outliner.isolate_same_type", "outliner.isolate_types", "Isolate Type",
-      keywords="similar kind type solo only visibility", category="Arrange")
+      keywords="similar kind type solo only visibility", category="Arrange", icon="isolate")
     a("outliner.lock_same_type", "outliner.set_type_flag", "Lock All of Same Type",
-      kwargs={"attr": "locked", "value": 1}, keywords="similar kind type freeze", category="Arrange")
+      kwargs={"attr": "locked", "value": 1}, keywords="similar kind type freeze", category="Arrange", icon="lock")
     for order, key in enumerate(("outliner.rename", "outliner.lock", "outliner.hide"), start=1):
         ui.menu("canvas", key, group="state", order=order, when="selection.count > 0")
-    for order, key in enumerate(("outliner.select_same_type", "outliner.hide_same_type",
-                                 "outliner.isolate_same_type", "outliner.lock_same_type")):
-        ui.menu("canvas", key, path="Same Type", group="state", order=order, when="selection.count > 0")
-    ui.place_submenu("canvas", "Same Type", group="state", order=4)
-    ui.menu("canvas", "outliner.show_all", group="reveal", order=0, when="selection.count == 0")
-    ui.menu("canvas", "outliner.unlock_all", group="reveal", order=1, when="selection.count == 0")
+    # In the Select sub-menu: selecting the same type sits with the other ways to select, and
+    # hiding, locking and isolating that type are its last block.
+    ui.menu("canvas", "outliner.select_same_type", path="Select", group="select.pick", order=1,
+            when="selection.count > 0")
+    for order, key in enumerate(("outliner.hide_same_type", "outliner.lock_same_type",
+                                 "outliner.isolate_same_type")):
+        ui.menu("canvas", key, path="Select", group="select.type", order=order, when="selection.count > 0")
+    # On an empty canvas, with Select All, Find and Frame All: everything about the whole board.
+    ui.menu("canvas", "outliner.show_all", group="select", order=30, when="selection.count == 0")
+    ui.menu("canvas", "outliner.unlock_all", group="select", order=31, when="selection.count == 0")
 
     def unlock_menu(menu: Any) -> None:
         """Puts "Unlock ‹name›" at the top of the menu when what was right-clicked is locked."""

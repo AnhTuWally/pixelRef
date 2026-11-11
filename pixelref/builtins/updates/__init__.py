@@ -419,11 +419,11 @@ def activate_ui(ui: Any) -> None:
     ui.command("state", lambda: service.state.value, undoable=False, echo=False)
     ui.command("roll_back", service.roll_back, undoable=False, echo=False)
     ui.action("updates.check", "updates.check", "Check for Updates…", keywords="update upgrade version new release download",
-              category="Window", icon="info")
+              category="Window", icon="download")
     ui.action("updates.settings", "updates.settings", "Update Settings…", keywords="update upgrade automatic channel beta stable",
-              category="Preferences", icon="info")
+              category="Preferences", icon="settings")
     ui.action("updates.roll_back", "updates.roll_back", "Roll Back to Previous Version…",
-              keywords="update downgrade previous version restore undo update rollback", category="Preferences", icon="info")
+              keywords="update downgrade previous version restore undo update rollback", category="Preferences", icon="history")
     ui.menu("canvas", "updates.check", path="Help", group="help.about", order=1)
     ui.menu("canvas", "updates.settings", path="Help", group="help.about", order=1.5)
 

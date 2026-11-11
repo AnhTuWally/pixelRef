@@ -626,15 +626,17 @@ def activate_nav_ui(ui: Any, feedback: Any) -> LinkNav:
 
     a = ui.action
     a("links.back", "links.back", "Go Back", keywords="previous jump link history return",
-      category="View", enabled=lambda: history(True))
+      category="View", enabled=lambda: history(True), icon="arrow_left")
     a("links.forward", "links.forward", "Go Forward", keywords="next jump link history",
-      category="View", enabled=lambda: history(False))
+      category="View", enabled=lambda: history(False), icon="arrow_right")
     a("links.hover_highlight", "links.toggle_hover_highlight", "Highlight Links on Hover",
-      keywords="show linked connected outline hover", category="View", checked=lambda: nav.hover_highlight)
+      keywords="show linked connected outline hover", category="View", checked=lambda: nav.hover_highlight,
+      icon="link")
     ui.bind("Alt+Left", "links.back", scope="canvas")
     ui.bind("Alt+Right", "links.forward", scope="canvas")
-    for order, key in enumerate(("links.back", "links.forward", "links.hover_highlight")):
-        ui.menu("canvas", key, path="View", group="view.links", order=order)
+    for order, key in enumerate(("links.back", "links.forward"), start=10):  # getting around: after Frame All
+        ui.menu("canvas", key, path="View", group="view.frame", order=order)
+    ui.menu("canvas", "links.hover_highlight", path="View", group="view.overlays", order=10)
 
     def connected_count() -> int:
         names = session.selection.names
@@ -642,7 +644,8 @@ def activate_nav_ui(ui: Any, feedback: Any) -> LinkNav:
 
     ui.context_key("links.connected", connected_count)
     ui.menu("canvas", builder=lambda menu: fill_linked_menu(nav, menu, list(session.selection.names)),
-            text="Linked To", icon="link", group="select", order=21, when="links.connected > 0")
+            text="Linked To", icon="link", path="Select", group="select.linked", order=0,
+            when="links.connected > 0")
 
     def has_links(info: Any) -> bool:
         return info.single and bool(nav.targets(info.names[0]))

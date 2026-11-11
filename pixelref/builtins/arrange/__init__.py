@@ -155,26 +155,30 @@ def activate_ui(ui: Any) -> None:
 
     ui.command("arrange_ui", arrange_and_frame, undoable=False, echo=False)
     a = ui.action
-    for key, text, shortcut, keywords in (
-        ("optimal", "Arrange Optimally", "Ctrl+P", "pack layout tidy organize"),
-        ("horizontal", "Arrange Horizontally", "Ctrl+Alt+H", "row line layout"),
-        ("vertical", "Arrange Vertically", "Ctrl+Alt+V", "column stack layout"),
-        ("grid", "Arrange in Grid", "Ctrl+Alt+G", "tile layout"),
+    for key, text, shortcut, keywords, glyph in (
+        ("optimal", "Arrange Optimally", "Ctrl+P", "pack layout tidy organize", "arrange_auto"),
+        ("horizontal", "Arrange Horizontally", "Ctrl+Alt+H", "row line layout", "arrange_row"),
+        ("vertical", "Arrange Vertically", "Ctrl+Alt+V", "column stack layout", "arrange_column"),
+        ("grid", "Arrange in Grid", "Ctrl+Alt+G", "tile layout", "grid"),
     ):
-        a(f"arrange.{key}", "arrange.arrange_ui", text, args=(key,), keywords=keywords, category="Arrange")
+        a(f"arrange.{key}", "arrange.arrange_ui", text, args=(key,), keywords=keywords, category="Arrange",
+          icon=glyph)
         ui.bind(shortcut, f"arrange.{key}")
-    for key in ("height", "width", "size"):
+    for key, glyph in (("height", "size_height"), ("width", "size_width"), ("size", "size_both")):
         a(f"arrange.normalize_{key}", "arrange.normalize", f"Normalize {key.capitalize()}", args=(key,),
-          keywords="same size match" + (" area" if key == "size" else ""), category="Arrange")
+          keywords="same size match" + (" area" if key == "size" else ""), category="Arrange", icon=glyph)
     ALIGN_SHORTCUTS = {"left": "Ctrl+Left", "right": "Ctrl+Right", "top": "Ctrl+Up", "bottom": "Ctrl+Down"}
+    ALIGN_ICONS = {"hcenter": "align_center_h", "vcenter": "align_center_v"}
     for key, text in (("left", "Align Left"), ("right", "Align Right"), ("top", "Align Top"),
                       ("bottom", "Align Bottom"), ("hcenter", "Align Horizontal Centers"),
                       ("vcenter", "Align Vertical Centers")):
-        a(f"arrange.align_{key}", "arrange.align", text, args=(key,), category="Arrange")
+        a(f"arrange.align_{key}", "arrange.align", text, args=(key,), category="Arrange",
+          icon=ALIGN_ICONS.get(key, f"align_{key}"))
         if key in ALIGN_SHORTCUTS:
             ui.bind(ALIGN_SHORTCUTS[key], f"arrange.align_{key}")
     for key in DISTRIBUTE_KINDS:
         a(f"arrange.distribute_{key}", "arrange.distribute", f"Distribute {key.capitalize()}ly", args=(key,),
+          icon=f"distribute_{key[0]}",
           keywords="distribute spacing equal gaps evenly space " + key, category="Arrange",
           enabled=lambda: len(ui.session.selection.names) >= 3)  # shown from 2 items, greyed until 3
     # Laying out works on the selection or (with nothing selected) everything; matching sizes
@@ -189,7 +193,7 @@ def activate_ui(ui: Any) -> None:
         for key in keys:
             ui.menu("canvas", f"arrange.{key}", path="Arrange", group=group, order=order, when=when)
             order += 1
-    ui.place_submenu("canvas", "Arrange", "arrange", 0, icon="grid")
+    ui.place_submenu("canvas", "Arrange", "transform", 20, icon="grid")  # with Transform, Effects and Order
     ui.place_submenu("canvas", "Arrange", "tools", 1, when="selection.count == 0")
 
     class ArrangeSection(w.InspectorSection):

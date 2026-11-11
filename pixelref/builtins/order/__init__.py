@@ -24,15 +24,16 @@ def activate(ctx: Any) -> None:
 
 
 def activate_ui(ui: Any) -> None:
-    for key, text, keys, keywords in (
-        ("front", "Bring to Front", ("]",), "top raise order z"),
-        ("forward", "Bring Forward", ("}", "Shift+]"), "raise order z"),
-        ("backward", "Send Backward", ("{", "Shift+["), "lower order z"),
-        ("back", "Send to Back", ("[",), "bottom lower order z"),
+    for key, text, keys, keywords, glyph in (
+        ("front", "Bring to Front", ("]",), "top raise order z", "to_front"),
+        ("forward", "Bring Forward", ("}", "Shift+]"), "raise order z", "forward"),
+        ("backward", "Send Backward", ("{", "Shift+["), "lower order z", "backward"),
+        ("back", "Send to Back", ("[",), "bottom lower order z", "to_back"),
     ):
-        ui.action(f"order.{key}", "order.selection", text, args=(key,), keywords=keywords, category="Arrange")
+        ui.action(f"order.{key}", "order.selection", text, args=(key,), keywords=keywords, category="Arrange",
+                  icon=glyph)
         for sequence in keys:
             ui.bind(sequence, f"order.{key}")
     for index, key in enumerate(("front", "forward", "backward", "back")):
         ui.menu("canvas", f"order.{key}", path="Order", group="order", order=index, when="selection.count > 0")
-    ui.place_submenu("canvas", "Order", "arrange", 10, icon="order")
+    ui.place_submenu("canvas", "Order", "transform", 21, icon="order")  # with Transform, Effects and Arrange

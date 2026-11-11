@@ -383,7 +383,8 @@ def activate_ui(ui: Any) -> None:
                        popup_anchor="selection", popup_size=(320, 520), float_size=(300, 460), stretch=3,
                        keywords="inspector properties attributes edit"))
     ui.action("inspector.edit_attributes", "panels.popup", "Edit Attributes…", args=("inspector",),
-              icon="inspector", keywords="properties attribute editor inspector pop up", category="Edit")
+              icon="inspector", keywords="properties attribute editor inspector pop up", category="Edit",
+              keys_of="panels.popup.inspector")  # the same pop-up: show its Alt+A in the menu
     ui.menu("canvas", "inspector.edit_attributes", group="state", order=0, when="selection.count > 0")
 
     def refresh_all(_event: Any = None) -> None:

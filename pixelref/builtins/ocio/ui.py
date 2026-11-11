@@ -272,14 +272,14 @@ def activate_ocio_ui(ui: Any) -> None:
 
     ui.action("ocio.toggle", "ocio.toggle", "Toggle OCIO Colour Management",
               keywords="color colour management ocio aces display view srgb exr", category="Image",
-              checked=lambda: api.settings()["mode"] == "ocio")
+              checked=lambda: api.settings()["mode"] == "ocio", icon="display")
     ui.action("ocio.pick_config", "ocio.pick_config", "Open OCIO Config…",
-              keywords="color colour ocio config aces file open browse choose load", category="Image")
+              keywords="color colour ocio config aces file open browse choose load", category="Image", icon="folder")
     ui.action("ocio.reload", "ocio.reload", "Reload OCIO Config",
-              keywords="color colour ocio config reload refresh", category="Image")
+              keywords="color colour ocio config reload refresh", category="Image", icon="refresh")
     ui.action("ocio.install", "ocio.install_support", "Install OCIO Support…",
               keywords="opencolorio ocio aces colour color management package install", category="Image",
-              enabled=lambda: not api.available())
+              icon="download", enabled=lambda: not api.available())
 
     def selection_has_exr() -> bool:
         exr = session.services.get("exr")
@@ -290,9 +290,9 @@ def activate_ocio_ui(ui: Any) -> None:
     ui.menu("canvas", "ocio.toggle", path="Image", group="exr", order=5, when=selection_has_exr)
     ui.menu("canvas", "ocio.pick_config", path="Image", group="exr", order=6, when=selection_has_exr)
     # Always reachable, EXR selected or not.
-    ui.place_submenu("canvas", "File/Colour Management", group="file.storage", order=10)
-    ui.menu("canvas", "ocio.pick_config", path="File/Colour Management", group="ocio", order=0)
-    ui.menu("canvas", "ocio.reload", path="File/Colour Management", group="ocio", order=1)
-    ui.menu("canvas", "ocio.toggle", path="File/Colour Management", group="ocio.mode", order=0)
+    ui.place_submenu("canvas", "File/Preferences/Colour Management", group="file.watch", order=10, icon="channels")
+    ui.menu("canvas", "ocio.pick_config", path="File/Preferences/Colour Management", group="ocio", order=0)
+    ui.menu("canvas", "ocio.reload", path="File/Preferences/Colour Management", group="ocio", order=1)
+    ui.menu("canvas", "ocio.toggle", path="File/Preferences/Colour Management", group="ocio.mode", order=0)
     ui.menu("canvas", "ocio.install", path="Image", group="exr", order=11,
             when=lambda: selection_has_exr() and api.settings()["mode"] == "ocio" and not api.available())

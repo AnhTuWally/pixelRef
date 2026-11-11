@@ -332,8 +332,10 @@ def activate_pen_ui(ui: Any) -> None:
     ui.context_key("pen.session_active", lambda: drawing.active)
 
     ui.command("edit_drawing", edit_drawing, undoable=False)
-    ui.action("pen.edit_drawing", "pen.edit_drawing", "Edit Drawing", keywords="pen strokes modify", category="Create")
-    ui.action("pen.combine", "pen.combine", "Combine into Drawing", keywords="merge join strokes", category="Create")
+    ui.action("pen.edit_drawing", "pen.edit_drawing", "Edit Drawing", keywords="pen strokes modify", category="Create",
+              icon="pen")
+    ui.action("pen.combine", "pen.combine", "Combine into Drawing", keywords="merge join strokes", category="Create",
+              icon="combine")
     ui.bind("Shift+P", "pen.edit_drawing")
     ui.bind("Ctrl+J", "pen.combine")
 
@@ -345,5 +347,5 @@ def activate_pen_ui(ui: Any) -> None:
         names = session.scene.top_level(session.selection.names)
         return len(names) > 1 and bool(ui.headless.combinable(names))
 
-    ui.menu("canvas", "pen.edit_drawing", group="transform", order=10, when=single_drawing)
-    ui.menu("canvas", "pen.combine", group="transform", order=11, when=can_combine)
+    ui.menu("canvas", "pen.edit_drawing", group="item", order=10, when=single_drawing)
+    ui.menu("canvas", "pen.combine", group="item", order=11, when=can_combine)

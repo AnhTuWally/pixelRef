@@ -172,15 +172,15 @@ def activate_ui(ui: Any) -> None:
 
     a = ui.action
     a("transform.flip_h", "transform.flip", "Flip Horizontal", args=("h",), keywords="mirror reverse",
-      category="Transform")
+      category="Transform", icon="flip_h")
     a("transform.flip_v", "transform.flip", "Flip Vertical", args=("v",), keywords="mirror upside down",
-      category="Transform")
+      category="Transform", icon="flip_v")
     a("transform.rotate_cw", "transform.rotate", "Rotate 90° Clockwise", args=(90.0,), keywords="turn spin right",
-      category="Transform")
+      category="Transform", icon="rotate_cw")
     a("transform.rotate_ccw", "transform.rotate", "Rotate 90° Counter-clockwise", args=(-90.0,),
-      keywords="turn spin left", category="Transform")
+      keywords="turn spin left", category="Transform", icon="rotate_ccw")
     a("transform.reset", "transform.reset", "Reset Transform", keywords="restore original size rotation scale",
-      category="Transform")
+      category="Transform", icon="reset")
     for key, action in (("Shift+H", "transform.flip_h"), ("Shift+V", "transform.flip_v"),
                         ("Ctrl+R", "transform.rotate_cw"), ("Ctrl+Shift+R", "transform.rotate_ccw"),
                         ("Ctrl+Shift+0", "transform.reset")):

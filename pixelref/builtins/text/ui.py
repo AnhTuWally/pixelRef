@@ -595,7 +595,7 @@ def activate_text_ui(ui: Any) -> None:
 
     ui.command("choose_default_width", choose_default_width, undoable=False, echo=False)
     ui.action("text.default_width", "text.choose_default_width", "Pasted Text Width…",
-              keywords="paste text wrap width default long box", category="Edit")
+              keywords="paste text wrap width default long box", category="Edit", icon="text")
     # A setting, not an item to add: beside "Customize Tools Palette…" rather than a one-entry Text menu.
     ui.menu("canvas", "text.default_width", path="Tools", group="tools.customize", order=1,
             when="selection.count == 0")
@@ -761,15 +761,18 @@ def activate_note_extras(ui: Any, service: TextService) -> None:
     ui.command("copy_text", copy_text, alias="copy_note_text", undoable=False, echo=False)
 
     a = ui.action
-    a("text.link", "text.link_dialog", "Link…", keywords="hyperlink url web address file open note", category="Text")
+    a("text.link", "text.link_dialog", "Link…", keywords="hyperlink url web address file open note", category="Text",
+      icon="link")
     a("text.link_file", "text.link_file_dialog", "Link to File…", keywords="hyperlink file board scene pur note",
-      category="Text")
+      category="Text", icon="link_file")
     a("text.checklist", "text.toggle_checklist", "Checklist", keywords="todo check box tick list note",
-      category="Text")
+      category="Text", icon="checklist")
     a("text.copy_text", "text.copy_text", "Copy Text", keywords="clipboard copy text note snippet url",
-      category="Text")
-    a("text.copy_style", "text.copy_style", "Copy Text Style", keywords="format formatting font", category="Text")
-    a("text.paste_style", "text.paste_style", "Paste Text Style", keywords="format formatting font", category="Text")
+      category="Text", icon="copy")
+    a("text.copy_style", "text.copy_style", "Copy Text Style", keywords="format formatting font", category="Text",
+      icon="style")
+    a("text.paste_style", "text.paste_style", "Paste Text Style", keywords="format formatting font", category="Text",
+      icon="paste")
     ui.bind("Ctrl+Shift+C", "text.copy_style")
     ui.bind("Ctrl+Shift+V", "text.paste_style")
     ui.bind("Ctrl+Alt+T", "text.copy_text")
@@ -778,7 +781,7 @@ def activate_note_extras(ui: Any, service: TextService) -> None:
     for order, key in enumerate(("text.link", "text.link_file", "text.checklist", "text.copy_text",
                                  "text.copy_style", "text.paste_style")):
         ui.menu("canvas", key, path="Text", group="text.extras", order=order, when="text.selected")
-    ui.place_submenu("canvas", "Text", "transform", 2, icon="text", when="text.selected")
+    ui.place_submenu("canvas", "Text", "item", 1, icon="text", when="text.selected")
 
     # ---- Clicking boxes and links on the canvas --------------------------------------------------
 

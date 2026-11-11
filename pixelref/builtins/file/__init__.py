@@ -1534,25 +1534,26 @@ def activate_ui(ui: Any) -> None:
     a("file.new", "file.new", "New Scene", keywords="blank board scene create", category="File", icon="plus")
     a("file.open", "file.open", "Open…", keywords="load file board scene", category="File", icon="folder")
     a("file.save", "file.save", "Save", keywords="store write file", category="File", icon="save")
-    a("file.save_as", "file.save_as", "Save As…", keywords="copy file rename", category="File")
+    a("file.save_as", "file.save_as", "Save As…", keywords="copy file rename", category="File", icon="save_as")
+
     def has_file() -> bool:
         return session.scene_path is not None
 
     a("file.copy_path", "file.copy_path", "Copy File Path", keywords="clipboard scene location full path",
-      category="File", enabled=has_file)
+      category="File", enabled=has_file, icon="copy")
     a("file.copy_folder", "file.copy_folder", "Copy Folder Path", keywords="clipboard containing directory location",
-      category="File", enabled=has_file)
+      category="File", enabled=has_file, icon="duplicate")
     a("file.open_folder", "file.open_folder", "Open Containing Folder",
       keywords="reveal show explorer finder file browser directory location", category="File", icon="folder",
       enabled=has_file)
     a("file.reload", "file.reload", "Reload from Disk", keywords="refresh revert external changed update",
-      category="File", enabled=has_file)
+      category="File", enabled=has_file, icon="refresh")
     a("file.close", "file.close", "Close File", keywords="close tab remove open files list", category="File",
-      enabled=lambda: bool(open_files) or session.scene_path is None)
+      enabled=lambda: bool(open_files) or session.scene_path is None, icon="close")
     a("file.close_others", "file.close_others", "Close Other Files", keywords="close all except others tabs",
-      category="File", enabled=lambda: len(open_files) > 1)
+      category="File", enabled=lambda: len(open_files) > 1, icon="isolate")
     a("file.close_all", "file.close_all", "Close All Files", keywords="close everything tabs empty",
-      category="File", enabled=lambda: bool(open_files))
+      category="File", enabled=lambda: bool(open_files), icon="delete")
     for color_name in ws.PALETTE:
         a(f"file.color_{color_name}", "file.set_color", f"Colour File: {color_name.title()}",
           args=(None, color_name), keywords="colour color label tag mark file list", category="File",
@@ -1567,17 +1568,19 @@ def activate_ui(ui: Any) -> None:
         ui.bind(key, action)
 
     def recent_menu(menu: Any) -> None:
+        from pixelref.plugin_api.ui import icon
+
         files = recent_files()
         for path in files:
             menu.addAction(path, lambda p=path: app.run_command("file.open_path", p))
         if files:
             menu.addSeparator()
-            menu.addAction("Clear Recent", lambda: app.run_command("file.clear_recent"))
+            menu.addAction(icon("delete"), "Clear Recent", lambda: app.run_command("file.clear_recent"))
         menu.setEnabled(bool(files))
 
     ui.menu("canvas", "file.new", path="File", group="file", order=0)
     ui.menu("canvas", "file.open", path="File", group="file", order=1)
-    ui.menu("canvas", builder=recent_menu, text="Open Recent", path="File", group="file", order=2)
+    ui.menu("canvas", builder=recent_menu, text="Open Recent", icon="history", path="File", group="file", order=2)
     ui.menu("canvas", "file.save", path="File", group="file", order=3)
     ui.menu("canvas", "file.save_as", path="File", group="file", order=4)
     ui.menu("canvas", "file.reload", path="File", group="file", order=5)
@@ -1585,7 +1588,10 @@ def activate_ui(ui: Any) -> None:
     ui.menu("canvas", "file.close_others", path="File", group="file.close", order=1)
     ui.menu("canvas", "file.close_all", path="File", group="file.close", order=2)
     for order, mode_id in enumerate(WATCH_MODES):
-        ui.menu("canvas", f"file.watch_{mode_id}", path="File/When the File Changes", group="file.watch", order=order)
+        ui.menu("canvas", f"file.watch_{mode_id}", path="File/Preferences/When the File Changes", group="file.watch",
+                order=order)
+    # The settings share one Preferences sub-menu: the switches, then these sub-menus in one block.
+    ui.place_submenu("canvas", "File/Preferences/When the File Changes", "file.watch", 1, icon="refresh")
 
     def toggle_resume() -> None:
         """Switch Session Resume (reopen your last board automatically on launch) on or off."""
@@ -1601,8 +1607,8 @@ def activate_ui(ui: Any) -> None:
     ui.command("set_resume_enabled", set_resume_enabled, undoable=False, echo=False)
     a("file.session_resume", "file.toggle_resume", "Resume Last Session on Launch",
       keywords="restore reopen autosave crash recovery startup untitled draft", category="File",
-      checked=lambda: recovery.resume_enabled)
-    ui.menu("canvas", "file.session_resume", path="File", group="file.session", order=0)
+      checked=lambda: recovery.resume_enabled, icon="history")
+    ui.menu("canvas", "file.session_resume", path="File/Preferences", group="file.storage", order=8)
 
     ui.menu("canvas", "file.copy_path", path="File", group="file.location", order=0)
     ui.menu("canvas", "file.copy_folder", path="File", group="file.location", order=1)
@@ -1661,7 +1667,7 @@ def activate_ui(ui: Any) -> None:
 
     ui.command("pick_save_dir", pick_save_dir, undoable=False, echo=False)
     a("file.save_dir", "file.pick_save_dir", "Save Location…", keywords="folder location directory where scenes save",
-      category="File")
+      category="File", icon="download")
     ui.menu("canvas", "file.save_dir", path="File", group="file.location", order=3)
 
     from .ui import FilesPanel

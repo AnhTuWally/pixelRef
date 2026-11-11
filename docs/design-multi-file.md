@@ -41,7 +41,7 @@ lowest-friction place to put file switching.
 | Thumbnails | Every save stores a small JPEG in the file; the start panel shows recent files as cards with them. The Files list reuses the same images. |
 | Panel tabs | Tools / Outliner / Attribute Editor run down the window's right outer edge — the exact pattern the new **Files** tab reuses. |
 | Keymap | `Ctrl+K` command search, `Ctrl+P` pack, `Ctrl+1`–`9` view markers, `Ctrl+W` window mode, `Ctrl+T` on top, `Ctrl+Shift+T` click-through, `` Ctrl+` `` Script Editor. `Ctrl+Shift+Tab` and `Ctrl+Shift+1`–`9` are free. |
-| Session Resume | *File → Resume Last Session on Launch* reopens the workspace as left; the Files list and detached windows extend this to the scene list. |
+| Session Resume | *File → Preferences → Resume Last Session on Launch* reopens the workspace as left; the Files list and detached windows extend this to the scene list. |
 
 ## Chosen concept — right-side "Files" panel tab
 

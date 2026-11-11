@@ -481,7 +481,8 @@ def activate_files_panel_ui(ui: Any) -> None:
 
     a = ui.action
     a("file.open_in_new_window", "file.open_in_new_window", "Open in New Window",
-      keywords="detach pop out separate window scene", category="File", enabled=lambda: ui.session.scene_path is not None)
+      keywords="detach pop out separate window scene", category="File", icon="float",
+      enabled=lambda: ui.session.scene_path is not None)
     a("file.pref_current", "file.set_open_pref", "Open on Double-Click: Current Window",
       args=("current",), keywords="preference double click opening", category="File", group="file.open_pref",
       checked=lambda: open_preference(ui.settings) == "current")
@@ -489,15 +490,16 @@ def activate_files_panel_ui(ui: Any) -> None:
       args=("new",), keywords="preference double click opening", category="File", group="file.open_pref",
       checked=lambda: open_preference(ui.settings) == "new")
     a("file.cycle", "file.cycle", "Next Open File", args=(1,),
-      keywords="cycle next previous open switch", category="File")
+      keywords="cycle next previous open switch", category="File", icon="next_file")
     for n in range(1, 10):
         a(f"file.jump_{n}", "file.jump", f"Open File {n}", args=(n,),
           keywords=f"jump open file {n} switch", category="File")
 
     ui.menu("canvas", "file.open_in_new_window", path="File", group="file.location", order=4)
-    ui.menu("canvas", "file.cycle", path="File", group="file", order=2.5)  # between Open Recent and Save
-    ui.menu("canvas", "file.pref_current", path="File/File Opening", group="file.open_pref", order=0)
-    ui.menu("canvas", "file.pref_new", path="File/File Opening", group="file.open_pref", order=1)
+    ui.menu("canvas", "file.cycle", path="File", group="file.close", order=-1)  # with the other open-files commands
+    ui.menu("canvas", "file.pref_current", path="File/Preferences/File Opening", group="file.open_pref", order=0)
+    ui.menu("canvas", "file.pref_new", path="File/Preferences/File Opening", group="file.open_pref", order=1)
+    ui.place_submenu("canvas", "File/Preferences/File Opening", "file.watch", 0, icon="folder")
 
     # Keybindings (all free per the design doc's keymap audit).
     ui.bind("Ctrl+Shift+Tab", "file.cycle")

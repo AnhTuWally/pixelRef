@@ -467,13 +467,14 @@ def activate_ui(ui: Any) -> None:
       category="Scripts", icon="pause", enabled=recording,
       dynamic_text=lambda: "Resume Recording" if recording() and current().paused else "Pause Recording")
     a("macros.remove_last", "macros.remove_last", "Remove Last Recorded Step",
-      keywords="macro undo step recording", category="Scripts",
+      keywords="macro undo step recording", category="Scripts", icon="step_back",
       enabled=lambda: recording() and bool(current().lines))
     a("macros.discard", "macros.discard", "Discard Recording", keywords="macro cancel throw away recording",
-      category="Scripts", enabled=recording)
-    a("macros.reload", "macros.reload", "Reload Scripts", keywords="refresh rescan scripts", category="Scripts")
+      category="Scripts", enabled=recording, icon="delete")
+    a("macros.reload", "macros.reload", "Reload Scripts", keywords="refresh rescan scripts", category="Scripts",
+      icon="refresh")
     a("macros.open_folder", "macros.open_folder", "Open Scripts Folder", keywords="scripts folder files explorer",
-      category="Scripts")
+      category="Scripts", icon="folder")
     ui.bind("Ctrl+Alt+R", "macros.record")
 
     def scripts_menu(menu: Any) -> None:
@@ -491,7 +492,7 @@ def activate_ui(ui: Any) -> None:
     ui.menu("canvas", "macros.record", path="Scripts", group="scripts.record", order=0)
     for order, key in enumerate(("macros.pause", "macros.remove_last", "macros.discard"), start=1):
         ui.menu("canvas", key, path="Scripts", group="scripts.record", order=order, when=recording)
-    for order, key in enumerate(("macros.reload", "macros.open_folder", "help.shortcuts")):
+    for order, key in enumerate(("macros.reload", "macros.open_folder")):  # Keyboard Shortcuts… is in Help
         ui.menu("canvas", key, path="Scripts", group="scripts.manage", order=order)
 
     rescan()

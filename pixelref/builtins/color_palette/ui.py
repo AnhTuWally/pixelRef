@@ -9,7 +9,7 @@ def activate_color_palette_ui(ui: Any) -> None:
     session = ui.session
 
     ui.action("color_palette.extract", "color_palette.extract", "Extract Color Palette",
-              keywords="dominant swatches scheme", category="Image")
+              keywords="dominant swatches scheme", category="Image", icon="palette")
 
     def single_image() -> bool:
         names = session.selection.names

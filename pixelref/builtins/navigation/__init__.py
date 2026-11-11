@@ -312,18 +312,18 @@ def activate_ui(ui: Any) -> None:
     a("navigation.frame_selected", "navigation.frame_selected", "Frame Selection", keywords="fit zoom focus view",
       category="View", icon="frame")
     a("navigation.flip_h", "navigation.flip", "Flip View Horizontally", args=(True, False),
-      keywords="mirror mirror horizontally left right view", category="View")
+      keywords="mirror mirror horizontally left right view", category="View", icon="flip_h")
     a("navigation.flip_v", "navigation.flip", "Flip View Vertically", args=(False, True),
-      keywords="mirror upside down vertical view", category="View")
+      keywords="mirror upside down vertical view", category="View", icon="flip_v")
     a("navigation.zoom_actual", "navigation.zoom", "Reset Zoom (100%)", args=(1.0,),
-      keywords="100% reset actual size one", category="View")
+      keywords="100% reset actual size one", category="View", icon="search")
     a("navigation.zoom_in", "navigation.zoom_by", "Zoom In", args=(1.25,), keywords="magnify bigger closer",
-      category="View")
+      category="View", icon="zoom_in")
     a("navigation.zoom_out", "navigation.zoom_by", "Zoom Out", args=(1 / 1.25,), keywords="smaller further",
-      category="View")
+      category="View", icon="zoom_out")
     a("navigation.progressive_zoom", "navigation.progressive_zoom", "Progressive Zoom Rendering",
       keywords="smooth zoom blur sharpen overview tiles stutter slow performance", category="View",
-      checked=tile_cache.progressive_mode)
+      checked=tile_cache.progressive_mode, icon="pixelate")
     for key, action in (("F", "navigation.frame_selected"), ("Home", "navigation.frame_all"),
                         ("Shift+F", "navigation.frame_all"), ("Shift+Alt+H", "navigation.flip_h"),
                         ("Shift+Alt+V", "navigation.flip_v"), ("Ctrl+0", "navigation.zoom_actual"),
@@ -331,12 +331,12 @@ def activate_ui(ui: Any) -> None:
                         ("Ctrl++", "navigation.zoom_in"), ("Ctrl+-", "navigation.zoom_out")):
         ui.bind(key, action)
     for group, keys in (("view.frame", ("navigation.frame_all", "navigation.frame_selected")),
-                        ("view.zoom", ("navigation.zoom_in", "navigation.zoom_out", "navigation.zoom_actual",
-                                       "navigation.progressive_zoom")),
-                        ("view.flip", ("navigation.flip_h", "navigation.flip_v"))):
+                        ("view.zoom", ("navigation.zoom_in", "navigation.zoom_out", "navigation.zoom_actual")),
+                        ("view.flip", ("navigation.flip_h", "navigation.flip_v")),
+                        ("view.behaviour", ("navigation.progressive_zoom",))):
         for order, key in enumerate(keys):
-            ui.menu("canvas", key, path="View", group=group, order=order)
-    ui.menu("canvas", "navigation.frame_selected", group="focus", order=0, when="selection.count > 0")
+            ui.menu("canvas", key, path="View", group=group, order=order + (2 if group == "view.behaviour" else 0))
+    ui.menu("canvas", "navigation.frame_selected", group="select", order=40, when="selection.count > 0")
     ui.menu("canvas", "navigation.frame_all", group="select", order=20, when="selection.count == 0")
 
     blocks: list[ZoomBlock] = []

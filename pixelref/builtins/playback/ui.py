@@ -366,21 +366,22 @@ def activate_playback_ui(ui: Any) -> None:
     ui.context_key("playback.selected", lambda: len(service.animated_selection()))
     when = "playback.selected > 0"
     a = ui.action
-    for key, command, text, keywords, keys in (
-        ("playback.toggle", "playback.toggle", "Play / Pause", "start stop animation gif movie", ("K",)),
-        ("playback.next", "playback.next_frame", "Next Frame", "step forward animation gif", (".",)),
-        ("playback.prev", "playback.prev_frame", "Previous Frame", "step back animation gif", (",",)),
-        ("playback.first", "playback.first_frame", "First Frame", "start rewind animation gif", ("Ctrl+,",)),
-        ("playback.last", "playback.last_frame", "Last Frame", "end animation gif", ("Ctrl+.",)),
-        ("playback.go_to", "playback.go_to_dialog", "Go to Frame…", "jump frame number animation gif", ()),
+    for key, command, text, keywords, keys, glyph in (
+        ("playback.toggle", "playback.toggle", "Play / Pause", "start stop animation gif movie", ("K",), "play"),
+        ("playback.next", "playback.next_frame", "Next Frame", "step forward animation gif", (".",), "frame_next"),
+        ("playback.prev", "playback.prev_frame", "Previous Frame", "step back animation gif", (",",), "frame_prev"),
+        ("playback.first", "playback.first_frame", "First Frame", "start rewind animation gif", ("Ctrl+,",),
+         "frame_first"),
+        ("playback.last", "playback.last_frame", "Last Frame", "end animation gif", ("Ctrl+.",), "frame_last"),
+        ("playback.go_to", "playback.go_to_dialog", "Go to Frame…", "jump frame number animation gif", (), "goto"),
     ):
-        a(key, command, text, keywords=keywords, category="Playback")
+        a(key, command, text, keywords=keywords, category="Playback", icon=glyph)
         for sequence in keys:
             ui.bind(sequence, key, when=when)
     for order, key in enumerate(("playback.toggle", "playback.prev", "playback.next", "playback.first",
                                  "playback.last", "playback.go_to")):
         ui.menu("canvas", key, path="Playback", group="playback", order=order, when=when)
-    ui.place_submenu("canvas", "Playback", "transform", 3, icon="play")
+    ui.place_submenu("canvas", "Playback", "item", 3, icon="play")
 
     def applies(info: SelectionInfo) -> bool:
         return info.single and getattr(info.item, "animated", False)

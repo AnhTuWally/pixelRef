@@ -830,30 +830,33 @@ def activate_pages_ui(ui: Any) -> None:
     ui.action("pages.previous", "pages.previous", "Previous Page", category="View",
               keywords="page pdf present slide back")
     ui.action("pages.move_earlier", "pages.move_earlier", "Move Page Earlier", category="Arrange",
-              keywords="page order number")
+              keywords="page order number", icon="chevron_up")
     ui.action("pages.move_later", "pages.move_later", "Move Page Later", category="Arrange",
-              keywords="page order number")
+              keywords="page order number", icon="chevron_down")
     ui.action("pages.toggle_export", "pages.toggle_export", "Include in PDF Export", category="File",
-              keywords="page skip exclude pdf",
+              keywords="page skip exclude pdf", icon="export",
               checked=lambda: bool(selected_pages()) and all(bool(scene.get_node(n).attrs.get("export", True))
                                                              for n in selected_pages()))
     ui.action("pages.fly_to", "pages.fly_to_selected", "Fit View to Page", category="View",
-              keywords="page frame zoom fit")
-    ui.action("pages.rename", "pages.rename_selected", "Rename Page…", category="Edit", keywords="page title name")
+              keywords="page frame zoom fit", icon="frame")
+    ui.action("pages.rename", "pages.rename_selected", "Rename Page…", category="Edit", keywords="page title name",
+              icon="text")
     ui.action("pages.rotate", "pages.rotate", "Turn Page (Landscape / Portrait)", category="Arrange",
-              keywords="page orientation landscape portrait rotate")
+              keywords="page orientation landscape portrait rotate", icon="rotate_cw")
     ui.bind("Ctrl+Shift+P", "pages.export_pdf")
     ui.bind("Ctrl+Alt+P", "pages.add_from_view")
     ui.bind("PgDown", "pages.next", scope="canvas")
     ui.bind("PgUp", "pages.previous", scope="canvas")
 
     ui.menu("canvas", "pages.export_pdf", path="File", group="file.export", order=3)
-    ui.menu("canvas", "pages.add_from_view", group="arrange", order=26, when="selection.count == 0")
-    ui.menu("canvas", "pages.add_around_selection", group="arrange", order=26,
+    ui.menu("canvas", "pages.add_from_view", group="create", order=36, when="selection.count == 0")  # after Backdrop
+    ui.menu("canvas", "pages.add_around_selection", group="group", order=40,  # with Group, Backdrop and Link
             when=lambda: bool(session.selection.names) and not selected_pages())
     for order, key in enumerate(("pages.fly_to", "pages.rename", "pages.rotate", "pages.move_earlier",
                                  "pages.move_later", "pages.toggle_export")):
-        ui.menu("canvas", key, path="Page", group="transform", order=50 + order, when="pages.selected")
+        ui.menu("canvas", key, path="Page", group="page", order=order, when="pages.selected")
+    ui.place_submenu("canvas", "Page", "item", 5, icon="frame")
+    ui.place_submenu("canvas", "Page/Paper", "page.paper", 0, icon="paper")
 
     def set_paper_action(paper: str) -> None:
         names = selected_pages()

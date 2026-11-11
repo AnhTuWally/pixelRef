@@ -593,7 +593,7 @@ def activate_quick_edit_ui(ui: Any) -> None:
     ui.action("quick_edit.toggle", "quick_edit.toggle", "Quick Attribute Editor", icon="inspector",
               keywords="quick edit attributes bar hud properties selection", category="View",
               checked=lambda: service.enabled)
-    ui.menu("canvas", "quick_edit.toggle", path="View", group="view.display", order=4)
+    ui.menu("canvas", "quick_edit.toggle", path="View", group="view.overlays", order=2)
 
     # ---- Following the selection ----------------------------------------------------------------------
 

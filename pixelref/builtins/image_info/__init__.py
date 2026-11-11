@@ -166,7 +166,7 @@ def activate_ui(ui: Any) -> None:
               keywords="pixel coordinates position size resolution source path dimensions", category="View",
               checked=enabled)
     ui.bind("Alt+I", "image_info.toggle")
-    ui.menu("canvas", "image_info.toggle", path="View", group="view.display", order=4)
+    ui.menu("canvas", "image_info.toggle", path="View", group="view.overlays", order=1)
     ui.input_handler(Tracker(), 300)
     ui.overlay(paint, order=66)
     ui.track(hover.clear)

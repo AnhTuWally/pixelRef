@@ -286,14 +286,25 @@ removed when the plugin is disabled.
 
 The context menu goes from what was clicked to app-wide sub-menus; pick the
 `group` that matches (separators fall between groups, `order` sorts within one):
-`clipboard` (copy, paste…), `create` (new items, empty canvas), `state` (edit
-attributes, rename, lock, hide), `transform` (Transform / Image / Playback
-sub-menus and type-specific edits), `arrange` (Arrange, Order, grouping),
-`select` (select / show / unlock all), `focus` (frame, isolate, export the
-selection), `history`, then the View, File and Window sub-menus. Inside them:
-`view.frame`, `view.zoom`, `view.flip`, `view.display`, `view.background`;
-`file`, `file.import`, `file.export`, `file.storage`; `window`,
-`window.panels`, `w_modes`, `window.extras`.
+`clipboard` (copy, paste…), `create` (new items, empty canvas), `item` (what
+only the clicked kind of thing can do: the Image / Text / Code / Playback /
+Page sub-menus and type-specific edits), `state` (edit attributes, rename,
+lock, hide, Attributes, Name Label, Click Action), `transform` (Transform,
+Effects, Arrange, Order), `group` (Group, Ungroup, Backdrop, link, page
+around), `select` (the Select sub-menu, frame, isolate; select / show /
+unlock all on an empty canvas), `export`, `history`, then the File, View,
+Window and Scripts sub-menus and Help. Inside them: `view.frame`, `view.zoom`,
+`view.flip`, `view.display` (how the canvas looks), `view.overlays` (what is
+drawn on top), `view.behaviour`; `file`, `file.close`, `file.location`,
+`file.import`, `file.export`, and `file.storage` inside `File/Preferences`
+(settings go there, not in File itself); `window`, `window.panels`, `w_modes`,
+`window.extras`. In the Select sub-menu: `select.pick`, `select.linked`,
+`select.type`.
+
+Give every command an `icon=` (see `pixelref/ui/icons.py` for the names) and
+every sub-menu one through `ui.place_submenu(..., icon=…)`. A checkable action
+shows its icon in the accent colour while it is checked. Lists of values
+(paper sizes, percentages, recent files) stay without icons.
 
 ## Node types
 

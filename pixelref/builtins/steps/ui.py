@@ -310,4 +310,4 @@ def activate_steps_ui(ui: Any) -> None:
     ui.context_key("steps.selected", selected_steps)
     ui.action("steps.renumber", "steps.renumber", "Renumber Steps", keywords="number count order sequence fix gaps",
               category="Edit", icon="step")
-    ui.menu("canvas", "steps.renumber", group="transform", order=45, when="steps.selected")
+    ui.menu("canvas", "steps.renumber", group="item", order=45, when="steps.selected")

@@ -136,7 +136,7 @@ the plugin that provides it.
 - Images are **embedded** in the scene by default, and identical files are
   stored once. Per image, the Attribute Editor offers *Link…* (use a file on
   disk) and *Save as file*. *File → Embed All Linked Images* packs a scene
-  into one file, and *File → Embed New Images in Scene* sets the default.
+  into one file, and *File → Preferences → Embed New Images in Scene* sets the default.
 - Copy, cut, paste and duplicate (`Ctrl+D`) work between scenes.
 - **Animated GIFs and WebPs** play on the board. `K` plays and pauses, `,` /
   `.` step one frame, and `Ctrl+,` / `Ctrl+.` jump to the first or last frame.

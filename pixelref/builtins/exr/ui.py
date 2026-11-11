@@ -228,7 +228,7 @@ def activate_exr_ui(ui: Any) -> None:
 
     ui.command("install_support", install_support, undoable=False)
     ui.action("exr.install", "exr.install_support", "Install EXR Support…",
-              keywords="openexr numpy package hdr exr install", category="Image",
+              keywords="openexr numpy package hdr exr install", category="Image", icon="download",
               enabled=lambda: state["decoder"] is None)
 
     def selection_has_exr() -> bool:
@@ -244,13 +244,13 @@ def activate_exr_ui(ui: Any) -> None:
     ))
 
     ui.action("exr.exposure_up", "exr.adjust_exposure", "Exposure Up (EXR)", args=[EXPOSURE_STEP],
-              keywords="brighter stop hdr exr exposure", category="Image")
+              keywords="brighter stop hdr exr exposure", category="Image", icon="exposure_up")
     ui.action("exr.exposure_down", "exr.adjust_exposure", "Exposure Down (EXR)", args=[-EXPOSURE_STEP],
-              keywords="darker stop hdr exr exposure", category="Image")
+              keywords="darker stop hdr exr exposure", category="Image", icon="exposure_down")
     ui.action("exr.cycle_channel", "exr.cycle_channel", "Cycle Channel (EXR)",
-              keywords="red green blue alpha luminance exr channel", category="Image")
+              keywords="red green blue alpha luminance exr channel", category="Image", icon="channels")
     ui.action("exr.reset_view", "exr.reset_view", "Reset EXR View",
-              keywords="exposure gamma layer channel exr default", category="Image")
+              keywords="exposure gamma layer channel exr default", category="Image", icon="refresh")
     ui.bind("]", "exr.exposure_up", when=selection_has_exr, scope="canvas")
     ui.bind("[", "exr.exposure_down", when=selection_has_exr, scope="canvas")
     for order, key in enumerate(("exr.exposure_up", "exr.exposure_down", "exr.cycle_channel", "exr.reset_view")):

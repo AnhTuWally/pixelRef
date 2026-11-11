@@ -21,7 +21,7 @@ from ..ui.canvas.items import (
 )
 from ..ui.canvas.tools import Tool
 from ..ui.canvas.view import CanvasView, cursor_pos_in, grid_step, pattern_color
-from ..ui.icons import app_icon, icon, logo_pixmap
+from ..ui.icons import app_icon, icon, logo_pixmap, toggle_icon
 from ..ui import color_dialog, theme, widgets
 from ..ui.wm.manager import WorkspacePreset
 from ..ui.panels import PanelType
@@ -55,6 +55,7 @@ __all__ = [
     "from_qtransform",
     "grid_step",
     "icon",
+    "toggle_icon",
     "logo_pixmap",
     "paint",
     "parent_scene_transform",

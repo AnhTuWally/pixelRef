@@ -233,11 +233,11 @@ def activate_name_labels_ui(ui: Any) -> None:
         ("hide", "Hide Name Label", "eye_off", "name_labels.hideable > 0"),
         ("unpin", "Unlock Label Position", "lock_open", "name_labels.pinned > 0"),
         ("pin", "Lock Label to Corner", "lock", "name_labels.unpinned > 0"),
-        ("reset", "Reset Label", "", "name_labels.labels > 0"),
-    ), start=10):
-        options = {"icon": glyph} if glyph else {}
-        ui.action(f"name_labels.{key}", f"name_labels.{key}", text, keywords=keywords, category="Annotate", **options)
-        ui.menu("canvas", f"name_labels.{key}", group="state", order=order, when=when)
+        ("reset", "Reset Label", "reset", "name_labels.labels > 0"),
+    )):
+        ui.action(f"name_labels.{key}", f"name_labels.{key}", text, keywords=keywords, category="Annotate", icon=glyph)
+        ui.menu("canvas", f"name_labels.{key}", path="Name Label", group="name_labels", order=order, when=when)
+    ui.place_submenu("canvas", "Name Label", "state", 6, icon="label")
     ui.action("name_labels.toggle", "name_labels.toggle", "Show / Hide Name Labels", keywords=keywords,
               category="Annotate", icon="text")
     ui.bind("Shift+N", "name_labels.toggle", when="selection.count > 0")

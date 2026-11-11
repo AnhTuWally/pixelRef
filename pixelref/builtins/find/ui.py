@@ -351,10 +351,11 @@ def activate_find_ui(ui: Any) -> None:
     ui.action("find.show", "find.show", "Find…", icon="search", category="Edit",
               keywords="find search locate go to element item tag note metadata filter")
     ui.bind("Ctrl+F", "find.show", when="!editing.text")
-    ui.menu("canvas", "find.show", group="select", order=0)
-    ui.action("find.similar", "find.similar", "Find Similar (Same Tags)", icon="search", category="Edit",
+    ui.menu("canvas", "find.show", group="select", order=1, when="selection.count == 0")
+    ui.menu("canvas", "find.show", path="Select", group="select.pick", order=4, when="selection.count > 0")
+    ui.action("find.similar", "find.similar", "Find Similar (Same Tags)", icon="label", category="Edit",
               keywords="find similar same tags related matching tagged like this")
-    ui.menu("canvas", "find.similar", group="select", order=0.5, when="find.selection_tagged")
+    ui.menu("canvas", "find.similar", path="Select", group="select.pick", order=3, when="find.selection_tagged")
 
     def refresh(_event: Any = None) -> None:
         if getattr(app, "closed", False):

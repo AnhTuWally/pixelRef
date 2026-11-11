@@ -409,7 +409,10 @@ def activate_effects_ui(ui: Any) -> None:
     has_selection = "selection.count > 0"
     ui.place_submenu("canvas", "Effects", "transform", 2, icon="effects")
     ui.place_submenu("canvas", "Effects", "tools", 2, when="selection.count == 0")
+    ui.place_submenu("canvas", "Effects/Add", "effects.add", 0, icon="plus")
     menu_disposables: list[Any] = []
+    type_icons = {"grayscale": "grayscale", "invert": "invert", "blur": "blur", "posterize": "palette",
+                  "threshold": "opacity", "brightness_contrast": "exposure_up", "edge_detect": "select_all"}
 
     def add_type_actions() -> None:
         while menu_disposables:
@@ -421,28 +424,31 @@ def activate_effects_ui(ui: Any) -> None:
             menu_disposables.append(ui.app.actions.define(
                 key, "effects.add", f"Add Effect: {effect_type.nice_name}", plugin=ui.plugin_id,
                 args=(effect_type.name,), category="Effects",
+                icon_name=getattr(effect_type, "icon", "") or type_icons.get(effect_type.name, "effects"),
                 keywords=f"effect filter {effect_type.name.replace('_', ' ')} {effect_type.doc}"))
+            # One list, a block per category (not a sub-menu each: a category holds a few effects).
             menu_disposables.append(ui.app.menus.add("canvas", key, plugin=ui.plugin_id,
-                                                     path=f"Effects/Add/{effect_type.category}", group="effects.add",
+                                                     path="Effects/Add", group=f"effects.add.{effect_type.category}",
                                                      order=order, when=has_selection))
 
     add_type_actions()
     ui.track(session.extensions.watch("effects.types", add_type_actions))
     ui.track(lambda: [d.dispose() for d in menu_disposables])
-    for key, command, text, keywords, order in (
-        ("effects.copy", "effects.copy", "Copy Effects", "effect stack copy", 10),
-        ("effects.paste", "effects.paste", "Paste Effects", "effect stack paste apply", 11),
-        ("effects.clear", "effects.clear", "Remove All Effects", "effect clear delete reset", 12),
-        ("effects.mute", "effects.mute", "Mute Effects", "effect mute bypass disable off hide keep", 5),
+    for key, command, text, keywords, order, glyph in (
+        ("effects.copy", "effects.copy", "Copy Effects", "effect stack copy", 10, "copy"),
+        ("effects.paste", "effects.paste", "Paste Effects", "effect stack paste apply", 11, "paste"),
+        ("effects.clear", "effects.clear", "Remove All Effects", "effect clear delete reset", 12, "delete"),
+        ("effects.mute", "effects.mute", "Mute Effects", "effect mute bypass disable off hide keep", 5, "eye_off"),
     ):
-        ui.action(key, command, text, keywords=keywords, category="Effects")
+        ui.action(key, command, text, keywords=keywords, category="Effects", icon=glyph)
         ui.menu("canvas", key, path="Effects", group="effects.stack", order=order, when=has_selection)
     ui.action("effects.show", "effects.show", "Show Effects", keywords="effect mute bypass before after compare",
-              category="Effects", checked=lambda: engine.show_effects)
+              category="Effects", checked=lambda: engine.show_effects, icon="eye")
     ui.menu("canvas", "effects.show", path="Effects", group="effects.show", order=0)
     ui.action("effects.save_in_scene", "effects.save_in_scene", "Keep Processed Effects in Scene File",
-              keywords="effect cache save embed", category="Effects", checked=lambda: engine.save_in_scene)
+              keywords="effect cache save embed", category="Effects", checked=lambda: engine.save_in_scene,
+              icon="save")
     ui.action("effects.clear_cache", "effects.clear_cache", "Forget Processed Effects",
-              keywords="effect cache clear smaller file", category="Effects")
+              keywords="effect cache clear smaller file", category="Effects", icon="close")
     ui.menu("canvas", "effects.save_in_scene", path="Effects", group="effects.cache", order=0)
     ui.menu("canvas", "effects.clear_cache", path="Effects", group="effects.cache", order=1)

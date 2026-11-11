@@ -472,8 +472,8 @@ def activate_backdrops_ui(ui: Any) -> None:
         return "Stop Acting as Backdrop" if acting else "Act as Backdrop"
 
     ui.action("backdrops.toggle", "backdrops.toggle", "Act as Backdrop", keywords="frame host stack tray contain",
-              category="Create", dynamic_text=toggle_text)
-    ui.menu("canvas", "backdrops.toggle", group="group", order=23, when="selection.count > 0")
+              category="Create", dynamic_text=toggle_text, icon="layer")
+    ui.menu("canvas", "backdrops.toggle", path="Backdrop", group="backdrop", order=1, when="selection.count > 0")
 
     def after_toggle_mode() -> None:
         mode = ui.app.run_command("backdrops.toggle_mode")
@@ -487,11 +487,11 @@ def activate_backdrops_ui(ui: Any) -> None:
     ui.command("toggle_free", after_toggle_mode, undoable=False, echo=False)
     ui.action("backdrops.free", "backdrops.toggle_free", "Free Backdrop Mode",
               keywords="strict hosting anything rectangle image drop stack", category="View",
-              checked=lambda: engine.free)
-    ui.menu("canvas", "backdrops.free", path="View", group="view.display", order=5)
+              checked=lambda: engine.free, icon="backdrop")
+    ui.menu("canvas", "backdrops.free", path="View", group="view.behaviour", order=1)
     ui.action("backdrops.settle", "backdrops.settle", "Settle Backdrops",
-              keywords="join leave adopt release refresh membership", category="Create", icon="backdrop")
-    ui.menu("canvas", "backdrops.settle", group="group", order=24, when="selection.count > 0")
+              keywords="join leave adopt release refresh membership", category="Create", icon="refresh")
+    ui.menu("canvas", "backdrops.settle", path="Backdrop", group="backdrop", order=2, when="selection.count > 0")
 
     # ---- Attribute Editor: the "Act as backdrop" switch -----------------------------------------
 
@@ -540,5 +540,7 @@ def activate_backdrops_ui(ui: Any) -> None:
                                                       for n in info.nodes),
         build=lambda parent, _inspector: BackdropSection(parent)))
     ui.menu("canvas", "backdrops.make", group="create", order=35, when="selection.count == 0")  # a new one
-    ui.menu("canvas", "backdrops.make", group="group", order=22, when="selection.count > 0")  # around these
+    # With a selection: one Backdrop sub-menu (wrap these, make them act as one, settle).
+    ui.menu("canvas", "backdrops.make", path="Backdrop", group="backdrop", order=0, when="selection.count > 0")
+    ui.place_submenu("canvas", "Backdrop", "group", 22, icon="backdrop")
     ui.contribute("palette.buttons", PaletteButton("backdrops.make", "Backdrop", "backdrop", order=31))

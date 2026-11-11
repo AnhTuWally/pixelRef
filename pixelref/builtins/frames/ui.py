@@ -534,15 +534,15 @@ def activate_frames_ui(ui: Any) -> None:
             ui.app.run_command("frames.copy_to", text.strip())
 
     ui.command("copy_dialog", copy_dialog, undoable=False, echo=False)
-    for key, command, text, keywords, keys, when in (
+    for key, command, text, keywords, keys, when, glyph in (
         ("frames.pin", "frames.pin", "Pin to Current Frame", "annotation note frame gif movie only show",
-         ("Alt+F",), "frames.pinnable > 0"),
+         ("Alt+F",), "frames.pinnable > 0", "pin"),
         ("frames.unpin", "frames.unpin", "Show on All Frames", "annotation note frame gif movie unpin global",
-         (), "frames.pinned > 0"),
+         (), "frames.pinned > 0", "eye"),
         ("frames.copy", "frames.copy_dialog", "Copy to Frames…", "annotation note frame gif movie duplicate",
-         (), "frames.pinnable > 0"),
+         (), "frames.pinnable > 0", "copy"),
     ):
-        ui.action(key, command, text, keywords=keywords, category="Playback")
+        ui.action(key, command, text, keywords=keywords, category="Playback", icon=glyph)
         for sequence in keys:
             ui.bind(sequence, key, when=when)
     for order, (key, when) in enumerate((("frames.pin", "frames.pinnable > 0"), ("frames.unpin", "frames.pinned > 0"),
@@ -551,10 +551,10 @@ def activate_frames_ui(ui: Any) -> None:
     ui.context_key("frames.link_framed", lambda: selected(
         lambda n: scene.get_node(n).node_type == LINK and any(f for _e, _el, f in service.link_ends(n))))
     ui.action("frames.clear_link", "frames.clear_link_frame", "Clear Link Frame",
-              keywords="link end frame anchor whole element", category="Playback")
+              keywords="link end frame anchor whole element", category="Playback", icon="chain_off")
     ui.menu("canvas", "frames.clear_link", path="Frame Notes", group="frames", order=3,
             when="frames.link_framed > 0")
-    ui.place_submenu("canvas", "Frame Notes", "transform", 4, icon="play")
+    ui.place_submenu("canvas", "Frame Notes", "item", 4, icon="note")
 
     # ---- Clicking a framed link end jumps the animation to that frame -----------------------------
 

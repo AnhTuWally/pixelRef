@@ -928,6 +928,11 @@ def test_canvas_context_menu_is_organised_by_what_was_clicked():
         assert empty[-1] == "Help", "help, updates and About share one sub-menu at the bottom"
         assert "Text" not in empty and "Click Action" not in empty, "one-entry sub-menus don't clutter an empty canvas"
         assert empty.index("Backdrop") < empty.index("Select All"), "creating things comes before selecting"
+        assert empty[:2] == ["Paste", "|"], "Paste is the first row, in its own block"
+        assert empty.index("Backdrop") < empty.index("Add Page from View") < empty.index("Select All")
+        # Everything about the whole board is one block: select, find, frame, show and unlock all.
+        start = empty.index("Select All")
+        assert empty[start:start + 5] == ["Select All", "Find…", "Frame All", "Show All", "Unlock All"]
         # The canvas-wide sub-menus sit together, then File, View and Window, without separators.
         start = empty.index("Tools")
         assert empty[start:start + 3] == ["Tools", "Arrange", "Effects"]
@@ -936,19 +941,87 @@ def test_canvas_context_menu_is_organised_by_what_was_clicked():
 
         h.select([img])
         one = layout(h.app.menus.build("canvas"))
-        assert one.index("Copy") < one.index("Edit Attributes…") < one.index("Transform") < one.index("Image")
-        assert one.index("Image") < one.index("Order") < one.index("Frame Selection") < one.index("Undo Create image")
+        # What only an image can do comes right after the clipboard, then its state, then its shape.
+        assert one.index("Copy") < one.index("Image") < one.index("Edit Attributes…") < one.index("Transform")
+        assert one.index("Transform") < one.index("Order") < one.index("Group") < one.index("Select")
+        assert one.index("Select") < one.index("Frame Selection") < one.index("Undo Create image")
+        start = one.index("Transform")
+        assert one[start:start + 3] == ["Transform", "Effects", "Order"], "shape and layout are one block"
+        start = one.index("Select")
+        assert one[start:start + 3] == ["Select", "Frame Selection", "Isolate Selection"]
         assert "Arrange" not in one, "arranging needs more than one item"
         assert "Tools" not in one and "Select All" not in one
+        assert "Same Type" not in one and "Invert Selection" not in one and "Settle Backdrops" not in one
         assert "|" not in one[:1] and all(a != b or a != "|" for a, b in zip(one, one[1:]))
+        built = h.app.menus.build("canvas")
+        sub = {a.text(): a.menu() for a in built.actions() if a.menu() is not None}
+        select = layout(sub["Select"])
+        assert select[:4] == ["Invert Selection", "Select All of Same Type", "Select Linked Elements", "Find…"]
+        assert select[-3:] == ["Hide All of Same Type", "Lock All of Same Type", "Isolate Type"]
+        assert layout(sub["Backdrop"]) == ["Backdrop", "Act as Backdrop", "Settle Backdrops"]
+        assert layout(sub["Image"])[:2] == ["Crop", "Reset Crop"], "editing the picture comes first"
+        attributes = next(a for a in built.actions() if a.text() == "Edit Attributes…")
+        assert attributes.shortcut().toString() == "Alt+A", "the pop-up's own key shows in the menu"
 
         h.select([img, img2])
         two = h.app.menus.build("canvas")
         assert "Arrange" in layout(two)
+        start = layout(two).index("Transform")
+        assert layout(two)[start:start + 4] == ["Transform", "Effects", "Arrange", "Order"]
         arrange = next(a.menu() for a in two.actions() if a.text() == "Arrange")
         assert "Align Left" in layout(arrange)
         distribute = next(a for a in arrange.actions() if a.text() == "Distribute Horizontally")
         assert distribute.isVisible() and not distribute.isEnabled(), "shown from two items, greyed until three"
+    finally:
+        h.close()
+
+
+def test_canvas_menu_commands_and_submenus_have_icons():
+    """Every command and sub-menu of the right-click menu has an icon that is really drawn.
+    Switches may go without (their check mark shows), and so do lists of values."""
+    from pixelref.ui import icons
+
+    value_lists = ("Open Recent", "Paper", "Opacity", "New Workspace", "Apply Template", "Delete Template")
+
+    def missing(menu, path, registry):
+        out = []
+        for action in menu.actions():
+            text = action.text().replace("&", "")
+            if action.isSeparator() or not text:
+                continue
+            sub = action.menu()
+            if sub is not None:
+                if action.icon().isNull():
+                    out.append(" › ".join(path + [text]))
+                if not text.startswith(value_lists):
+                    out += missing(sub, path + [text], registry)
+                continue
+            if action.isCheckable() or (not action.isEnabled() and registry.key_of(action) is None):
+                continue
+            if action.icon().isNull():
+                out.append(" › ".join(path + [text]))
+        return out
+
+    h = make()
+    try:
+        img = h.add_image("Img", 0, 0, w=40, h=40)
+        img2 = h.add_image("Img2", 60, 0, w=40, h=40)
+        for selection in ([], [img], [img, img2]):
+            h.select(selection)
+            bare = missing(h.app.menus.build("canvas"), [], h.app.actions)
+            assert not bare, f"no icon ({len(selection)} selected): {bare}"
+        names = {spec.icon for spec in h.app.actions.specs.values() if spec.icon}
+        names |= set(h.app.menus.submenu_icons.values())
+        unknown = sorted(name for name in names if not icons.is_known(name))
+        assert not unknown, f"icons that fall back to a dot: {unknown}"
+        assert not icons.is_known("no_such_icon")
+        # A switch with an icon shows its state in the icon (a menu draws the icon, not a check mark).
+        from PySide6.QtCore import QSize
+        from PySide6.QtGui import QIcon
+        minimap = h.app.actions["minimap.toggle"].icon()
+        size = QSize(16, 16)
+        assert minimap.pixmap(size, QIcon.Normal, QIcon.On).toImage() \
+            != minimap.pixmap(size, QIcon.Normal, QIcon.Off).toImage()
     finally:
         h.close()
 

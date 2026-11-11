@@ -145,7 +145,7 @@ def activate_ui(ui: Any) -> None:
     ui.action("grouping.group", "grouping.group", "Group", keywords="combine nest folder", category="Create",
               icon="layer")
     ui.action("grouping.ungroup", "grouping.ungroup_ui", "Ungroup", keywords="split separate explode",
-              category="Create", dynamic_text=ungroup_text)
+              category="Create", dynamic_text=ungroup_text, icon="ungroup")
     ui.action("grouping.add_group", "grouping.add_group_dialog", "New Group…",
               keywords="folder container layer empty", category="Create", icon="layer")
     ui.bind("G", "grouping.group")

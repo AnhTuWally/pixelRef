@@ -28,7 +28,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QWidget
 
 from ..core.extensions import Disposable
 from .command_search import CommandSearchMenu
-from .icons import icon
+from .icons import icon, toggle_icon
 
 if TYPE_CHECKING:
     from .app import App
@@ -55,6 +55,7 @@ class ActionSpec:
     category: str = ""
     group: str = ""  # exclusive check group (radio)
     plugin: str | None = None
+    keys_of: str = ""  # show this other action's shortcut (a differently-worded entry for the same thing)
 
 
 class ActionRegistry:
@@ -69,13 +70,13 @@ class ActionRegistry:
                icon_name: str = "", tip: str = "", keywords: str = "", checkable: bool = False,
                checked: Callable[[], bool] | None = None, enabled: Callable[[], bool] | None = None,
                dynamic_text: Callable[[], str] | None = None, category: str = "", group: str = "",
-               plugin: str | None = None) -> Disposable:
+               plugin: str | None = None, keys_of: str = "") -> Disposable:
         if key in self.specs:
             raise ValueError(f"Action '{key}' is already defined")
         spec = ActionSpec(key=key, command=command, text=text, args=tuple(args), kwargs=dict(kwargs or {}),
                           icon=icon_name, tip=tip, keywords=keywords, checkable=checkable or checked is not None,
                           checked=checked, enabled=enabled, dynamic_text=dynamic_text, category=category,
-                          group=group, plugin=plugin)
+                          group=group, plugin=plugin, keys_of=keys_of)
         action = QAction(text, None)
         action.setCheckable(spec.checkable)
         action.setProperty("keywords", keywords)
@@ -84,7 +85,7 @@ class ActionRegistry:
         action.setShortcutVisibleInContextMenu(True)
         action.setShortcutContext(Qt.WidgetShortcut)  # keys are dispatched by the keymap, not by actions
         if icon_name:
-            action.setIcon(icon(icon_name))
+            action.setIcon(toggle_icon(icon_name) if spec.checkable else icon(icon_name))
         if tip:
             action.setStatusTip(tip)
             action.setToolTip(tip)
@@ -135,7 +136,10 @@ class ActionRegistry:
     def update_shortcut(self, key: str) -> None:
         action = self.actions.get(key)
         if action is not None:
-            action.setShortcuts(self.app.keymap.sequences_for(key))
+            action.setShortcuts(self.app.keymap.sequences_for(self.specs[key].keys_of or key))
+        for other, spec in self.specs.items():  # entries that show this action's keys
+            if spec.keys_of == key and other in self.actions:
+                self.actions[other].setShortcuts(self.app.keymap.sequences_for(key))
 
     def update_all_shortcuts(self) -> None:
         for key in self.actions:
@@ -687,16 +691,27 @@ class Keymap:
 # sub-menus (Tools, Arrange, Effects), to the app-wide sub-menus (File, View, Window, Scripts)
 # and the Help sub-menu. Nested groups order the View, File, Window, Scripts and Effects sub-menus.
 GROUP_ORDER = {
-    "header": 0, "clipboard": 10, "create": 12, "state": 20, "transform": 30, "drawing": 32,
+    # "item" holds what only the clicked kind of thing can do (Image, Text, Page…), right under
+    # the clipboard; "transform" holds what any selection can do to its shape and layout.
+    "header": 0, "clipboard": 10, "create": 12, "item": 15, "state": 20, "transform": 30, "drawing": 32,
     "arrange": 40, "group": 42, "select": 45, "reveal": 47, "focus": 50, "export": 52, "history": 55,
     "tools": 58, "menus": 65, "view": 70, "file": 75, "window": 80, "app": 90,
+    # Click Action sub-menu: what the click does, what to build from the selection, the log.
+    "interact": 21.1, "make": 21.2, "interact.log": 21.3,
+    # Select sub-menu: picking items, following links, then everything of the same type.
+    "select.pick": 45.1, "select.linked": 45.2, "select.type": 45.3,
+    # Image sub-menu: editing the picture first, then EXR, sequences and where the file lives.
+    "image": 67.1, "exr": 67.2, "sequence": 67.3, "storage": 67.4,
     # Scripts and Effects sub-menus: the list or the stack first, the housekeeping last.
     "scripts.list": 66.1, "scripts.record": 66.2, "scripts.manage": 66.3,
     "effects.add": 66.4, "effects.stack": 66.5, "effects.show": 66.6, "effects.cache": 66.7,
-    "view.frame": 71, "view.zoom": 72, "view.flip": 73, "view.display": 74, "view.background": 75,
-    # File: the document (new, open, save), closing, where it lives, in, out, then the settings.
+    # View: getting around, zoom, flip, how things look, what is drawn on top, how the canvas behaves.
+    "view.frame": 71, "view.zoom": 72, "view.flip": 73, "view.display": 74, "view.overlays": 74.3,
+    "view.behaviour": 74.6, "view.background": 75,
+    # File: the document (new, open, save), closing, where it lives, in, out, then the settings
+    # (the Preferences sub-menu: switches first, then its own sub-menus).
     "file.close": 75.2, "file.location": 75.5, "file.import": 76, "file.export": 77, "file.storage": 78,
-    "file.session": 78.5, "file.open_pref": 78.6, "file.watch": 78.7,
+    "file.session": 78.5, "file.open_pref": 78.6, "file.watch": 78.7, "file.prefs": 79,
     "window.panels": 81, "w_modes": 82, "window.extras": 83,
     # Help: learn first, then safety, updates and About.
     "help.learn": 91, "help.about": 92,

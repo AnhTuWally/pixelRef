@@ -240,8 +240,9 @@ def activate_crop_ui(ui: Any) -> None:
         ui.tools.activate("crop", item=images[0])
 
     ui.command("start", start_crop, undoable=False)
-    ui.action("crop.start", "crop.start", "Crop", keywords="trim cut image", category="Transform")
-    ui.action("crop.reset", "crop.reset", "Reset Crop", keywords="uncrop restore image", category="Transform")
+    ui.action("crop.start", "crop.start", "Crop", keywords="trim cut image", category="Transform", icon="crop")
+    ui.action("crop.reset", "crop.reset", "Reset Crop", keywords="uncrop restore image", category="Transform",
+              icon="reset")
     ui.bind("C", "crop.start")
     ui.bind("Shift+C", "crop.reset")
 

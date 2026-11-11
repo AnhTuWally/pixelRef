@@ -211,16 +211,33 @@ def activate_background_ui(ui: Any) -> None:
     ui.command("pick_pattern_color", pick_pattern_color, undoable=False, echo=False)
     a = ui.action
     a("canvas_background.grid", "canvas_background.toggle_pattern", "Show Background Pattern",
-      keywords="pattern background lines", category="View", checked=lambda: service.pattern != "none")
+      keywords="pattern background lines", category="View", checked=lambda: service.pattern != "none", icon="grid")
     a("canvas_background.color", "canvas_background.pick_color", "Background Color…", keywords="canvas colour backdrop",
-      category="View")
+      category="View", icon="palette")
     a("canvas_background.pattern_color", "canvas_background.pick_pattern_color", "Pattern Color…",
-      keywords="grid colour", category="View")
+      keywords="grid colour", category="View", icon="pick")
     a("canvas_background.auto_pattern_color", "canvas_background.set", "Auto Pattern Color",
-      kwargs={"pattern_color": None}, category="View")
+      kwargs={"pattern_color": None}, category="View", icon="refresh")
     ui.bind("Ctrl+'", "canvas_background.grid")
     menu_path = "View/Background"
-    ui.place_submenu("canvas", menu_path, "view.background", 0)
+    ui.place_submenu("canvas", menu_path, "view.display", 20, icon="opacity")  # with how the canvas looks
+
+    def chip(rgb: Any) -> Any:
+        """A swatch of a preset colour, so the list reads at a glance."""
+        from PySide6.QtCore import QRectF, Qt
+        from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
+
+        pixmap = QPixmap(32, 32)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(QPen(QColor("#6b7280"), 2))
+        painter.setBrush(QColor(*rgb))
+        painter.drawRoundedRect(QRectF(5, 5, 22, 22), 5, 5)
+        painter.end()
+        pixmap.setDevicePixelRatio(2)
+        return QIcon(pixmap)
+
     for order, (key, label) in enumerate(PATTERNS):
         a(f"canvas_background.pattern_{key}", "canvas_background.set", label, kwargs={"pattern": key},
           category="View", group="canvas_background.patterns", checked=lambda k=key: service.pattern == k)
@@ -228,7 +245,7 @@ def activate_background_ui(ui: Any) -> None:
     ui.menu("canvas", "canvas_background.color", path=menu_path, group="bg2", order=0)
     for order, (name, rgb) in enumerate(PRESETS):
         a(f"canvas_background.preset_{name.lower()}", "canvas_background.set", name,
-          kwargs={"background": list(rgb)}, category="View")
+          kwargs={"background": list(rgb)}, category="View").setIcon(chip(rgb))
         ui.menu("canvas", f"canvas_background.preset_{name.lower()}", path=menu_path, group="bg2", order=order + 1)
     ui.menu("canvas", "canvas_background.pattern_color", path=menu_path, group="bg3", order=0)
     ui.menu("canvas", "canvas_background.auto_pattern_color", path=menu_path, group="bg3", order=1)

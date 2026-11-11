@@ -229,18 +229,18 @@ def activate_ui(ui: Any) -> None:
     ui.action("export.image", "export.dialog", "Export as Image…", dynamic_text=export_image_text,
               keywords="png jpg jpeg render screenshot picture selected", category="File", icon="export")
     ui.action("export.originals", "export.originals_dialog", "Export Original Images…",
-              keywords="extract originals files folder", category="File")
+              keywords="extract originals files folder", category="File", icon="images")
     ui.action("export.copy_image", "export.copy_image_ui", "Copy as Image", dynamic_text=copy_image_text,
               keywords="clipboard flatten merge copy png screenshot picture selected", category="Edit", icon="copy")
     ui.action("export.embed_scene", "export.toggle_embed_scene_metadata", "Embed Editable Scene in PNG Exports",
               keywords="png metadata editable scene embed drag back reimport size", category="File",
-              checked=embed_enabled)
+              checked=embed_enabled, icon="embed")
     ui.bind("Ctrl+E", "export.image")
     ui.bind("Ctrl+Shift+E", "export.originals")
     ui.bind("Ctrl+Alt+C", "export.copy_image")
     ui.menu("canvas", "export.image", path="File", group="file.export", order=0)
     ui.menu("canvas", "export.originals", path="File", group="file.export", order=1)
     ui.menu("canvas", "export.copy_image", path="File", group="file.export", order=2)
-    ui.menu("canvas", "export.embed_scene", path="File", group="file.export", order=3)
+    ui.menu("canvas", "export.embed_scene", path="File/Preferences", group="file.storage", order=6)
     ui.menu("canvas", "export.image", group="export", order=0, when="selection.count > 0")
     ui.menu("canvas", "export.copy_image", group="export", order=1, when="selection.count > 0")

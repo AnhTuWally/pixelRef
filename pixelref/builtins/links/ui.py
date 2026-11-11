@@ -1309,11 +1309,13 @@ def activate_links_ui(ui: Any) -> None:
     a("links.select_connected", "links.select_connected", "Select Linked Elements",
       keywords="connected related neighbours links", category="Edit", icon="link")
     a("links.clear_waypoints", "links.clear_waypoints", "Straighten Link", keywords="remove waypoints reset path",
-      category="Edit")
-    a("links.reverse", "links.reverse", "Reverse Link", keywords="swap direction flip ends", category="Edit")
+      category="Edit", icon="straighten")
+    a("links.reverse", "links.reverse", "Reverse Link", keywords="swap direction flip ends", category="Edit",
+      icon="reverse")
     ui.bind("Ctrl+L", "links.connect_selection")
     ui.bind("Ctrl+Shift+L", "links.select_connected")
     ui.menu("canvas", "links.connect_selection", group="group", order=30, when="selection.count > 1")
-    ui.menu("canvas", "links.select_connected", group="select", order=20, when="selection.count > 0")
-    ui.menu("canvas", "links.clear_waypoints", group="transform", order=40, when="links.selected")
-    ui.menu("canvas", "links.reverse", group="transform", order=41, when="links.selected")
+    ui.menu("canvas", "links.select_connected", path="Select", group="select.pick", order=2,
+            when="selection.count > 0")
+    ui.menu("canvas", "links.clear_waypoints", group="item", order=40, when="links.selected")
+    ui.menu("canvas", "links.reverse", group="item", order=41, when="links.selected")

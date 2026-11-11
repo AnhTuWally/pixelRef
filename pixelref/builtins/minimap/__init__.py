@@ -479,7 +479,7 @@ def activate_ui(ui: Any) -> None:
 
     ui.action("minimap.toggle", "minimap.toggle", "Minimap", icon="map", keywords="overview navigator map",
               category="View", checked=active_visible)
-    ui.menu("canvas", "minimap.toggle", path="View", group="view.display", order=3)
+    ui.menu("canvas", "minimap.toggle", path="View", group="view.overlays", order=0)
 
     def header_button(view: Any) -> QToolButton:
         button = QToolButton()

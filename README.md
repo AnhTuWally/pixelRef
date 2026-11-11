@@ -173,7 +173,7 @@ step one frame back or forward. A paused frame is saved with the scene.
 | `Ctrl+P` | pack the selection (or everything) tightly |
 | `Ctrl+Alt+H` / `V` / `G` | lay out in a row / column / grid |
 | `]` / `[` | bring to front / send to back |
-| `Ctrl+G` / `Ctrl+Shift+G` | group / ungroup |
+| `G` / `Ctrl+Shift+G` | group / ungroup |
 | `C` | crop the selected image |
 | `Shift+H` / `Ctrl+R` | flip / rotate 90° |
 | `Alt+'` | snap dragging to the background grid |
@@ -271,7 +271,7 @@ python -m pixelref --batch script.py [scene.pxref] [--save out.pxref]
   `Ctrl+Shift+E` copies the original image files into a folder.
   PNG exports embed the exported part of the board, so dropping the PNG back
   onto a board rebuilds the editable objects (`Shift`+drop imports the flat
-  picture). *File → Embed Editable Scene in PNG Exports* turns this off.
+  picture). *File → Preferences → Embed Editable Scene in PNG Exports* turns this off.
 - `Ctrl+T` keeps the window on top, `F11` makes it frameless, and `G` turns
   on ghost mode: a translucent window you can trace over other applications.
   `Ctrl+Shift+T` adds click-through, so the mouse reaches the application

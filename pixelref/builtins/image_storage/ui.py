@@ -107,12 +107,15 @@ def activate_storage_ui(ui: Any) -> None:
     ui.command("toggle_embed_new", toggle_embed_new, undoable=False, echo=False)
     a = ui.action
     a("image_storage.embed_new", "image_storage.toggle_embed_new", "Embed New Images in Scene",
-      keywords="package single file store images", category="File", checked=lambda: storage.embed_new)
+      keywords="package single file store images", category="File", checked=lambda: storage.embed_new,
+      icon="embed")
     a("image_storage.embed_all", "image_storage.embed_all", "Embed All Linked Images",
-      keywords="package single file store images", category="File")
-    a("image_storage.embed_selected", "image_storage.embed_selected", "Embed in Scene", category="File")
-    a("image_storage.link_dialog", "image_storage.link_dialog", "Link to File…", category="File")
-    a("image_storage.extract_dialog", "image_storage.extract_dialog", "Save as File && Link…", category="File")
+      keywords="package single file store images", category="File", icon="embed")
+    a("image_storage.embed_selected", "image_storage.embed_selected", "Embed in Scene", category="File",
+      icon="embed")
+    a("image_storage.link_dialog", "image_storage.link_dialog", "Link to File…", category="File", icon="link_file")
+    a("image_storage.extract_dialog", "image_storage.extract_dialog", "Save as File && Link…", category="File",
+      icon="save_as")
 
     def has_image() -> bool:
         return bool(selected_images())
@@ -120,6 +123,7 @@ def activate_storage_ui(ui: Any) -> None:
     for order, key in enumerate(("image_storage.embed_selected", "image_storage.extract_dialog",
                                  "image_storage.link_dialog")):
         ui.menu("canvas", key, path="Image", group="storage", order=order, when=has_image)
-    ui.menu("canvas", "image_storage.embed_new", path="File", group="file.storage", order=0)
-    ui.menu("canvas", "image_storage.embed_all", path="File", group="file.storage", order=1)
+    ui.menu("canvas", "image_storage.embed_new", path="File/Preferences", group="file.storage", order=0)
+    ui.menu("canvas", "image_storage.embed_all", path="File", group="file.import", order=10)  # a command, not a setting
+    ui.place_submenu("canvas", "File/Preferences", "file.prefs", 0, icon="settings")
     ui.contribute("inspector.rows", InspectorRows("image", 50, lambda parent, _i: StorageRows(ui, parent)))

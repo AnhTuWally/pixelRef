@@ -301,11 +301,14 @@ def activate_ui(ui: Any) -> None:
     ui.command("invert", invert_selection, alias="invert_selection", undoable=False)
     ui.action("select.all", "select.all", "Select All", keywords="everything", category="Edit",
               icon="select_all")
-    ui.action("select.invert", "select.invert", "Invert Selection", keywords="reverse opposite", category="Edit")
+    ui.action("select.invert", "select.invert", "Invert Selection", keywords="reverse opposite", category="Edit",
+              icon="invert")
     ui.bind("Ctrl+A", "select.all")
     ui.bind("Ctrl+Shift+I", "select.invert")
     ui.menu("canvas", "select.all", group="select", order=0, when="selection.count == 0")
-    ui.menu("canvas", "select.invert", group="select", order=0.1, when="selection.count > 0")
+    # With a selection, everything about selecting more (or other) things is one sub-menu.
+    ui.menu("canvas", "select.invert", path="Select", group="select.pick", order=0, when="selection.count > 0")
+    ui.place_submenu("canvas", "Select", "select", 0, icon="select_all")
 
     def on_selection(_event: Any) -> None:
         names = ui.session.selection.names

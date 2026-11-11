@@ -385,18 +385,18 @@ def activate_code_ui(ui: Any) -> None:
     ui.command("add_from_clipboard", lambda: add_code(True), undoable=False, echo=False)
     a = ui.action
     a("code.add", "code.add", "Add Code Block", keywords="source snippet program syntax hello world",
-      category="Create")
+      category="Create", icon="code")
     a("code.add_clipboard", "code.add_from_clipboard", "Add Code Block from Clipboard",
-      keywords="source snippet paste text", category="Create")
-    a("code.edit", "code.edit", "Edit Code…", keywords="source snippet", category="Code")
-    a("code.copy", "code.copy", "Copy Code", keywords="clipboard source snippet", category="Code")
+      keywords="source snippet paste text", category="Create", icon="paste")
+    a("code.edit", "code.edit", "Edit Code…", keywords="source snippet", category="Code", icon="pen")
+    a("code.copy", "code.copy", "Copy Code", keywords="clipboard source snippet", category="Code", icon="copy")
     ui.context_key("code.selected", lambda: bool(selected_blocks()))
     ui.menu("canvas", "code.add", group="create", order=21, when="selection.count == 0")
     ui.menu("canvas", "code.add_clipboard", group="create", order=22, when="selection.count == 0")
     ui.menu("canvas", "code.edit", path="Code", group="code", order=0, when="code.selected")
     ui.menu("canvas", "code.copy", path="Code", group="code", order=1, when="code.selected")
-    ui.place_submenu("canvas", "Code", "transform", 3, icon="text", when="code.selected")
-    ui.contribute("palette.buttons", PaletteButton("code.add", "Code", "text", order=21))
+    ui.place_submenu("canvas", "Code", "item", 2, icon="code", when="code.selected")
+    ui.contribute("palette.buttons", PaletteButton("code.add", "Code", "code", order=21))
 
     # ---- Copy badge: one click on the block copies its code -------------------------------------
 

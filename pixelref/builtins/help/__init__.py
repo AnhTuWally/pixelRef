@@ -201,7 +201,7 @@ def activate_ui(ui: Any) -> None:
     ui.bind("?", "help.shortcuts")
     ui.action("help.getting_started", "help.getting_started", "Getting Started…",
               keywords="tutorial onboarding welcome guide tour learn introduction help basics", category="Window",
-              icon="info")
+              icon="flag")
     # One Help sub-menu: learn (Getting Started, search, shortcuts), then safety, updates and About.
     ui.place_submenu("canvas", "Help", "app", 0, icon="info")
     ui.menu("canvas", "help.getting_started", path="Help", group="help.learn", order=0)
@@ -281,11 +281,11 @@ def activate_ui(ui: Any) -> None:
     ui.command("docs", show_docs, undoable=False, echo=False)
     ui.action("help.docs", "help.docs", "Help: Search Documentation…",
               keywords="documentation docs reference manual api python command attribute tool what is this "
-                       "context help explain", category="Window", icon="info",
+                       "context help explain", category="Window", icon="search",
               tip="Search every tool, command, attribute and guide; over a button or field, shows its help")
     ui.bind("Shift+F1", "help.docs")
     ui.menu("canvas", "help.docs", path="Help", group="help.learn", order=1)
-    ui.action("help.security", "help.docs", "Staying Safe with Plugins & Scripts…", args=("guide:security",),
+    ui.action("help.security", "help.docs", "Staying Safe with Plugins && Scripts…", args=("guide:security",),
               keywords="security safety trust malicious plugins scripts packages risk warning approve",
-              category="Window", icon="info")
+              category="Window", icon="shield")
     ui.menu("canvas", "help.security", path="Help", group="help.about", order=0)

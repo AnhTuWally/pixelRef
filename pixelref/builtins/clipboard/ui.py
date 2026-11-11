@@ -176,7 +176,8 @@ def activate_clipboard_ui(ui: Any) -> None:
     for order, key in enumerate(("clipboard.copy", "clipboard.cut", "clipboard.paste", "clipboard.duplicate",
                                  "clipboard.delete")):
         ui.menu("canvas", key, group="clipboard", order=order, when="selection.count > 0")
-    ui.menu("canvas", "clipboard.paste", group="create", order=0, when="selection.count == 0")
+    # On an empty canvas Paste is alone in the clipboard block: the first row in both states.
+    ui.menu("canvas", "clipboard.paste", group="clipboard", order=0, when="selection.count == 0")
 
 
     # ---- Dropped PNGs that carry an editable scene ---------------------------------------------

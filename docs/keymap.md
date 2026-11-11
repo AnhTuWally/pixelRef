@@ -8,7 +8,7 @@ There are three ways in, from easiest to most flexible:
 
 | Way | Best for |
 | --- | --- |
-| **Keyboard Shortcuts** (`F1`, or *Scripts → Keyboard Shortcuts…*) | changing or adding keys for anything in the app, including your scripts and macros |
+| **Keyboard Shortcuts** (`F1`, or *Help → Keyboard Shortcuts…*) | changing or adding keys for anything in the app, including your scripts and macros |
 | **Scripts folder** and **Record Macro** (`Ctrl+Alt+R`) | automating a sequence of steps, without writing code |
 | **`keymap.toml`** | macros and Python one-liners on keys, key modes, sharing a setup |
 

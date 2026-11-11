@@ -45,7 +45,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core.extensions import Disposable
-from .icons import ICON_COLOR, icon, icon_pixmap
+from .icons import ICON_COLOR, icon, icon_pixmap, toggle_icon
 
 if TYPE_CHECKING:
     from .app import App
@@ -1021,7 +1021,7 @@ class PanelManager:
                 sub.addAction(actions.get(f"panels.mode.{ptype.id}.{mode}"))
         menu.addSeparator()
         menu.addAction(actions.get("panels.toggle_all"))
-        right = menu.addAction("Sidebar on the Right", lambda: self.app.run_command(
+        right = menu.addAction(toggle_icon("dock_right"), "Sidebar on the Right", lambda: self.app.run_command(
             "panels.set_side", "left" if self.side == "right" else "right"))
         right.setCheckable(True)
         right.setChecked(self.side == "right")
