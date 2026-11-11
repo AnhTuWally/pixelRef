@@ -103,10 +103,17 @@ def smoke_test_helper(work: Path, env: dict) -> None:
         return subprocess.run([str(exe), *args], capture_output=True, text=True, env=env, cwd=exe.parent,
                               encoding="utf-8", errors="replace", timeout=120)
 
-    # Run in place, outside any install: it has no root, and installing is disabled in this build.
+    # Run in place, outside any install: it has no root (and refuses if disabled).
+    sys.path.insert(0, str(ROOT))
+    from pixelref.core.updates.install import ASSISTED_INSTALL_ENABLED
+
     refused = helper(bundled / name, "activate", "a" * 32)
-    if refused.returncode != 3 or "disabled" not in refused.stdout:
-        raise SystemExit(f"FAILED: helper activate should be refused while installing is disabled:\n{refused.stdout}{refused.stderr}")
+    if ASSISTED_INSTALL_ENABLED:
+        if refused.returncode != 2 or "not inside an installation" not in refused.stdout:
+            raise SystemExit(f"FAILED: helper activate outside install should be refused:\n{refused.stdout}{refused.stderr}")
+    else:
+        if refused.returncode != 3 or "disabled" not in refused.stdout:
+            raise SystemExit(f"FAILED: helper activate should be refused while installing is disabled:\n{refused.stdout}{refused.stderr}")
     # Copied where the app puts it, it derives its install from its own location and `recover` has nothing to do.
     folder = work / "install" / ".pixelref-update" / "helper" / ("b" * 32)
     shutil.copytree(bundled, folder)
@@ -114,7 +121,8 @@ def smoke_test_helper(work: Path, env: dict) -> None:
     result = json.loads(recovered.stdout.strip().splitlines()[-1]) if recovered.stdout.strip() else {}
     if recovered.returncode != 0 or result.get("state") != "IDLE":
         raise SystemExit(f"FAILED: helper recover:\n{recovered.stdout}{recovered.stderr}")
-    print("5/6 update helper: bundled, runs on its own, finds its install, refuses to install while disabled")
+    status = "allows in-app install" if ASSISTED_INSTALL_ENABLED else "refuses to install while disabled"
+    print(f"5/6 update helper: bundled, runs on its own, finds its install, {status}")
 
 
 def smoke_test() -> None:
