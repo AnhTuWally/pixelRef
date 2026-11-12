@@ -2,7 +2,7 @@
 
 All notable changes to pixelRef are documented here.
 
-## [1.5.2] - 2026-11-12
+## [1.5.3] - 2026-11-12
 
 ### Added
 
