@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, QSettings, QStandardPaths, Qt  # noqa: E402
-from PySide6.QtGui import QColor, QImage, QMouseEvent  # noqa: E402
+from PySide6.QtGui import QColor, QImage, QMouseEvent, QWheelEvent  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -312,6 +312,20 @@ class Harness:
     def click(self, pos: QPoint, modifiers: Any = Qt.NoModifier) -> None:
         self.mouse("press", pos, modifiers=modifiers)
         self.mouse("release", pos, modifiers=modifiers)
+
+    def wheel(self, pos: QPoint, steps: int = 1, modifiers: Any = Qt.NoModifier) -> None:
+        viewport = self.view.viewport()
+        event = QWheelEvent(
+            QPointF(pos),
+            QPointF(viewport.mapToGlobal(pos)),
+            QPoint(),
+            QPoint(0, 120 * steps),
+            Qt.NoButton,
+            modifiers,
+            Qt.NoScrollPhase,
+            False,
+        )
+        QApplication.sendEvent(viewport, event)
 
     def scribble(self, x0: float, y0: float, length: float = 120, steps: int = 12, amplitude: float = 0.0) -> None:
         import math

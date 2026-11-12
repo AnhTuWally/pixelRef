@@ -25,6 +25,7 @@ from . import (
     SHADING_MODES, SUPPORTED_MODEL_EXTS, SUPPORTED_TEXTURE_EXTS, TYPE,
 )
 from .items import Model3DItem, _rgb_tuple, _rgba_tuple
+from .renderer import light_vector
 
 _EDIT_3D_KEYS = frozenset({
     Qt.Key_Escape,
@@ -252,7 +253,9 @@ class Model3DInputHandler(InputHandler):
                 az = _normalize_deg(float(start.get("light_azimuth", 45.0)) + dx * 0.7)
                 el = max(-90.0, min(90.0, round(float(start.get("light_elevation", 35.0)) - dy * 0.7, 2)))
                 updates = {"light_azimuth": az, "light_elevation": el}
-                self.ui.status(f"3D Key Light: azimuth {az:.0f}°, elevation {el:.0f}°")
+                _lx, _ly, lz = light_vector(az, el)
+                cue = "front" if lz >= 0.0 else "behind"
+                self.ui.status(f"3D Key Light: azimuth {az:.0f}°, elevation {el:.0f}° ({cue})")
             elif mode == "zoom":
                 d0 = max(0.25, float(start.get("distance", 2.6)))
                 dist = max(0.25, min(30.0, round(d0 * (1.006 ** dy), 3)))

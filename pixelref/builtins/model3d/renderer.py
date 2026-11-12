@@ -28,7 +28,7 @@ from typing import Any
 from PySide6.QtCore import QBuffer, QByteArray, QCoreApplication, QIODevice, QLineF, QPointF, QRectF, QSize, Qt
 from PySide6.QtGui import (
     QBrush, QColor, QFont, QImage, QImageReader, QOffscreenSurface,
-    QOpenGLContext, QPainter, QPen, QPolygonF, QSurfaceFormat,
+    QOpenGLContext, QPainter, QPen, QPolygonF, QRadialGradient, QSurfaceFormat,
 )
 from PySide6.QtOpenGL import (
     QOpenGLBuffer, QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat,
@@ -1143,27 +1143,131 @@ def paint_axes_gizmo(painter: QPainter, rect: QRectF,
 
 def paint_light_gizmo(painter: QPainter, rect: QRectF,
                       azimuth: float, elevation: float) -> None:
-    """Paint a key-light direction indicator sphere in the bottom-right of ``rect``."""
+    """Paint a key-light direction indicator arrow in the bottom-right of ``rect``.
+
+    Draws a 3D light indicator with an arrow showing the direction of light.
+    When the light is in front (coming toward the object), a solid bright arrow points
+    inward toward the central reference sphere with a sun marker at its origin.
+    When the light is behind (going away into the background), a dashed arrow points
+    outward away from the object into the distance, with a direction badge.
+    """
     if rect.width() < 110.0 or rect.height() < 110.0:
         return
-    radius = 18.0
+    radius = 20.0
     center = QPointF(rect.right() - radius - 16.0, rect.bottom() - radius - 16.0)
-    lx, ly, _lz = light_vector(azimuth, elevation)
+    lx, ly, lz = light_vector(azimuth, elevation)
     painter.save()
     painter.setRenderHint(QPainter.Antialiasing, True)
-    bg_r = radius + 6.0
-    painter.setPen(QPen(QColor(255, 215, 110, 75), 1.0))
-    painter.setBrush(QColor(16, 18, 24, 175))
+
+    bg_r = radius + 6.0  # 26.0
+    # Outer circle border & background
+    painter.setPen(QPen(QColor(255, 215, 110, 70), 1.0))
+    painter.setBrush(QColor(16, 18, 24, 190))
     painter.drawEllipse(center, bg_r, bg_r)
 
-    painter.setPen(QPen(QColor(120, 130, 150, 110), 1.0))
-    painter.setBrush(QColor(52, 56, 68, 200))
-    painter.drawEllipse(center, radius * 0.55, radius * 0.55)
+    # Central reference sphere (with subtle 3D shading reflecting light direction)
+    core_r = radius * 0.44  # ~8.8px
+    grad = QRadialGradient(center.x() + lx * core_r * 0.45, center.y() - ly * core_r * 0.45, core_r)
+    if lz >= 0.0:
+        grad.setColorAt(0.0, QColor(105, 115, 140, 245))
+        grad.setColorAt(0.7, QColor(48, 53, 66, 245))
+        grad.setColorAt(1.0, QColor(30, 33, 42, 245))
+    else:
+        # Behind: sphere front in shadow
+        grad.setColorAt(0.0, QColor(42, 46, 56, 245))
+        grad.setColorAt(0.8, QColor(26, 29, 36, 245))
+        grad.setColorAt(1.0, QColor(20, 22, 28, 245))
+    painter.setPen(QPen(QColor(110, 120, 140, 85), 1.0))
+    painter.setBrush(grad)
+    painter.drawEllipse(center, core_r, core_r)
 
-    sun_pt = QPointF(center.x() + lx * radius * 0.78, center.y() - ly * radius * 0.78)
-    painter.setPen(QPen(QColor("#ffd54f"), 1.5, Qt.SolidLine, Qt.RoundCap))
-    painter.drawLine(sun_pt, center)
-    painter.setPen(QPen(QColor("#fff8e1"), 1.0))
-    painter.setBrush(QColor("#ffca28"))
-    painter.drawEllipse(sun_pt, 4.2, 4.2)
+    r2d = math.hypot(lx, ly)
+    head_len = 5.8
+    head_w = 3.5
+
+    if r2d < 0.12:
+        if lz >= 0.0:
+            # Pointing straight toward viewer/object: bullseye (tip of arrow coming at you)
+            painter.setPen(QPen(QColor("#ffd54f"), 1.8))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawEllipse(center, 4.8, 4.8)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor("#ffca28"))
+            painter.drawEllipse(center, 2.4, 2.4)
+        else:
+            # Pointing straight away into background: cross (tail feathers flying away)
+            pen = QPen(QColor(255, 185, 60, 200), 2.0, Qt.SolidLine, Qt.RoundCap)
+            painter.setPen(pen)
+            s = 3.2
+            painter.drawLine(QPointF(center.x() - s, center.y() - s), QPointF(center.x() + s, center.y() + s))
+            painter.drawLine(QPointF(center.x() - s, center.y() + s), QPointF(center.x() + s, center.y() - s))
+    else:
+        ux = lx / r2d
+        uy = -ly / r2d  # Qt screen Y is downward
+        perp_x = -uy
+        perp_y = ux
+
+        r_inner = core_r + 1.2
+        r_outer = radius + 2.5
+
+        if lz >= 0.0:
+            # --- Light in front: coming TOWARD the object ---
+            tip = QPointF(center.x() + ux * r_inner, center.y() + uy * r_inner)
+            base = QPointF(center.x() + ux * (r_inner + head_len), center.y() + uy * (r_inner + head_len))
+            w1 = QPointF(base.x() + perp_x * head_w, base.y() + perp_y * head_w)
+            w2 = QPointF(base.x() - perp_x * head_w, base.y() - perp_y * head_w)
+            tail = QPointF(center.x() + ux * r_outer, center.y() + uy * r_outer)
+
+            # Solid shaft
+            painter.setPen(QPen(QColor("#ffd54f"), 1.8, Qt.SolidLine, Qt.RoundCap))
+            painter.drawLine(tail, base)
+
+            # Inward pointing arrowhead
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor("#ffd54f"))
+            painter.drawPolygon(QPolygonF([tip, w1, w2]))
+
+            # Sun source dot at outer tail
+            painter.setPen(QPen(QColor("#fff8e1"), 1.0))
+            painter.setBrush(QColor("#ffca28"))
+            painter.drawEllipse(tail, 3.0, 3.0)
+        else:
+            # --- Light behind: going AWAY from the object ---
+            tip = QPointF(center.x() + ux * r_outer, center.y() + uy * r_outer)
+            base = QPointF(center.x() + ux * (r_outer - head_len), center.y() + uy * (r_outer - head_len))
+            w1 = QPointF(base.x() + perp_x * head_w, base.y() + perp_y * head_w)
+            w2 = QPointF(base.x() - perp_x * head_w, base.y() - perp_y * head_w)
+            origin = QPointF(center.x() + ux * r_inner, center.y() + uy * r_inner)
+
+            # Dashed shaft
+            color = QColor(255, 185, 60, 210)
+            pen = QPen(color, 1.8, Qt.CustomDashLine, Qt.RoundCap)
+            pen.setDashPattern([2.2, 2.0])
+            painter.setPen(pen)
+            painter.drawLine(origin, base)
+
+            # Outward pointing arrowhead
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(color)
+            painter.drawPolygon(QPolygonF([tip, w1, w2]))
+
+            # Subtle origin dot on inner sphere edge
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(255, 185, 60, 160))
+            painter.drawEllipse(origin, 1.8, 1.8)
+
+    # Text badge at bottom: FRONT or BEHIND
+    font = QFont(painter.font())
+    font.setPixelSize(8)
+    font.setBold(True)
+    painter.setFont(font)
+    txt = "FRONT" if lz >= 0.0 else "BEHIND"
+    badge_rect = QRectF(center.x() - 18.0, center.y() + bg_r - 9.0, 36.0, 11.0)
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(QColor(16, 18, 24, 215))
+    painter.drawRoundedRect(badge_rect, 3.0, 3.0)
+    badge_color = QColor("#ffd54f") if lz >= 0.0 else QColor(255, 185, 60, 190)
+    painter.setPen(badge_color)
+    painter.drawText(badge_rect, Qt.AlignCenter, txt)
+
     painter.restore()

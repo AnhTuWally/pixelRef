@@ -807,6 +807,11 @@ class CanvasDocument:
             self._coalesce_command = command
         self._coalesce_timer.start(self.COALESCE_MS)
 
+    def run_coalesced(self, label: str, command: str, *args: Any, **kwargs: Any) -> Any:
+        """Begin a coalesced undo chunk and dispatch the command."""
+        self.begin_coalesced(label, command)
+        return self.app.run_command(command, *args, **kwargs)
+
     def end_coalesced(self) -> None:
         if self._coalesce_label is None:
             return

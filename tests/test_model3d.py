@@ -306,7 +306,20 @@ def test_double_click_enters_3d_view_mode_and_drags_commit_one_undo_step():
         h.refresh()
         assert list(h.attr(name, "target")) != target_before
 
-        # Undo reverts pan, then light, then orbit
+        # Wheel inside the item zooms distance, coalesced into one undo step
+        dist_before = h.attr(name, "distance")
+        h.wheel(center_vp, steps=1)
+        h.refresh()
+        assert h.attr(name, "distance") != dist_before
+        dist_after_one = h.attr(name, "distance")
+        h.wheel(center_vp, steps=1)
+        h.refresh()
+        assert h.attr(name, "distance") != dist_after_one
+        h.end_coalesced()
+
+        # Undo reverts zoom, then pan, then light, then orbit
+        h.undo()
+        assert h.attr(name, "distance") == dist_before
         h.undo()
         assert list(h.attr(name, "target")) == target_before
         h.undo()
@@ -429,3 +442,33 @@ def test_textures_obj_ply_and_commands():
         assert ply_mesh.texture_path == comp_tex
     finally:
         h.close()
+
+
+def test_paint_light_gizmo():
+    from PySide6.QtCore import QRectF
+    from PySide6.QtGui import QColor, QImage, QPainter
+    from pixelref.builtins.model3d.renderer import paint_light_gizmo
+
+    img = QImage(240, 240, QImage.Format_ARGB32_Premultiplied)
+    img.fill(QColor("#1e1e1e"))
+    p = QPainter(img)
+    try:
+        # Small rect returns early
+        paint_light_gizmo(p, QRectF(0, 0, 80, 80), 45.0, 35.0)
+
+        # Front-facing light (coming toward object)
+        paint_light_gizmo(p, QRectF(0, 0, 200, 200), 45.0, 35.0)
+
+        # Back-facing light (going away / behind object)
+        paint_light_gizmo(p, QRectF(0, 0, 200, 200), 135.0, 35.0)
+
+        # Straight-on front light (lz = 1.0)
+        paint_light_gizmo(p, QRectF(0, 0, 200, 200), 0.0, 0.0)
+
+        # Straight-on back light (lz = -1.0)
+        paint_light_gizmo(p, QRectF(0, 0, 200, 200), 180.0, 0.0)
+    finally:
+        p.end()
+
+    # Confirm pixels were painted
+    assert img.pixelColor(180, 180).alpha() > 0

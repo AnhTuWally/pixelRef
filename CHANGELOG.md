@@ -2,6 +2,13 @@
 
 All notable changes to pixelRef are documented here.
 
+## [1.5.2] - 2026-11-12
+
+### Added
+
+- **3D Viewer light direction arrow**: replaced the stick-and-ball indicator with a directional arrow clearly showing whether light is coming toward or away from (behind) the object, with custom dash styling, 3D lit/shadow reference sphere, and FRONT/BEHIND direction badges.
+- **Interactive light feedback**: live status bar indicator shows azimuth, elevation, and front/behind state while dragging.
+
 ## [Unreleased]
 
 ### Changed — Right-click menu: regrouped, with an icon on every command
