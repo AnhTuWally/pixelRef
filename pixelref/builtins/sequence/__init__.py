@@ -219,19 +219,12 @@ def activate(ctx: Any) -> None:
         return {"pattern": api.pattern(attrs), "first": first, "last": last, "on_disk": len(found.frames),
                 "disk_first": found.first, "disk_last": found.last, "missing": found.missing(first, last)}
 
-    def prepare_paths(sess: Any, scene_path: Path) -> None:
-        """Make sequence patterns portable for a save: stored relative to the scene when possible."""
-        new_dir = Path(scene_path).parent.resolve()
-        for node in list(scene.iter_nodes()):
-            if node.node_type != "sequence" or not node.attrs.get("path"):
-                continue
-            source = sess.resolve_path(str(node.attrs["path"]))
-            try:
-                value = source.resolve().relative_to(new_dir).as_posix()
-            except (ValueError, OSError):
-                value = source.as_posix()
-            if value != node.attrs["path"]:
-                scene.set_attr(node.name, "path", value)
+    def companions(_sess: Any, node: Any, attr_name: str, _path: Path) -> list[Path]:
+        """files.companions: a sequence's frame files on disk (what Save Package copies)."""
+        if node.node_type != "sequence" or attr_name != "path":
+            return []
+        pattern = api.pattern(node.attrs)
+        return [Path(seqscan.frame_path(pattern, n)) for n in api.scan(node.attrs).frames] if pattern else []
 
     def set_detect(on: bool) -> bool:
         """Whether dropped numbered frames become image sequences (True) or separate images."""
@@ -245,7 +238,8 @@ def activate(ctx: Any) -> None:
     ctx.command("import_sequences", import_sequences, alias="import_sequences", label="Insert image sequences")
     ctx.command("rescan", rescan, alias="rescan_sequence", label="Rescan sequence")
     ctx.command("info", info, alias="sequence_info", label="Sequence info", undoable=False)
-    ctx.contribute("scene.before_save", prepare_paths)
+    # Patterns are made portable on save by the kernel (core.links, Session.save_file).
+    ctx.contribute("files.companions", companions)
 
 
 def activate_ui(ui: Any) -> None:

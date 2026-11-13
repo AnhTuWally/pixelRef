@@ -389,23 +389,13 @@ def activate(ctx: Any) -> None:
         session.events.emit("ui.status", {"text": f"New 3D models will be {mode}"})
         return api.embed_new
 
-    def prepare_paths(sess: Any, scene_path: Path) -> None:
-        """Make linked 3D model and texture paths portable on save: stored relative to the scene when possible."""
-        new_dir = Path(scene_path).parent.resolve()
-        for node in list(scene.iter_nodes()):
-            attrs = node.attrs
-            if node.node_type != TYPE:
-                continue
-            for path_key, asset_key in (("path", "asset"), ("texture_path", "texture_asset")):
-                if attrs.get(asset_key) or not attrs.get(path_key):
-                    continue
-                source = sess.resolve_path(str(attrs[path_key]))
-                try:
-                    value = source.resolve().relative_to(new_dir).as_posix()
-                except (ValueError, OSError):
-                    value = source.as_posix()
-                if value != attrs[path_key]:
-                    scene.set_attr(node.name, path_key, value)
+    def companions(_sess: Any, node: Any, attr_name: str, path: Path) -> list[Path]:
+        """files.companions: the files a linked model reads beside it (.mtl, .bin, textures)."""
+        from .loader import companion_files
+
+        if node.node_type != TYPE or attr_name != "path":
+            return []
+        return companion_files(path)
 
     ctx.command("import_model", import_model, alias="import_model", label="Insert 3D object")
     ctx.command("import_models", import_models, alias="import_models", label="Insert 3D objects")
@@ -423,7 +413,8 @@ def activate(ctx: Any) -> None:
     ctx.command("link", link, alias="link_model", label="Link 3D model to file")
     ctx.command("extract", extract, alias="extract_model", label="Save 3D model as file")
     ctx.command("set_embed_new", set_embed_new, alias="set_embed_new_models", undoable=False)
-    ctx.contribute("scene.before_save", prepare_paths)
+    # Linked paths are made portable on save by the kernel (core.links, Session.save_file).
+    ctx.contribute("files.companions", companions)
 
 
 def activate_ui(ui: Any) -> None:

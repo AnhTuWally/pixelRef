@@ -183,12 +183,19 @@ class SceneGraph:
         return self.assets.get(asset_id)
 
     def referenced_assets(self) -> list[str]:
-        """Asset ids used by nodes, in scene order, without duplicates."""
+        """Asset ids used by nodes (every attribute of type ``asset``: an image's ``asset``, a 3D
+        object's ``texture_asset``…), in scene order, without duplicates."""
         seen: dict[str, None] = {}
         for node in self.iter_nodes():
-            asset_id = node.attrs.get("asset")
-            if isinstance(asset_id, str) and asset_id:
-                seen.setdefault(asset_id, None)
+            for key, value in node.attrs.items():
+                if not isinstance(value, str) or not value:
+                    continue
+                if key == "asset":
+                    seen.setdefault(value, None)
+                    continue
+                spec = self.attr_spec(node, key)
+                if spec is not None and spec.type == "asset":
+                    seen.setdefault(value, None)
         return list(seen)
 
     # ---- Lookups ---------------------------------------------------------------------

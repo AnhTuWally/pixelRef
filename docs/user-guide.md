@@ -74,6 +74,54 @@ searches every command.
   *File → Embed All Linked Images* packs a scene into one self-contained file.
 - **Copy, cut, paste and duplicate** work between scenes.
 
+### Moving boards with linked files
+
+Linked files (images, EXRs, movies, sequences, 3D models and their textures)
+are saved relative to the board when they are in its folder, as
+`${NAME}/…` under a *path root*, else as full paths. Each one is also saved
+with a fingerprint (its size and a hash of its start and end), so pixelRef
+can recognise the file again wherever it is, whatever its name.
+
+- **File → Save Package…** writes a copy of the board plus a `<name>.files`
+  folder with every file it links (3D `.mtl` / `.bin` / textures and every
+  sequence frame included). It first lists what will be copied, the total
+  size and anything missing. Copies are checked against the originals, files
+  already in the package are not copied again, and the open board is not
+  changed. Send or move the whole folder: it opens anywhere. The files folder
+  may be renamed or kept elsewhere (see *Find Missing Files*).
+- **File → Verify Package** checks that every file of the board's package is
+  there and intact (*124 of 124 present and intact*, or which file is
+  missing, truncated or changed).
+- **File → Find Missing Files…** asks for a folder and relinks what's missing
+  from it: a package folder of this board is simply remembered; otherwise
+  files are matched by content, so renamed or reorganised files are found
+  too. A file with the right name but different content is listed, never
+  used. Boards saved before fingerprints existed are matched by file name,
+  only when exactly one candidate exists. It is one undo step, and what it
+  finds is remembered on this computer, so other boards using the same files
+  open fine too. A status hint names this command when a board opens with
+  missing files.
+- **File → Preferences → Path Roots…** names folders (`PROJ` →
+  `P:/projects/robot`): files under them are saved as `${PROJ}/…`, so a board
+  opens on any computer that defines the same root, here or as an
+  environment variable (`${PRISM_JOB}/…` works without setting anything up).
+- **Path variables** (Attribute Editor with nothing selected, *Canvas*
+  panel) are the board's own variables, one `NAME = folder` per line, saved
+  with the board:
+
+  ```
+  STUDIO_DRIVE = W:\
+  LINUX_PATH = /mnt/drive
+  ```
+
+  `${STUDIO_DRIVE}/…` in a linked path means that folder, and files under one
+  are saved that way. A linked file that is not where its path says is looked
+  for under every folder listed, so naming the same drive as each system calls
+  it lets one board open on all of them. A path root or environment variable
+  with the same name on a computer wins over the board's value.
+- A linked file edited in place still shows; the Attribute Editor's
+  *Storage* row says *(changed)* until the board is saved again.
+
 ## Movies
 
 - **Bring videos in:** *File → Insert Movies… (linked, not embedded)*, or
@@ -85,7 +133,9 @@ searches every command.
   either. If the video file moves, is renamed, or isn't there when you open
   the board (e.g. on another machine), the node shows a "Missing"
   placeholder, just like a missing linked image. To move a board with
-  movies on it, copy the video files along with it.
+  movies on it, use *File → Save Package…*, and *File → Find Missing
+  Files…* to relink moved or renamed videos (see
+  [Moving boards with linked files](#moving-boards-with-linked-files)).
 - Playback controls are the same as for [animated images](#animated-images):
   `K` plays and pauses, `,` / `.` step, `Ctrl+,` / `Ctrl+.` jump to the start
   or end, with transport buttons and a **filmstrip** in the quick editor bar.

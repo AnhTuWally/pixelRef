@@ -152,6 +152,82 @@ def find_companion_texture(base_dir: Path | None, filename: str = "", hint: str 
     return None
 
 
+def companion_files(path: Path) -> list[Path]:
+    """The files a linked model reads from beside it, as the parsers below find them: an OBJ's
+    ``mtllib`` files and their ``map_Kd`` textures, a glTF's external ``buffers`` and ``images``,
+    and the texture found by the model's name (:func:`find_companion_texture`). Only existing
+    files inside the model's folder (the parsers never read outside it)."""
+    path = Path(path)
+    if not path.is_file():
+        return []
+    base = path.parent
+    try:
+        resolved_base, resolved_self = base.resolve(), path.resolve()
+    except OSError:
+        return []
+    found: dict[str, Path] = {}
+
+    def add(candidate: Path | None) -> None:
+        if candidate is None:
+            return
+        try:
+            candidate = candidate.resolve()
+            if candidate.is_file() and candidate.is_relative_to(resolved_base) and candidate != resolved_self:
+                found.setdefault(str(candidate).lower(), candidate)
+        except OSError:
+            pass
+
+    def add_uri(uri: str, texture: bool) -> None:
+        from urllib.parse import unquote
+
+        if not uri or uri.startswith("data:"):
+            return
+        for text in dict.fromkeys((uri, unquote(uri))):
+            before = len(found)
+            add(find_companion_texture(base, hint=text) if texture else base / text)
+            if len(found) > before:
+                return
+
+    ext = path.suffix.lower()
+    try:
+        if ext == ".obj":
+            for raw_line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+                parts = raw_line.strip().split()
+                if len(parts) < 2 or parts[0] != "mtllib":
+                    continue
+                mtl_path = base / " ".join(parts[1:])
+                add(mtl_path)
+                if mtl_path.is_file():
+                    _colors, textures = _parse_mtl(mtl_path.read_text(encoding="utf-8", errors="replace"))
+                    for texture in textures.values():
+                        add(find_companion_texture(base, hint=texture))
+        elif ext in (".gltf", ".glb"):
+            data = path.read_bytes()
+            doc: Any = None
+            if data[:4] == b"glTF" and len(data) >= 20:
+                offset = 12
+                while offset + 8 <= len(data):
+                    chunk_len, chunk_type = struct.unpack_from("<2I", data, offset)
+                    if chunk_type == 0x4E4F534A:  # JSON
+                        doc = json.loads(data[offset + 8:offset + 8 + chunk_len].decode("utf-8"))
+                        break
+                    offset += 8 + chunk_len
+            else:
+                doc = json.loads(data.decode("utf-8"))
+            if isinstance(doc, dict):
+                for spec in doc.get("buffers", []) or []:
+                    if isinstance(spec, dict):
+                        add_uri(str(spec.get("uri", "") or ""), texture=False)
+                for spec in doc.get("images", []) or []:
+                    if isinstance(spec, dict):
+                        add_uri(str(spec.get("uri", "") or ""), texture=True)
+    except (OSError, ValueError, struct.error):
+        pass
+    if ext in (".obj", ".ply", ".gltf", ".glb"):
+        add(find_companion_texture(base, filename=path.name))
+    return list(found.values())
+
+
 def _compute_bounds_and_sphere(
     vertices: list[tuple[float, float, float]],
 ) -> tuple[tuple[float, float, float], float, tuple[float, float, float]]:

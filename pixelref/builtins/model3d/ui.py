@@ -774,8 +774,7 @@ class Model3DStorageRows(QWidget):
             text = f"Embedded in scene · {w.format_size(asset.size)}{label}"
         elif attrs.get("path"):
             path_value = str(attrs.get("path", ""))
-            missing = "" if session.resolve_path(path_value).exists() else "  (missing)"
-            text = f"Linked file · {path_value}{missing}"
+            text = f"Linked file · {path_value}{session.links.note(path_value)}"
         else:
             prim = str(attrs.get("primitive", "") or "loomis_head")
             text = f"Built-in primitive · {PRIMITIVE_LABELS.get(prim, prim)}"

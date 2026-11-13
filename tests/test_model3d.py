@@ -472,3 +472,21 @@ def test_paint_light_gizmo():
 
     # Confirm pixels were painted
     assert img.pixelColor(180, 180).alpha() > 0
+
+
+def test_embedded_texture_survives_save_and_reload():
+    """A 3D object's embedded texture (texture_asset) is written with the scene, not only its mesh."""
+    from pixelref.core.session import Session
+
+    session = Session(make_current=False).start()
+    try:
+        folder = tmp_dir()
+        texture = b"\x89PNG\r\n\x1a\n" + b"texture-bytes" * 8
+        texture_id = session.scene.add_asset(texture, name="tex.png")
+        session.scene.create_node("model3d", "Head", attrs={"primitive": "sphere", "texture_asset": texture_id})
+        out = session.save_file(folder / "board.pxref")
+        assert texture_id in json.loads(out.read_text(encoding="utf-8")).get("assets", {})
+        session.open_file(out)
+        assert session.scene.get_asset(session.scene.nodes["Head"].attrs["texture_asset"]).data == texture
+    finally:
+        session.shutdown()

@@ -642,6 +642,25 @@ the rest also work headless (batch mode, scripts).
 | `outliner.unlock(nodes: Any = None)` |  | yes | Unlock the nodes so they can be selected again, and the locked groups holding them. |
 | `outliner.unlock_all()` | `unlock_all` | yes | Unlock every node (Alt+L). |
 
+## package
+
+| Command | Alias | Undo | Description |
+| --- | --- | --- | --- |
+| `package.find_missing(folder: str)` | `find_missing_files` | yes | Relink missing linked files from a folder (by package id, content, or a unique name). |
+| `package.find_missing_dialog()` |  |  | Choose a folder to look for the board's missing linked files in (matched by content). |
+| `package.missing()` | `missing_files` |  | The linked files of the open board that cannot be found ("node: path"). |
+| `package.preflight(folder: str, name: str \| None = None)` |  |  | What Save Package would write to ``folder``: files, total bytes, missing links. Writes nothing. |
+| `package.remove_root(name: str)` | `remove_path_root` |  | Remove a named path root. |
+| `package.roots()` |  |  | The named path roots (``${NAME}`` in stored paths), ``{NAME: folder}``. |
+| `package.roots_dialog()` |  |  | Edit the named path roots (${NAME} in saved paths). |
+| `package.save(folder: str, name: str \| None = None)` | `save_package` |  | Save the board and a verified copy of every file it links (``<name>.files/``) in ``folder``. |
+| `package.save_dialog()` |  |  | Choose where to save a package of the board and every file it links, check, then copy. |
+| `package.set_root(name: str, folder: str)` | `set_path_root` |  | Add or change a named path root: files under ``folder`` are saved as ``${NAME}/…``. |
+| `package.set_variables(values: Any = None)` | `set_path_variables` | yes | Set the board's path variables (saved with the board): ``{"STUDIO_DRIVE": "W:/", "LINUX_PATH": "/mnt/drive"}``, or text with one ``NAME = folder`` per line. |
+| `package.variables()` | `path_variables` |  | The board's own path variables, ``{NAME: folder}``. |
+| `package.verify(folder: str \| None = None)` | `verify_package` |  | Check a package (default: the open board's): every file present, right size and content. |
+| `package.verify_ui()` |  |  | Check the open board's package: every file present, right size, same content. |
+
 ## pages
 
 | Command | Alias | Undo | Description |

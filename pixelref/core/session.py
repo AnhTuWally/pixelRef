@@ -26,6 +26,7 @@ from .commands import CommandRegistry, ContextKeys
 from .errors import SceneError
 from .events import EventStream
 from .extensions import Disposable, ExtensionRegistry, ServiceRegistry
+from .links import LinkResolver
 from .scene_file import SCENE_EXT, SCENE_EXTS, SceneParser
 from .nodetypes import NodeTypeRegistry, register_base_types
 from .packages import PackageManager
@@ -82,6 +83,7 @@ class Session:
         self.services = ServiceRegistry()
         self.extensions = ExtensionRegistry()
         self.scene_path: Path | None = None
+        self.links = LinkResolver(self)
         self.revision = 0
         self.saved_revision = 0
         self.headless = True
@@ -108,6 +110,9 @@ class Session:
 
         self.extensions.declare("attributes.symbols", owner="kernel", validator=check_contribution,
                                 doc="{name: glyph} tables: symbols beside attribute names in the Attribute Editor")
+        self.extensions.declare("files.companions", owner="kernel",
+                                doc="Callables (session, node, attr_name, path) -> list[Path]: files a linked file "
+                                    "needs beside it (a model's .mtl/.bin/textures, a sequence's frames)")
         self.extensions.declare("scene.after_new", owner="kernel",
                                 doc="Callables (session) run after a new, empty scene is created")
 
@@ -208,19 +213,14 @@ class Session:
         return self.scene_path.parent if self.scene_path is not None else Path.cwd()
 
     def resolve_path(self, value: str | Path) -> Path:
-        path = Path(value)
-        if not path.is_absolute():
-            path = self.base_dir() / path
-        return path
+        """The file a stored path means here: relative to the scene, ``${NAME}/…`` or absolute,
+        with the package and remembered-relink fallbacks of ``core.links.LinkResolver``."""
+        return self.links.resolve(value)
 
     def to_scene_path(self, path: str | Path) -> str:
-        path = Path(path)
-        if self.scene_path is not None:
-            try:
-                return path.resolve().relative_to(self.scene_path.parent.resolve()).as_posix()
-            except (ValueError, OSError):
-                return path.as_posix()
-        return path.as_posix()
+        """How a file is stored in the scene: relative to it when inside its folder, else
+        ``${ROOT}/…`` under a named root, else absolute."""
+        return self.links.portable(path, self.scene_path.parent if self.scene_path is not None else None)
 
     def new_document(self) -> None:
         self.scene.clear()
@@ -247,6 +247,9 @@ class Session:
             raise SceneError("No file name: pass a path to save the scene")
         if target.suffix.lower() not in SCENE_EXTS:
             target = target.with_suffix(SCENE_EXT)
+        with perf.span("file.links"):
+            # Linked paths re-expressed for the new location, fingerprints refreshed ("links").
+            self.links.prepare_save(target)
         for hook in self.extensions.contributions("scene.before_save"):
             hook(self, target)
         with perf.span("file.snapshot"):

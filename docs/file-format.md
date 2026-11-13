@@ -46,11 +46,90 @@ describes schema 1, written by pixelRef 1.0.0.
 | `nodes` | every node, parents before children. **Sibling order is draw order**, back first. `parent` is the parent's `id`. `attrs` holds every stored attribute (computed ones are not saved). `dynamic` holds the specifications of attributes added with `pxcmd.add_attr`. |
 | `workspaces` | the scene's workspaces: `current` is the one shown, each entry has its title, number, window style, tiling `root` (nested `split` / `tabbed` / `stacked` / `tile` specs) and `floating` tiles (see [window-manager.md](window-manager.md#workspaces)). |
 | `effect_cache` | processed effect results (lossless WebP, base64) saved by the effects plugin, so heavy effects don't have to be recomputed and still show without the plugin. Only written when the scene uses such effects; see [effects.md](effects.md#speed-and-caching). |
-| `assets` | embedded files, keyed by the SHA-1 of their bytes, so identical images are stored once. Only assets that nodes still use are written. |
+| `links` | a fingerprint of every linked file, keyed by the stored path (see [Linked files](#linked-files)). |
+| `package` | `{"id": "…"}` in a scene written by *Save Package*: the id of its files folder's manifest. |
+| `assets` | embedded files, keyed by the SHA-1 of their bytes, so identical images are stored once. Only assets that nodes still use are written (every attribute of type `asset`: an image's `asset`, a 3D object's `texture_asset`). |
 
 An image node shows its embedded `asset` when one is set, otherwise the file
-at `path`. Linked paths are stored relative to the scene file when possible.
-Embedded OpenEXR files have the MIME type `image/x-exr`.
+at `path`. Embedded OpenEXR files have the MIME type `image/x-exr`.
+
+## Linked files
+
+Every attribute of type `path` (an image's or 3D object's `path`, a 3D
+`texture_path`, a movie's `path`, a sequence's pattern) is stored in one of
+three forms, chosen on every save:
+
+- **relative** to the scene's folder when the file is inside it (`media/clip.mp4`);
+- **`${NAME}/rest`** when it is under a *named root* (*File → Preferences →
+  Path Roots…*; the longest match wins). When reading, `NAME` comes from the
+  named roots, else from an environment variable, so pipeline variables such
+  as `${PRISM_JOB}/assets/robot.gltf` work with no setup. A `${NAME}` written
+  by hand or by a tool is kept as long as it resolves;
+- **absolute** otherwise.
+
+A board can define variables of its own in `plugins.path_search`:
+`{"vars": {"STUDIO_DRIVE": "W:/", "LINUX_PATH": "/mnt/drive"}}`. They work like
+named roots (a named root or environment variable of the same name wins), and
+a path that is not found is retried under each of them: the part after
+`${NAME}/`, the part of a full path below one of the folders, or a whole
+relative path.
+
+The `links` section records what each linked file *is*, so it can be found
+again when it is not where the path says:
+
+```json
+"links": {
+  "media/clip.mp4": {"size": 7340032, "qh": "9b1c…"},
+  "${PRISM_JOB}/assets/robot/robot.gltf": {"size": 18213, "qh": "…"},
+  "renders/shot.####.exr": {"frames": 96, "frame": 1001, "first": {"size": 8841220, "qh": "…"}}
+}
+```
+
+`size` is the file size in bytes and `qh` the SHA-1 of its first and last
+64 KB (quick even for a 4 GB movie). A sequence records its frame count, the
+first frame number on disk and that frame's fingerprint. Records are
+refreshed on every save; a record whose file is missing at save time is kept.
+
+Opening a board never searches the disk. A stored path is resolved by a fixed
+chain: (1) the path itself; (2) the scene's package folder (below), looked up
+by fingerprint in its manifest; (3) this machine's memory of files found
+earlier by *Find Missing Files* (fingerprint → path, in the user settings
+`links/remembered`); (4) otherwise the node shows its "Missing" placeholder.
+Steps 2 and 3 only accept a file with the recorded fingerprint, so a
+different file with the same name is never used. A file still at its path is
+used even if its content changed (the Attribute Editor's Storage row says
+*(changed)*). A path found by step 2 or 3 is written into the scene on its
+next save, never silently before.
+
+### Packages
+
+*Save Package* writes `<name>.pxref` and a `<name>.files/` folder beside it:
+
+```
+Board/
+  Board.pxref            paths are plain relative: "Board.files/robot/robot.gltf"
+  Board.files/
+    manifest.json
+    robot/robot.gltf  robot.bin  textures/robot_diffuse.png
+    sh010/shot.0001.exr …
+    Downloads/clip.mp4
+```
+
+Each source folder becomes one subfolder (a model's `.mtl`, `.bin` and
+textures keep their place beside it). `manifest.json` lists every file:
+
+```json
+{"id": "7f3a9c…", "pixelref_version": "1.5.3",
+ "files": [{"path": "robot/robot.gltf", "size": 18213, "qh": "…", "sha1": "…"}]}
+```
+
+`sha1` is the hash of the whole file (*Verify Package* checks it). The scene's
+`package` section carries the same `id`. The files folder is found as
+`<scene stem>.files` beside the scene, else any sibling folder whose manifest
+has that id (so it can be renamed), else the folder this machine last saw with
+that id (user setting `links/packages`). Because the paths inside are plain
+relative ones, older pixelRef versions open a package too, as long as the
+scene and its folder travel together.
 
 A `sequence` node is always linked: `path` is the pattern of its frame files
 with one `#` per digit of padding (`renders/shot.####.exr`; a single `#` for

@@ -78,8 +78,12 @@ file on disk instead, choose *Link…* in the Attribute Editor.
 
 You can also drag in or *File → Insert Movies…* to add video files
 (`.mp4`, `.mov`, `.mkv`, `.webm`…). **Movies are supported by file reference
-only** — there is no embed option like for images, so a shared `.pxref` needs
-its video files alongside it, or the board shows them as missing.
+only** — there is no embed option like for images. To share or move a board
+with linked movies, sequences, EXRs or 3D models, use *File → Save Package…*:
+it writes the board plus a folder with a verified copy of every file it links.
+Moved or renamed files are relinked by content with *File → Find Missing
+Files…*, and folders named under *Path Roots* (or environment variables) are
+saved as `${NAME}/…` so a board opens on other machines.
 
 Coming from PureRef? *File → Open* (or Open Recent, or the command line) opens a
 `.pur` board as a new scene, and dropping one on a populated canvas adds it to the

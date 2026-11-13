@@ -1,0 +1,6 @@
+id = "package"
+name = "Packages"
+version = "1.0.0"
+api = 1
+optional = ["file", "export", "image_storage", "model3d", "sequence", "movie", "canvas_background"]
+description = "Save Package (the board plus a copy of every linked file, 3D companions and sequence frames included, with a fingerprinted manifest), Verify Package, Find Missing Files (relink by content) and named path roots (${NAME})."

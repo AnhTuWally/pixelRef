@@ -59,6 +59,21 @@ def extract_subset(
     return subset, warnings
 
 
+def copy_scene(scene: SceneGraph) -> SceneGraph:
+    """A scratch copy of the whole scene to change and write elsewhere (Save Package): node
+    attributes copied, asset bytes shared, file sections and plugin data copied; ``scene`` is
+    not changed."""
+    copy = SceneGraph(types=scene.types, app_version=scene.app_version)
+    for node in scene.iter_nodes():
+        copy.create_node(node.node_type, node.name, parent=node.parent, attrs=fast_copy(node.attrs),
+                         node_id=node.id, strict=False, dynamic=dict(scene.dynamic_attrs(node)))
+    copy.assets = dict(scene.assets)
+    copy.plugin_data = fast_copy(scene.plugin_data)
+    copy.sections = fast_copy(scene.sections)
+    copy.type_versions = dict(scene.type_versions)
+    return copy
+
+
 def _bind_assets(scene: SceneGraph, subset: SceneGraph, node: Any, resolve_path: Callable[[str], Path] | None,
                  max_bytes: int, warnings: list[str]) -> None:
     attrs = node.attrs

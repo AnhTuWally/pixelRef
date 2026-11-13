@@ -51,8 +51,7 @@ class StorageRows(QWidget):
             if not path_value:
                 text = "No image"
             else:
-                missing = "" if session.resolve_path(path_value).exists() else "  (missing)"
-                text = f"Linked file · {path_value}{missing}"
+                text = f"Linked file · {path_value}{session.links.note(path_value)}"
         self.path_label.setText(text)
         embedded = bool(attrs.get("asset"))
         self.embed_btn.setVisible(not embedded and bool(attrs.get("path")))

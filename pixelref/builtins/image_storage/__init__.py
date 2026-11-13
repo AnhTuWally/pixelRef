@@ -98,27 +98,12 @@ def activate(ctx: Any) -> None:
         session.events.emit("ui.status", {"text": f"New images will be {mode}"})
         return storage.embed_new
 
-    def prepare_paths(sess: Any, scene_path: Path) -> None:
-        """Make linked paths portable for a save: stored relative to the scene when possible."""
-        new_dir = Path(scene_path).parent.resolve()
-        for node in list(scene.iter_nodes()):
-            attrs = node.attrs
-            if node.node_type != "image" or attrs.get("asset") or not attrs.get("path"):
-                continue
-            source = sess.resolve_path(str(attrs["path"]))
-            try:
-                value = source.resolve().relative_to(new_dir).as_posix()
-            except (ValueError, OSError):
-                value = source.as_posix()
-            if value != attrs["path"]:
-                scene.set_attr(node.name, "path", value)
-
+    # Linked paths are made portable on save by the kernel (core.links, Session.save_file).
     ctx.command("embed", embed, alias="embed_images", label="Embed images")
     ctx.command("embed_all", embed_all, alias="embed_all_images", label="Embed images")
     ctx.command("link", link, alias="link_image", label="Link image to file")
     ctx.command("extract", extract, alias="extract_image", label="Save image as file")
     ctx.command("set_embed_new", set_embed_new, alias="set_embed_new_images", undoable=False)
-    ctx.contribute("scene.before_save", prepare_paths)
 
 
 def activate_ui(ui: Any) -> None:
