@@ -15,19 +15,44 @@ COMPARE_TYPE_NAME = "compare_viewer"
 MODES = ("wipe", "difference", "mix", "toggle")
 FIT_MODES = ("fit", "one_to_one", "fill", "stretch")
 ACTIVE_CHOICES = ("a", "b")
+LINK_COLOR_A = [100, 180, 255]
+LINK_COLOR_B = [255, 160, 80]
+
+
+DEFAULT_FRAME = (512.0, 512.0)
+
+
+def input_sizes(session: Any, attrs: dict[str, Any]) -> list[tuple[float, float]]:
+    """Content sizes (w, h) of the connected inputs, A first; missing inputs are skipped."""
+    sizes: list[tuple[float, float]] = []
+    for key in ("input_a", "input_b"):
+        ref_id = str(attrs.get(key) or "")
+        name = session.scene.name_of_id(ref_id) if ref_id else None
+        if not name:
+            continue
+        bounds = session.local_bounds(name)
+        if bounds and len(bounds) == 4 and bounds[2] > 0 and bounds[3] > 0:
+            sizes.append((float(bounds[2]), float(bounds[3])))
+    return sizes
+
+
+def frame_size(sizes: list[tuple[float, float]], fit_mode: str) -> tuple[float, float]:
+    """The viewer frame both images are placed in.
+
+    1:1 shows both at native pixels, so the frame spans the larger width and height.
+    Otherwise the frame is the larger image (by area) and the other is scaled to
+    match it, so differing resolutions line up instead of one sitting inside the other.
+    """
+    if not sizes:
+        return DEFAULT_FRAME
+    if fit_mode == "one_to_one":
+        return max(w for w, _h in sizes), max(h for _w, h in sizes)
+    return max(sizes, key=lambda s: s[0] * s[1])
 
 
 def _compute_local_bounds(session: Any, node: Any) -> list[float]:
-    """Bounds dictated by input_a (Master/Hero), else input_b, else default 512x512."""
-    for key in ("input_a", "input_b"):
-        ref_id = str(node.attrs.get(key) or "")
-        if ref_id:
-            name = session.scene.name_of_id(ref_id)
-            if name:
-                bounds = session.local_bounds(name)
-                if bounds and len(bounds) == 4 and bounds[2] > 0 and bounds[3] > 0:
-                    return [0.0, 0.0, float(bounds[2]), float(bounds[3])]
-    return [0.0, 0.0, 512.0, 512.0]
+    w, h = frame_size(input_sizes(session, node.attrs), str(node.attrs.get("fit_mode", "fit")))
+    return [0.0, 0.0, w, h]
 
 
 COMPARE_TYPE = NodeType(
@@ -51,7 +76,7 @@ COMPARE_TYPE = NodeType(
         Attr("active_input", "enum", "a", choices=ACTIVE_CHOICES, group="Toggle",
              doc="Active image when in toggle mode"),
         Attr("fit_mode", "enum", "fit", choices=FIT_MODES, group="Alignment",
-             doc="How Image B scales to fit Image A"),
+             doc="How both images are placed in the viewer frame (the larger image's size; 1:1 = native pixels)"),
         Attr("offset_b", "float2", [0.0, 0.0], group="Alignment",
              doc="Manual pixel offset [dx, dy] for Image B relative to A"),
         Attr("diff_gain", "float", 1.0, minimum=1.0, maximum=20.0, step=0.5, group="Compare",
@@ -85,6 +110,8 @@ def activate(ctx: Any) -> None:
             node_attrs["input_b"] = scene.get_node(node_b).id if node_b else input_b
 
         scene.create_node(COMPARE_TYPE_NAME, final_name, attrs=node_attrs)
+        if input_a or input_b:
+            link_inputs(final_name)
         session.selection.set([final_name])
         return final_name
 
@@ -115,15 +142,26 @@ def activate(ctx: Any) -> None:
         )
 
         if link_cables:
-            try:
-                if ctx.commands.exists("links.connect"):
-                    ctx.run("links.connect", name_a, viewer_name, routing="elbow", color=[100, 180, 255])
-                    ctx.run("links.connect", name_b, viewer_name, routing="elbow", color=[255, 160, 80])
-            except Exception:
-                pass
+            link_inputs(viewer_name)
 
         session.selection.set([viewer_name])
         return viewer_name
+
+    def link_inputs(viewer_name: str) -> None:
+        """Draw a cable from each of the viewer's A/B sources to it (skipping ones that exist)."""
+        if not session.commands.exists("links.connect"):
+            return
+        viewer = scene.get_node(viewer_name)
+        for key, color in (("input_a", LINK_COLOR_A), ("input_b", LINK_COLOR_B)):
+            source_id = str(viewer.attrs.get(key) or "")
+            source = scene.name_of_id(source_id) if source_id else None
+            if not source:
+                continue
+            exists = any(n.node_type == "link" and n.attrs.get("source") == source_id
+                         and n.attrs.get("target") == viewer.id for n in scene.iter_nodes())
+            if not exists:
+                ctx.run("links.connect", source, viewer_name, routing="elbow", color=color)
+        session.selection.set([viewer_name])  # links.connect selects the new cable
 
     def compare_selected() -> str:
         """Compare the two selected items in a new compare viewer."""
@@ -158,6 +196,14 @@ def activate(ctx: Any) -> None:
         a = n.attrs.get("input_a", "")
         b = n.attrs.get("input_b", "")
         scene.set_attrs(target_name, {"input_a": b, "input_b": a})
+        # Re-colour the cables so A stays blue and B stays orange
+        for link in scene.iter_nodes():
+            if link.node_type == "link" and link.attrs.get("target") == n.id:
+                src = link.attrs.get("source")
+                if src == a:
+                    scene.set_attr(link.name, "color", LINK_COLOR_B)
+                elif src == b:
+                    scene.set_attr(link.name, "color", LINK_COLOR_A)
 
     ctx.command("create", create, label="Create Compare Viewer")
     ctx.command("compare_nodes", compare_nodes, label="Compare Nodes")

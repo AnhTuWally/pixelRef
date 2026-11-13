@@ -125,14 +125,47 @@ def test_compare_different_sizes_and_painting():
             cur_item.paint_content(painter, None, None)
 
         # Test all fit modes
+        src = QPixmap(800, 400)
         for fit in ("fit", "one_to_one", "fill", "stretch"):
             h.scene.set_attr(viewer, "fit_mode", fit)
             h.refresh()
             cur_item = h.item(viewer)
-            rect_b = cur_item._fit_image_b(cur_item.content_rect(), 800, 400)
+            cur_item.paint_content(painter, None, None)
+            rect_b = cur_item._place_image(cur_item.content_rect(), src, None)
             assert rect_b.isValid()
 
         painter.end()
+
+
+def test_compare_frame_size_for_different_resolutions():
+    from pixelref.builtins.compare import frame_size
+
+    # Fit/fill/stretch: the frame is the larger image; the smaller one is scaled up to it.
+    assert frame_size([(400.0, 300.0), (1600.0, 1200.0)], "fit") == (1600.0, 1200.0)
+    assert frame_size([(1600.0, 1200.0), (400.0, 300.0)], "fit") == (1600.0, 1200.0)
+    # 1:1: both at native pixels, so the frame spans the larger width and height.
+    assert frame_size([(1920.0, 1080.0), (1080.0, 1920.0)], "one_to_one") == (1920.0, 1920.0)
+    assert frame_size([], "fit") == (512.0, 512.0)
+
+
+def test_compare_same_aspect_images_fill_the_same_rect():
+    from PySide6.QtCore import QRectF
+    from PySide6.QtGui import QPixmap
+
+    h = make()
+    try:
+        h.add_image("A", 0, 0)
+        h.add_image("B", 300, 0)
+        h.refresh()
+        viewer = h.run("compare.compare_nodes", "A", "B", fit_mode="fit")
+        h.refresh()
+        item = h.item(viewer)
+        frame = QRectF(0, 0, 1600, 1200)
+        small = item._place_image(frame, QPixmap(400, 300), None)
+        big = item._place_image(frame, QPixmap(1600, 1200), None)
+        assert small == big == frame
+    finally:
+        h.close()
     finally:
         h.close()
 

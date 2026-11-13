@@ -22,7 +22,7 @@ from PySide6.QtWidgets import QGraphicsItem
 from pixelref.plugin_api import crop as crop_geom
 from pixelref.plugin_api.contracts import PaletteButton
 from pixelref.plugin_api.ui import HANDLED, InputHandler, KeyEvent, NodeItemMixin, PointerEvent, theme, widgets as w
-from . import COMPARE_TYPE_NAME
+from . import COMPARE_TYPE_NAME, frame_size, input_sizes
 
 
 def calculate_wipe_geometry(rect: QRectF, wipe_pos: float, wipe_angle_deg: float) -> tuple[QPainterPath, QPointF, QPointF, QPointF]:
@@ -130,15 +130,8 @@ class CompareViewerItem(NodeItemMixin, QGraphicsItem):
         return None, None
 
     def content_rect(self) -> QRectF:
-        for key in ("input_a", "input_b"):
-            ref_id = str(self.attrs.get(key) or "")
-            if ref_id:
-                name = self.session.scene.name_of_id(ref_id)
-                if name:
-                    bounds = self.session.local_bounds(name)
-                    if bounds and len(bounds) == 4 and bounds[2] > 0 and bounds[3] > 0:
-                        return QRectF(0.0, 0.0, float(bounds[2]), float(bounds[3]))
-        return QRectF(0.0, 0.0, 512.0, 512.0)
+        w, h = frame_size(input_sizes(self.session, self.attrs), str(self.attrs.get("fit_mode", "fit")))
+        return QRectF(0.0, 0.0, w, h)
 
     def boundingRect(self) -> QRectF:  # noqa: N802
         return self.content_rect().adjusted(-20.0, -20.0, 20.0, 20.0)
@@ -153,10 +146,13 @@ class CompareViewerItem(NodeItemMixin, QGraphicsItem):
         rect = self.content_rect()
         return QRectF(rect.right() - 58.0, rect.top() + 8.0, 50.0, 20.0)
 
-    def _fit_image_b(self, frame_rect: QRectF, src_w: float, src_h: float) -> QRectF:
+    def _place_image(self, frame_rect: QRectF, pix: QPixmap, crop: QRectF | None,
+                     offset: tuple[float, float] = (0.0, 0.0)) -> QRectF:
+        """Where an input image is drawn inside the frame, per fit_mode (centered)."""
+        src_w = float(crop.width() if crop is not None else pix.width())
+        src_h = float(crop.height() if crop is not None else pix.height())
         fit_mode = self.attrs.get("fit_mode", "fit")
-        off_b = self.attrs.get("offset_b", [0.0, 0.0])
-        ox, oy = float(off_b[0]), float(off_b[1])
+        ox, oy = offset
 
         if src_w <= 0 or src_h <= 0:
             return frame_rect
@@ -199,12 +195,17 @@ class CompareViewerItem(NodeItemMixin, QGraphicsItem):
         # Frame background
         painter.fillRect(rect, QColor(20, 21, 24))
 
-        rect_a = rect
-        rect_b = rect
-        if pix_b is not None:
-            sw = float(crop_b.width() if crop_b else pix_b.width())
-            sh = float(crop_b.height() if crop_b else pix_b.height())
-            rect_b = self._fit_image_b(rect, sw, sh)
+        # Both images are placed in the shared frame the same way; only B gets the manual offset.
+        off_b = self.attrs.get("offset_b", [0.0, 0.0])
+        rect_a = self._place_image(rect, pix_a, crop_a) if pix_a is not None else rect
+        rect_b = (self._place_image(rect, pix_b, crop_b, (float(off_b[0]), float(off_b[1])))
+                  if pix_b is not None else rect)
+
+        # Nothing (1:1, fill, offsets) may spill outside the frame.
+        painter.save()
+        frame_clip = QPainterPath()
+        frame_clip.addRect(rect)
+        painter.setClipPath(frame_clip)
 
         def draw_img(p: QPainter, pix: QPixmap, crop: QRectF | None, dest: QRectF) -> None:
             src = crop if crop is not None else QRectF(pix.rect())
@@ -224,30 +225,16 @@ class CompareViewerItem(NodeItemMixin, QGraphicsItem):
 
             if pix_b is not None:
                 painter.save()
-                painter.setClipPath(clip_b)
+                painter.setClipPath(clip_b, Qt.IntersectClip)
+                painter.fillRect(rect, QColor(20, 21, 24))  # hide A where B's letterbox is empty
                 draw_img(painter, pix_b, crop_b, rect_b)
-                if rect_b != rect:
-                    # Subtle dashed bounds for Image B
-                    pen_b = QPen(QColor(100, 180, 255, 120), 1.0, Qt.DashLine)
-                    painter.setPen(pen_b)
-                    painter.setBrush(Qt.NoBrush)
-                    painter.drawRect(rect_b)
                 painter.restore()
 
-            # 3. Divider Line & Center Handle
+            # 3. Divider Line
             div_col = w.color_from(self.attrs.get("divider_color", [255, 255, 255]))
             div_width = float(self.attrs.get("divider_width", 2.0))
-
-            painter.save()
-            rect_clip = QPainterPath()
-            rect_clip.addRect(rect)
-            painter.setClipPath(rect_clip)
             painter.setPen(QPen(div_col, div_width))
             painter.drawLine(p1, p2)
-            painter.restore()
-
-            # Center Handle
-            self._draw_wipe_handle(painter, center_handle, div_col)
 
         elif mode == "difference":
             # Render composite onto an isolated offscreen QImage to guarantee hardware/platform compatibility
@@ -258,12 +245,17 @@ class CompareViewerItem(NodeItemMixin, QGraphicsItem):
 
             p_diff = QPainter(diff_img)
             p_diff.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            sx, sy = w_px / rect.width(), h_px / rect.height()
+
+            def to_img(r: QRectF) -> QRectF:
+                return QRectF((r.left() - rect.left()) * sx, (r.top() - rect.top()) * sy,
+                              r.width() * sx, r.height() * sy)
+
             if pix_a is not None:
-                draw_img(p_diff, pix_a, crop_a, QRectF(0, 0, w_px, h_px))
+                draw_img(p_diff, pix_a, crop_a, to_img(rect_a))
             if pix_b is not None:
                 p_diff.setCompositionMode(QPainter.CompositionMode_Difference)
-                dest_b = QRectF(rect_b.left() - rect.left(), rect_b.top() - rect.top(), rect_b.width(), rect_b.height())
-                draw_img(p_diff, pix_b, crop_b, dest_b)
+                draw_img(p_diff, pix_b, crop_b, to_img(rect_b))
             p_diff.end()
 
             # Faint difference amplification if diff_gain is specified
@@ -300,6 +292,12 @@ class CompareViewerItem(NodeItemMixin, QGraphicsItem):
                 draw_img(painter, pix_b, crop_b, rect_b)
             elif pix_a is not None:
                 draw_img(painter, pix_a, crop_a, rect_a)
+
+        painter.restore()  # frame clip
+
+        # Handle drawn unclipped so it stays whole at the frame's edges
+        if mode == "wipe":
+            self._draw_wipe_handle(painter, center_handle, div_col)
 
         # Draw compact [ A | B ] toggle pill in top-right corner only in toggle mode
         if mode == "toggle":
@@ -414,7 +412,7 @@ class CompareViewerItem(NodeItemMixin, QGraphicsItem):
         painter.drawText(
             QRectF(rect.left() + 20, cy + 44, rect.width() - 40, 40),
             Qt.AlignCenter | Qt.TextWordWrap,
-            "Select 2 images and press Ctrl+Alt+C\nor set Input A & Input B in Attributes",
+            "Select 2 images and press Ctrl+Alt+B\nor set Input A & Input B in Attributes",
         )
 
 
@@ -653,7 +651,7 @@ def activate_compare_ui(ui: Any) -> None:
     )
 
     # Shortcuts
-    ui.bind("Ctrl+Alt+C", "compare.compare_selected", scope="canvas")
+    ui.bind("Ctrl+Alt+B", "compare.compare_selected", scope="canvas")
     ui.bind("\\", "compare.toggle_active", scope="canvas")
 
     # Context Menus
