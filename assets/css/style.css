@@ -367,6 +367,27 @@ kbd {
   font-size: 0.95rem;
 }
 
+.card-media {
+  margin-top: 1rem;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-code);
+}
+
+.card-media img {
+  width: 100%;
+  height: 210px;
+  object-fit: cover;
+  object-position: center;
+  cursor: zoom-in;
+  transition: transform 0.2s ease;
+}
+
+.card-media img:hover {
+  transform: scale(1.02);
+}
+
 .card-icon {
   display: inline-flex;
   align-items: center;
