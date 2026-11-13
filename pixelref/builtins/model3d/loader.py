@@ -274,6 +274,7 @@ def build_mesh(
         raise ValueError("3D file contains no valid triangles")
 
     _ = crease_degrees
+    report_progress(PROGRESS_BUILD[0], "Building mesh")
     total_verts = len(vertices)
     total_faces = len(faces)
     (cx, cy, cz), inv_r, raw_bounds = _compute_bounds_and_sphere(vertices)
@@ -374,6 +375,7 @@ def build_mesh(
             break
 
     # ---- Build Packed GPU Buffers ---------------------------------------------------------------
+    report_progress(_stage_fraction(PROGRESS_BUILD, 0.5), "Building GPU buffers")
     gpu_positions: bytes | None = None
     gpu_normals: bytes | None = None
     gpu_uvs: bytes | None = None
@@ -536,7 +538,11 @@ def parse_obj(data: bytes, base_dir: Path | None = None, filename: str = "") -> 
     current_color: tuple[int, int, int] | None = None
     v_norm_acc: list[list[float]] = []
 
-    for raw_line in text.splitlines():
+    lines = text.splitlines()
+    n_lines = max(1, len(lines))
+    for line_no, raw_line in enumerate(lines):
+        if not line_no & 0xFFFF:
+            report_progress(_stage_fraction(PROGRESS_PARSE, line_no / n_lines))
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
@@ -1225,12 +1231,16 @@ def parse_gltf(data: bytes, base_dir: Path | None = None, filename: str = "") ->
 
     meshes = doc.get("meshes", [])
     nodes = doc.get("nodes", [])
+    total_prims = max(1, sum(len(m.get("primitives", [])) for m in meshes if isinstance(m, dict)))
+    prims_done = 0
 
     def add_mesh(mesh_idx: int, world_m: list[float]) -> None:
-        nonlocal has_colors, has_uvs, all_have_normals, all_have_uvs
+        nonlocal has_colors, has_uvs, all_have_normals, all_have_uvs, prims_done
         if not (0 <= mesh_idx < len(meshes)):
             return
         for prim in meshes[mesh_idx].get("primitives", []):
+            report_progress(_stage_fraction(PROGRESS_PARSE, prims_done / total_prims))
+            prims_done += 1
             mode = int(prim.get("mode", 4))
             if mode not in (4, 5, 6):
                 continue
@@ -1656,6 +1666,51 @@ class MeshCache:
 CACHE = MeshCache()
 
 
+class LoadProgress:
+    """Progress of one background load: an overall ``fraction`` (0..1) and a short ``stage`` label.
+
+    Written by the worker thread (through :func:`report_progress`), read by the UI thread.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._fraction = 0.0
+        self._stage = "Queued"
+
+    def update(self, fraction: float | None = None, stage: str | None = None) -> None:
+        with self._lock:
+            if fraction is not None:
+                # Never go backwards: stages report coarse milestones from different places.
+                self._fraction = max(self._fraction, min(1.0, max(0.0, float(fraction))))
+            if stage is not None:
+                self._stage = stage
+
+    def snapshot(self) -> tuple[float, str]:
+        with self._lock:
+            return self._fraction, self._stage
+
+
+# Overall progress ranges of the loading stages (the parsers report within PARSE).
+PROGRESS_READ = (0.0, 0.25)
+PROGRESS_PARSE = (0.25, 0.70)
+PROGRESS_BUILD = (0.70, 0.88)
+PROGRESS_TEXTURE = (0.88, 1.0)
+
+_PROGRESS_LOCAL = threading.local()
+
+
+def report_progress(fraction: float | None = None, stage: str | None = None) -> None:
+    """Report progress for the load running on this thread (a no-op outside a background load)."""
+    progress: LoadProgress | None = getattr(_PROGRESS_LOCAL, "progress", None)
+    if progress is not None:
+        progress.update(fraction, stage)
+
+
+def _stage_fraction(stage_range: tuple[float, float], local: float) -> float:
+    lo, hi = stage_range
+    return lo + (hi - lo) * max(0.0, min(1.0, local))
+
+
 class AsyncMeshLoader:
     """Background worker pool for parsing large 3D files without blocking the Qt UI thread."""
 
@@ -1663,40 +1718,59 @@ class AsyncMeshLoader:
         self._pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pixelref-3d")
         self._lock = threading.Lock()
         self._pending: dict[Any, list[Callable[[MeshData | None, Exception | None], None]]] = {}
+        self._progress: dict[Any, LoadProgress] = {}
 
     @property
     def busy(self) -> bool:
         with self._lock:
             return bool(self._pending)
 
+    def progress(self, key: Any) -> LoadProgress | None:
+        with self._lock:
+            return self._progress.get(key)
+
     def submit(
         self,
         key: Any,
         work: Callable[[], MeshData],
         callback: Callable[[MeshData | None, Exception | None], None],
-    ) -> None:
+    ) -> LoadProgress:
+        """Run ``work`` in the background and call ``callback(mesh, error)`` from the worker thread.
+
+        A second submit for a ``key`` already loading joins that load. Returns the load's
+        :class:`LoadProgress`, which ``work`` updates through :func:`report_progress`.
+        """
         with self._lock:
             if key in self._pending:
                 self._pending[key].append(callback)
-                return
+                return self._progress[key]
             self._pending[key] = [callback]
+            progress = self._progress[key] = LoadProgress()
 
         def _run() -> None:
             mesh: MeshData | None = None
             err: Exception | None = None
+            _PROGRESS_LOCAL.progress = progress
             try:
                 mesh = work()
+                progress.update(1.0, "Done")
             except Exception as exc:  # noqa: BLE001
                 err = exc
+            finally:
+                _PROGRESS_LOCAL.progress = None
             with self._lock:
                 callbacks = self._pending.pop(key, [])
+                self._progress.pop(key, None)
             for cb in callbacks:
                 try:
                     cb(mesh, err)
                 except Exception:  # noqa: BLE001
-                    pass
+                    import traceback
+
+                    traceback.print_exc()
 
         self._pool.submit(_run)
+        return progress
 
 
 ASYNC_LOADER = AsyncMeshLoader()
@@ -1725,6 +1799,7 @@ def load_mesh_bytes(data: bytes, filename: str = "", base_dir: Path | None = Non
         if cached is not None:
             return cached
     ext = sniff_format(data, filename)
+    report_progress(PROGRESS_PARSE[0], f"Parsing {ext.lstrip('.').upper()}")
     if ext == ".obj":
         mesh = parse_obj(data, base_dir=base_dir, filename=filename)
     elif ext == ".stl":
@@ -1752,8 +1827,28 @@ def load_mesh_file(path: Path) -> MeshData:
     cached = CACHE.get(key)
     if cached is not None:
         return cached
-    data = resolved.read_bytes()
+    data = _read_with_progress(resolved)
     return load_mesh_bytes(data, filename=resolved.name, base_dir=resolved.parent, cache_key=key)
+
+
+_READ_CHUNK = 4 * 1024 * 1024
+
+
+def _read_with_progress(path: Path) -> bytes:
+    """Read ``path``, reporting byte progress in chunks when running as a background load."""
+    if getattr(_PROGRESS_LOCAL, "progress", None) is None:
+        return path.read_bytes()
+    total = max(1, path.stat().st_size)
+    out = bytearray()
+    report_progress(PROGRESS_READ[0], "Reading file")
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(_READ_CHUNK)
+            if not chunk:
+                break
+            out += chunk
+            report_progress(_stage_fraction(PROGRESS_READ, len(out) / total))
+    return bytes(out)
 
 
 def load_primitive(name: str) -> MeshData:

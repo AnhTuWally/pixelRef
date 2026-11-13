@@ -814,7 +814,8 @@ def activate_model3d_ui(ui: Any) -> None:
         item = canvas.item(name)
         if isinstance(item, Model3DItem):
             if item.is_loading():
-                parts.append("loading…")
+                progress = item.load_progress()
+                parts.append(f"loading… {round(progress[0] * 100)}%" if progress else "loading…")
             elif item.is_missing():
                 parts.append("missing")
             elif item.mesh is not None:

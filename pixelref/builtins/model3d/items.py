@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import math
+import time
 import weakref
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
-from PySide6.QtCore import QObject, QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QObject, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QGraphicsItem
 
@@ -17,20 +19,26 @@ from .loader import (
     ASYNC_FILE_THRESHOLD,
     ASYNC_LOADER,
     CACHE,
+    PROGRESS_TEXTURE,
+    LoadProgress,
     MeshData,
     file_cache_key,
     load_mesh_bytes,
     load_mesh_file,
     load_primitive,
+    report_progress,
 )
-from .renderer import RenderParams, paint_axes_gizmo, paint_light_gizmo, render_mesh
+from .renderer import RenderParams, paint_axes_gizmo, paint_light_gizmo, render_mesh, resolve_mesh_texture
 
 # Items currently in interactive 3D View Mode (normally none or one).
 EDITING_3D: "weakref.WeakSet[Model3DItem]" = weakref.WeakSet()
 
+LOADING_FRAME_MS = 33  # repaint rate of the loading card's spinner and progress bar
+
 
 class _MeshLoadedBridge(QObject):
-    """Marshals background-thread mesh load completions onto the main Qt GUI thread."""
+    """Marshals background-thread mesh load completions onto the main Qt GUI thread,
+    and ticks the loading card's animation while a load is in flight."""
 
     loaded = Signal(object, object, object)  # (cache_key, mesh, error)
 
@@ -38,11 +46,43 @@ class _MeshLoadedBridge(QObject):
         super().__init__()
         self._item_ref = weakref.ref(item)
         self.loaded.connect(self._on_loaded, Qt.QueuedConnection)
+        self._timer = QTimer(self)
+        self._timer.setInterval(LOADING_FRAME_MS)
+        self._timer.timeout.connect(self._tick)
 
     def _on_loaded(self, key: Any, mesh: Any, error: Any) -> None:
         item = self._item_ref()
         if item is not None:
             item._on_async_mesh_loaded(key, mesh, error)
+
+    def start_animation(self) -> None:
+        if not self._timer.isActive():
+            self._timer.start()
+
+    def _tick(self) -> None:
+        item = self._item_ref()
+        if item is None or not item.is_loading():
+            self._timer.stop()
+            return
+        item.update()
+
+
+def _prepared_load(load: Callable[[], MeshData]) -> Callable[[], MeshData]:
+    """Wrap a background mesh load so it also decodes the model's texture off the UI thread
+    (otherwise the first paint after loading stalls on decoding a large JPEG/PNG)."""
+
+    def work() -> MeshData:
+        mesh = load()
+        if mesh.has_texture:
+            report_progress(PROGRESS_TEXTURE[0], "Decoding texture")
+            try:
+                resolve_mesh_texture(mesh)
+            except Exception:  # noqa: BLE001 - the paint path decodes (and reports) it again
+                pass
+        report_progress(1.0, "Finishing")
+        return mesh
+
+    return work
 
 
 def placeholder_card(size: QSize, title: str, subtitle: str = "") -> QImage:
@@ -101,6 +141,9 @@ class Model3DItem(NodeItemMixin, QGraphicsItem):
         self._missing = False
         self._loading = False
         self._loading_label = ""
+        self._loading_name = ""
+        self._loading_detail = ""
+        self._load_progress: LoadProgress | None = None
         self._pending_load_key: Any = None
         self._bridge = _MeshLoadedBridge(self)
         self._error_text = ""
@@ -135,6 +178,9 @@ class Model3DItem(NodeItemMixin, QGraphicsItem):
         self._missing = False
         self._loading = False
         self._loading_label = ""
+        self._loading_name = ""
+        self._loading_detail = ""
+        self._load_progress = None
         self._pending_load_key = None
         self._error_text = ""
         asset_id = str(attrs.get("asset", "") or "")
@@ -155,16 +201,14 @@ class Model3DItem(NodeItemMixin, QGraphicsItem):
                     self._mesh = cached
                     return
                 if len(asset.data) > ASYNC_FILE_THRESHOLD:
-                    self._loading = True
-                    self._loading_label = f"Loading 3D model…\n{asset.name or asset_id[:8]}"
-                    self._pending_load_key = ckey
                     base_dir = self.session.base_dir()
                     data = asset.data
                     fname = asset.name
-                    ASYNC_LOADER.submit(
+                    self._start_async_load(
                         ckey,
                         lambda: load_mesh_bytes(data, filename=fname, base_dir=base_dir, cache_key=ckey),
-                        self._bridge.loaded.emit,
+                        asset.name or asset_id[:8],
+                        f"embedded · {len(data) / (1024.0 * 1024.0):.1f} MB",
                     )
                     return
                 self._mesh = load_mesh_bytes(
@@ -187,14 +231,11 @@ class Model3DItem(NodeItemMixin, QGraphicsItem):
                     return
                 file_size = path.stat().st_size
                 if file_size > ASYNC_FILE_THRESHOLD and ckey is not None:
-                    self._loading = True
-                    mb = file_size / (1024.0 * 1024.0)
-                    self._loading_label = f"Loading 3D model…\n{path.name} ({mb:.1f} MB)"
-                    self._pending_load_key = ckey
-                    ASYNC_LOADER.submit(
+                    self._start_async_load(
                         ckey,
                         lambda p=path: load_mesh_file(p),
-                        self._bridge.loaded.emit,
+                        path.name,
+                        f"{file_size / (1024.0 * 1024.0):.1f} MB",
                     )
                     return
                 self._mesh = load_mesh_file(path)
@@ -206,10 +247,32 @@ class Model3DItem(NodeItemMixin, QGraphicsItem):
             label = Path(path_str).name if path_str else (primitive or "3D model")
             self._error_text = f"Can't load {label}\n{exc}"
 
+    def _start_async_load(self, ckey: Any, load: Callable[[], MeshData], name: str, detail: str) -> None:
+        """Parse the mesh on a worker thread; the item shows a live progress card meanwhile."""
+        self._loading = True
+        self._loading_name = name
+        self._loading_detail = detail
+        self._loading_label = f"Loading 3D model…\n{name} ({detail})"
+        self._pending_load_key = ckey
+        bridge = self._bridge  # not ``self``: the worker must not keep the item alive
+
+        def done(mesh: MeshData | None, error: Exception | None) -> None:
+            bridge.loaded.emit(ckey, mesh, error)
+
+        self._load_progress = ASYNC_LOADER.submit(ckey, _prepared_load(load), done)
+        bridge.start_animation()
+
+    def load_progress(self) -> tuple[float, str] | None:
+        """``(fraction, stage)`` of the background load in flight, or None when not loading."""
+        if not self._loading or self._load_progress is None:
+            return None
+        return self._load_progress.snapshot()
+
     def _on_async_mesh_loaded(self, key: Any, mesh: MeshData | None, error: Exception | None) -> None:
         if key != self._pending_load_key:
             return
         self._loading = False
+        self._load_progress = None
         self._pending_load_key = None
         if error is not None or mesh is None:
             self._mesh = None
@@ -233,6 +296,7 @@ class Model3DItem(NodeItemMixin, QGraphicsItem):
         if not self._loading:
             return self._mesh
         self._loading = False
+        self._load_progress = None
         self._pending_load_key = None
         asset_id = str(self._attrs.get("asset", "") or "")
         path_str = str(self._attrs.get("path", "") or "")
@@ -443,10 +507,81 @@ class Model3DItem(NodeItemMixin, QGraphicsItem):
         return super().itemChange(change, value)
 
     def paint_content(self, painter: QPainter, option, widget=None) -> None:  # noqa: ANN001
+        if self._loading:
+            self._paint_loading_card(painter)
+            return
         image = self.rendered_image()
         painter.save()
         painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
         painter.drawImage(self.boundingRect(), image)
+        painter.restore()
+
+    def _paint_loading_card(self, painter: QPainter) -> None:
+        """Vector loading card: spinner, file name, current stage and a progress bar."""
+        rect = self.content_rect()
+        w, h = rect.width(), rect.height()
+        fraction, stage = self.load_progress() or (0.0, "Loading")
+        accent = QColor(theme.ACCENT)
+        track = QColor("#2a2f3a")
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+
+        border = QPen(QColor("#3d4452"), 1.0, Qt.DashLine)
+        border.setCosmetic(True)
+        painter.setPen(border)
+        painter.setBrush(QColor("#1a1c21"))
+        painter.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 6.0, 6.0)
+
+        unit = min(w, h)
+        show_text = h >= 120.0 and w >= 120.0
+        radius = max(10.0, min(36.0, unit * 0.09))
+        cy = rect.center().y() - (radius * 0.9 if show_text else radius * 0.4)
+        spin = QRectF(rect.center().x() - radius, cy - radius, radius * 2.0, radius * 2.0)
+        stroke = max(2.0, radius * 0.16)
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(QPen(track, stroke, Qt.SolidLine, Qt.RoundCap))
+        painter.drawEllipse(spin)
+        angle = (time.monotonic() * 300.0) % 360.0
+        sweep = 70.0 + 50.0 * (1.0 + math.sin(time.monotonic() * 3.0))  # breathing arc
+        painter.setPen(QPen(accent, stroke, Qt.SolidLine, Qt.RoundCap))
+        painter.drawArc(spin, round(-angle * 16), round(-sweep * 16))
+
+        # Progress bar near the bottom.
+        bar_w = w * 0.7
+        bar_h = max(3.0, min(8.0, unit * 0.018))
+        bar = QRectF(rect.center().x() - bar_w * 0.5, rect.bottom() - max(14.0, h * 0.12) - bar_h, bar_w, bar_h)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(track)
+        painter.drawRoundedRect(bar, bar_h * 0.5, bar_h * 0.5)
+        if fraction > 0.0:
+            painter.setBrush(accent)
+            painter.drawRoundedRect(QRectF(bar.left(), bar.top(), max(bar_h, bar_w * fraction), bar_h),
+                                    bar_h * 0.5, bar_h * 0.5)
+
+        if show_text:
+            px = max(9, min(18, round(unit * 0.035)))
+            title_font = QFont()
+            title_font.setPixelSize(px + 1)
+            title_font.setBold(True)
+            info_font = QFont()
+            info_font.setPixelSize(px)
+            text_w = w - 24.0
+            top = spin.bottom() + radius * 0.6
+            title_m = QFontMetricsF(title_font)
+            painter.setFont(title_font)
+            painter.setPen(QColor("#d4d9e3"))
+            name = title_m.elidedText(self._loading_name or "3D model", Qt.ElideMiddle, text_w)
+            painter.drawText(QRectF(rect.left() + 12.0, top, text_w, title_m.height()), Qt.AlignCenter, name)
+            top += title_m.height() + 2.0
+            info_m = QFontMetricsF(info_font)
+            painter.setFont(info_font)
+            painter.setPen(QColor("#8a93a6"))
+            info = f"{stage}… {round(fraction * 100)}%"
+            if self._loading_detail:
+                info = f"{self._loading_detail} · {info}"
+            info = info_m.elidedText(info, Qt.ElideRight, text_w)
+            painter.drawText(QRectF(rect.left() + 12.0, top, text_w, info_m.height()), Qt.AlignCenter, info)
+
         painter.restore()
 
     def paint_decorations(self, painter: QPainter, option, widget=None) -> None:  # noqa: ANN001

@@ -266,6 +266,53 @@ def test_import_drop_and_linked_vs_embedded_storage():
         h.close()
 
 
+def test_large_model_loads_in_background_and_reports_progress():
+    """A model over the async threshold loads on a worker thread and shows up by itself
+    (no reselect needed), with progress readable while it loads."""
+    import time
+
+    from harness import APP
+
+    from pixelref.builtins.model3d.loader import ASYNC_FILE_THRESHOLD
+
+    h = make()
+    try:
+        folder = tmp_dir()
+        n = 80
+        lines = [f"v {x / n:.4f} {y / n:.4f} 0.0" for y in range(n) for x in range(n)]
+        for y in range(n - 1):
+            for x in range(n - 1):
+                i = y * n + x + 1
+                lines.append(f"f {i} {i + 1} {i + n}")
+                lines.append(f"f {i + 1} {i + n + 1} {i + n}")
+        text = "\n".join(lines) + "\n"
+        padding = "#" + "-" * 78 + "\n"
+        text += padding * ((ASYNC_FILE_THRESHOLD - len(text)) // len(padding) + 2)
+        path = folder / "BigGrid.obj"
+        path.write_text(text, encoding="utf-8")
+        assert path.stat().st_size > ASYNC_FILE_THRESHOLD
+
+        name = h.run("model3d.import_model", path.as_posix(), [0.0, 0.0])
+        h.app.canvas.refresh(force=True)
+        item = h.item(name)
+        assert isinstance(item, Model3DItem)
+        assert item.is_loading()
+        progress = item.load_progress()
+        assert progress is not None and 0.0 <= progress[0] <= 1.0 and progress[1]
+        h.grab()  # paints the loading card
+
+        deadline = time.monotonic() + 20.0
+        while item.is_loading() and time.monotonic() < deadline:
+            APP.processEvents()
+            time.sleep(0.01)
+        assert not item.is_loading(), "background load never delivered its result"
+        assert item.load_progress() is None
+        assert not item.is_missing() and item.mesh is not None
+        assert item.mesh.face_count == 2 * (n - 1) * (n - 1)
+    finally:
+        h.close()
+
+
 def test_double_click_enters_3d_view_mode_and_drags_commit_one_undo_step():
     from PySide6.QtCore import QPoint
 

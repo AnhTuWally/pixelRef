@@ -20,6 +20,7 @@ import ctypes
 import ctypes.util
 import math
 import sys
+import threading
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
@@ -122,17 +123,29 @@ def light_vector(azimuth_deg: float, elevation_deg: float) -> tuple[float, float
 
 
 class TextureStore:
-    """LRU cache of decoded QImages for 3D model textures (scaled to MAX_TEXTURE_DIM)."""
+    """LRU cache of decoded QImages for 3D model textures (scaled to MAX_TEXTURE_DIM).
+
+    Thread-safe: background mesh loads decode a model's texture here ahead of its first paint.
+    """
 
     def __init__(self, max_entries: int = MAX_TEXTURE_CACHE) -> None:
         self.max_entries = max_entries
         self._images: OrderedDict[Any, QImage] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def _get(self, key: Any) -> QImage | None:
+        with self._lock:
+            cached = self._images.get(key)
+            if cached is not None:
+                self._images.move_to_end(key)
+            return cached
 
     def _put(self, key: Any, image: QImage) -> QImage:
-        self._images[key] = image
-        self._images.move_to_end(key)
-        while len(self._images) > self.max_entries:
-            self._images.popitem(last=False)
+        with self._lock:
+            self._images[key] = image
+            self._images.move_to_end(key)
+            while len(self._images) > self.max_entries:
+                self._images.popitem(last=False)
         return image
 
     def load_path(self, path: Path) -> tuple[Any, QImage | None]:
@@ -142,9 +155,8 @@ class TextureStore:
         except OSError:
             return None, None
         key = ("tex_file", str(resolved), stat.st_mtime_ns, stat.st_size)
-        cached = self._images.get(key)
+        cached = self._get(key)
         if cached is not None:
-            self._images.move_to_end(key)
             return key, cached
 
         reader = QImageReader(str(resolved))
@@ -161,9 +173,8 @@ class TextureStore:
 
     def load_bytes(self, data: bytes, cache_id: Any) -> tuple[Any, QImage | None]:
         key = ("tex_bytes", cache_id, len(data))
-        cached = self._images.get(key)
+        cached = self._get(key)
         if cached is not None:
-            self._images.move_to_end(key)
             return key, cached
 
         ba = QByteArray(data)
@@ -473,6 +484,7 @@ class _GLRenderer:
         self._mesh_buffers: OrderedDict[int, _GPUMeshBuffers] = OrderedDict()
         self._textures: OrderedDict[Any, QOpenGLTexture] = OrderedDict()
         self._white_tex: QOpenGLTexture | None = None
+        self._reported_errors: set[str] = set()
 
     @staticmethod
     def _current_gl() -> tuple[Any, Any]:
@@ -746,20 +758,25 @@ class _GLRenderer:
 
             # Draw surface or wireframe
             if params.shading == "wireframe":
+                # Every triangle is drawn; on dense meshes the lines fade with on-screen density
+                # so the topology stays readable instead of merging into a solid silhouette.
+                f.glUniform1i(prog.uniformLocation("u_mode"), 7)
+                f.glUniform4f(prog.uniformLocation("u_wire_color"), 0.75, 0.80, 0.90,
+                              wireframe_alpha(mesh.face_count, px_w * px_h))
                 if self.native_gl is not None:
                     self.native_gl.glPolygonMode(self.GL_FRONT_AND_BACK, self.GL_LINE)
-                self._draw_geom(f, bufs, cap_wire=True)
+                self._draw_geom(f, bufs)
                 if self.native_gl is not None:
                     self.native_gl.glPolygonMode(self.GL_FRONT_AND_BACK, self.GL_FILL)
             else:
-                self._draw_geom(f, bufs, cap_wire=False)
+                self._draw_geom(f, bufs)
                 if params.wireframe_overlay and self.native_gl is not None and mesh.face_count <= 40000:
                     f.glEnable(self.GL_POLYGON_OFFSET_LINE)
                     f.glPolygonOffset(-1.0, -1.0)
                     self.native_gl.glPolygonMode(self.GL_FRONT_AND_BACK, self.GL_LINE)
                     f.glUniform1i(prog.uniformLocation("u_mode"), 7)
                     f.glUniform4f(prog.uniformLocation("u_wire_color"), 0.08, 0.10, 0.14, 0.45)
-                    self._draw_geom(f, bufs, cap_wire=True)
+                    self._draw_geom(f, bufs)
                     self.native_gl.glPolygonMode(self.GL_FRONT_AND_BACK, self.GL_FILL)
                     f.glDisable(self.GL_POLYGON_OFFSET_LINE)
 
@@ -779,7 +796,14 @@ class _GLRenderer:
                 _paint_wireframe_edges_qpainter(result, mesh, params, dpr)
 
             return result
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 - fall back to the CPU renderer, but say why (once)
+            message = f"{type(exc).__name__}: {exc}"
+            if message not in self._reported_errors:
+                self._reported_errors.add(message)
+                import traceback
+
+                print("pixelRef 3D: OpenGL render failed, using the software fallback", file=sys.stderr)
+                traceback.print_exc()
             return None
         finally:
             if fbo is not None:
@@ -787,13 +811,25 @@ class _GLRenderer:
             self.ctx.doneCurrent()
             self._restore_gl(prev)
 
-    def _draw_geom(self, f: Any, bufs: _GPUMeshBuffers, cap_wire: bool = False) -> None:
+    def _draw_geom(self, f: Any, bufs: _GPUMeshBuffers) -> None:
+        # Always the whole mesh: capping the count (as wireframe once did) draws only the first
+        # triangles in file order, which shows as a partial model on dense meshes.
         if bufs.indexed:
-            count = min(bufs.index_count, 90000) if cap_wire else bufs.index_count
-            self.native_gl.glDrawElements(self.GL_TRIANGLES, count, self.GL_UNSIGNED_INT, ctypes.c_void_p(0))
+            self.native_gl.glDrawElements(self.GL_TRIANGLES, bufs.index_count, self.GL_UNSIGNED_INT,
+                                          ctypes.c_void_p(0))
         else:
-            count = min(bufs.vertex_count, 90000) if cap_wire else bufs.vertex_count
-            f.glDrawArrays(self.GL_TRIANGLES, 0, count)
+            f.glDrawArrays(self.GL_TRIANGLES, 0, bufs.vertex_count)
+
+
+WIREFRAME_DENSITY_REF = 0.04  # triangles per output pixel at which wireframe lines start to fade
+
+
+def wireframe_alpha(face_count: int, pixel_count: int) -> float:
+    """Line opacity for a full wireframe: 0.9 for light meshes, fading as triangles per pixel grow."""
+    density = face_count / max(1, pixel_count)
+    if density <= WIREFRAME_DENSITY_REF:
+        return 0.9
+    return max(0.12, 0.9 * math.sqrt(WIREFRAME_DENSITY_REF / density))
 
 
 _GL_RENDERER = _GLRenderer()
