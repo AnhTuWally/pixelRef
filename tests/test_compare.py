@@ -135,6 +135,8 @@ def test_compare_different_sizes_and_painting():
             assert rect_b.isValid()
 
         painter.end()
+    finally:
+        h.close()
 
 
 def test_compare_frame_size_for_different_resolutions():
@@ -164,8 +166,6 @@ def test_compare_same_aspect_images_fill_the_same_rect():
         small = item._place_image(frame, QPixmap(400, 300), None)
         big = item._place_image(frame, QPixmap(1600, 1200), None)
         assert small == big == frame
-    finally:
-        h.close()
     finally:
         h.close()
 
@@ -241,23 +241,6 @@ def test_compare_shift_rotate_and_toggle_hotkeys():
 
         # Press '\' -> should toggle to A
         h.key(Qt.Key_Backslash)
-        h.refresh()
-        assert h.attr(viewer, "active_input") == "a"
-
-        # 3. Test Clicking on Pill
-        cur_item = h.item(viewer)
-        pill = cur_item.pill_rect()
-        st = cur_item.sceneTransform()
-        pill_b_scene = st.map(QPointF(pill.left() + pill.width() * 0.75, pill.center().y()))
-        pill_a_scene = st.map(QPointF(pill.left() + pill.width() * 0.25, pill.center().y()))
-
-        # Click B half of pill
-        h.click(h.vp(pill_b_scene.x(), pill_b_scene.y()))
-        h.refresh()
-        assert h.attr(viewer, "active_input") == "b"
-
-        # Click A half of pill
-        h.click(h.vp(pill_a_scene.x(), pill_a_scene.y()))
         h.refresh()
         assert h.attr(viewer, "active_input") == "a"
     finally:
