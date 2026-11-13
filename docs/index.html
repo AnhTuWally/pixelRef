@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Documentation — pixelRef</title>
+  <meta
+    name="description"
+    content="Documentation hub for pixelRef: quick reference, keyboard shortcuts, CLI usage, and links to user guides, scripting, and plugin APIs."
+  />
+  <link rel="icon" href="../assets/img/logo.ico" />
+  <link rel="stylesheet" href="../assets/css/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav-inner">
+      <a class="brand" href="../">
+        <img src="../assets/img/logo_64.png" alt="pixelRef logo" />
+        <span>pixelRef</span>
+      </a>
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="../#why">Why pixelRef</a>
+        <a href="../#features">Features</a>
+        <a href="../#scripting">Scripting &amp; Plugins</a>
+        <a href="../#quickstart">Quick Start</a>
+        <a class="active" href="./">Docs</a>
+        <a class="nav-cta" href="https://github.com/AnhTuWally/pixelRef" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container docs-layout">
+    <aside class="docs-sidebar" aria-label="Documentation sections">
+      <h4>On This Page</h4>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#doc-map">Documentation Map</a></li>
+        <li><a href="#shortcuts">Essential Shortcuts</a></li>
+        <li><a href="#cli">CLI &amp; Batch Mode</a></li>
+      </ul>
+    </aside>
+
+    <article class="docs-content">
+      <section id="overview">
+        <div class="section-eyebrow">pixelRef Documentation</div>
+        <h1>Documentation Hub</h1>
+        <p style="color: var(--text-muted); font-size: 1.05rem;">
+          This hub is the foundation for pixelRef's web documentation. While comprehensive web pages for
+          every feature are being expanded here, you can browse the quick reference below or jump directly
+          to the full Markdown manuals in the repository's <code>docs/</code> directory.
+        </p>
+      </section>
+
+      <section id="doc-map">
+        <h2>Documentation Map</h2>
+        <div class="doc-grid">
+          <div class="doc-card">
+            <div class="doc-card-head">
+              <h3>User Guide</h3>
+              <span class="badge">Source on GitHub</span>
+            </div>
+            <p>
+              Every feature in detail: canvas navigation, media import, PureRef <code>.pur</code> boards,
+              annotations, links, effects, and exports.
+              <a href="https://github.com/AnhTuWally/pixelRef/blob/main/docs/user-guide.md" target="_blank" rel="noopener">Read user-guide.md →</a>
+            </p>
+          </div>
+
+          <div class="doc-card">
+            <div class="doc-card-head">
+              <h3>Scripting (<code>pxcmd</code> &amp; <code>pxnode</code>)</h3>
+              <span class="badge">Source on GitHub</span>
+            </div>
+            <p>
+              Command API, object-oriented node wrapper, Script Editor, callbacks, and headless batch execution.
+              <a href="https://github.com/AnhTuWally/pixelRef/blob/main/docs/scripting.md" target="_blank" rel="noopener">Read scripting.md →</a>
+            </p>
+          </div>
+
+          <div class="doc-card">
+            <div class="doc-card-head">
+              <h3>Writing Plugins</h3>
+              <span class="badge">Source on GitHub</span>
+            </div>
+            <p>
+              Plugin API for node types, tools, views, panels, extension points, manifests, and signing.
+              <a href="https://github.com/AnhTuWally/pixelRef/blob/main/docs/plugins.md" target="_blank" rel="noopener">Read plugins.md →</a>
+            </p>
+          </div>
+
+          <div class="doc-card">
+            <div class="doc-card-head">
+              <h3>Command Reference</h3>
+              <span class="badge">Source on GitHub</span>
+            </div>
+            <p>
+              Complete generated reference of every command and parameter in pixelRef.
+              <a href="https://github.com/AnhTuWally/pixelRef/blob/main/docs/commands.md" target="_blank" rel="noopener">Read commands.md →</a>
+            </p>
+          </div>
+
+          <div class="doc-card">
+            <div class="doc-card-head">
+              <h3>Views &amp; Window Manager</h3>
+              <span class="badge">Source on GitHub</span>
+            </div>
+            <p>
+              i3-style workspaces, splits, panels, display presets, framing guides, and linked cameras.
+              <a href="https://github.com/AnhTuWally/pixelRef/blob/main/docs/window-manager.md" target="_blank" rel="noopener">Read window-manager.md →</a>
+            </p>
+          </div>
+
+          <div class="doc-card">
+            <div class="doc-card-head">
+              <h3>Effects &amp; Caching</h3>
+              <span class="badge">Source on GitHub</span>
+            </div>
+            <p>
+              Using non-destructive effect stacks, background caching, and registering custom effect types.
+              <a href="https://github.com/AnhTuWally/pixelRef/blob/main/docs/effects.md" target="_blank" rel="noopener">Read effects.md →</a>
+            </p>
+          </div>
+
+          <div class="doc-card">
+            <div class="doc-card-head">
+              <h3>Architecture &amp; <code>.pxref</code> Format</h3>
+              <span class="badge">Source on GitHub</span>
+            </div>
+            <p>
+              How the headless kernel and plugins fit together, plus the <code>.pxref</code> scene file specification.
+              <a href="https://github.com/AnhTuWally/pixelRef/blob/main/docs/architecture.md" target="_blank" rel="noopener">architecture.md</a> ·
+              <a href="https://github.com/AnhTuWally/pixelRef/blob/main/docs/file-format.md" target="_blank" rel="noopener">file-format.md</a>
+            </p>
+          </div>
+
+          <div class="doc-card">
+            <div class="doc-card-head">
+              <h3>Keymap, Packaging &amp; Security</h3>
+              <span class="badge badge-planned">Expanding</span>
+            </div>
+            <p>
+              Customizing <code>keymap.toml</code>, macros, standalone builds, portable mode, and plugin trust.
+              <a href="https://github.com/AnhTuWally/pixelRef/blob/main/docs/reference.md" target="_blank" rel="noopener">Full one-page reference →</a>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="shortcuts">
+        <h2>Essential Shortcuts</h2>
+        <table class="shortcut-table">
+          <thead>
+            <tr>
+              <th>Shortcut</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><kbd>Ctrl+K</kbd></td><td>Search every command across all plugins</td></tr>
+            <tr><td><kbd>F1</kbd> / <kbd>Shift+F1</kbd></td><td>Shortcut editor / In-app Help browser</td></tr>
+            <tr><td><kbd>F</kbd> / <kbd>Shift+F</kbd></td><td>Frame selection (or everything) / Frame all</td></tr>
+            <tr><td><kbd>V</kbd> / <kbd>T</kbd> / <kbd>R</kbd> / <kbd>O</kbd></td><td>Select / Text note / Rectangle / Ellipse</td></tr>
+            <tr><td><kbd>A</kbd> / <kbd>P</kbd> / <kbd>E</kbd> / <kbd>N</kbd></td><td>Arrow / Pen / Eraser / Step marker</td></tr>
+            <tr><td><kbd>B</kbd> / <kbd>X</kbd> / <kbd>W</kbd> / <kbd>I</kbd></td><td>Blur region / Pixelate region / Link / Color picker</td></tr>
+            <tr><td><kbd>Ctrl+P</kbd></td><td>Pack selection (or everything) tightly</td></tr>
+            <tr><td><kbd>Ctrl+F</kbd></td><td>Find items by name, <code>#tag</code>, <code>type:</code>, or metadata</td></tr>
+            <tr><td><kbd>Ctrl+W</kbd> then <kbd>S</kbd> / <kbd>V</kbd></td><td>Split view horizontally / vertically</td></tr>
+            <tr><td><kbd>Ctrl+`</kbd> / <kbd>Ctrl+Alt+R</kbd></td><td>Open Script Editor / Record macro</td></tr>
+            <tr><td><kbd>Ctrl+S</kbd> / <kbd>Ctrl+E</kbd></td><td>Save <code>.pxref</code> scene / Export PNG or JPEG</td></tr>
+            <tr><td><kbd>Ctrl+T</kbd> / <kbd>F11</kbd> / <kbd>G</kbd></td><td>Always on top / Frameless / Ghost mode</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="cli">
+        <h2>CLI &amp; Batch Mode</h2>
+        <div class="code-wrap">
+          <div class="code-header">
+            <span>Common CLI invocations</span>
+            <button class="copy-btn" type="button">Copy</button>
+          </div>
+          <pre><code># Launch the desktop app
+python -m pixelref
+
+# Open a specific scene or PureRef (.pur) board
+python -m pixelref examples/scenes/animals.pxref
+
+# Run a Python script headlessly without opening a window
+python -m pixelref --batch script.py [scene.pxref] [--save out.pxref]
+
+# Open the built-in documentation server/viewer
+python -m pixelref docs
+
+# Load an example plugin for a single run
+python -m pixelref --trust-plugin-path examples/plugins</code></pre>
+        </div>
+      </section>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>
+        <strong>pixelRef</strong> · MIT License
+      </div>
+      <div class="footer-links">
+        <a href="../">Home</a>
+        <a href="https://github.com/AnhTuWally/pixelRef" target="_blank" rel="noopener">GitHub Repository</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../assets/js/main.js"></script>
+</body>
+</html>

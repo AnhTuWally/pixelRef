@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>pixelRef — An infinite-canvas reference board built like a DCC</title>
+  <meta
+    name="description"
+    content="pixelRef is an infinite-canvas reference board, like PureRef or BeeRef, built the way DCC applications are built. Collect media, annotate, link, apply non-destructive effects, and automate everything in Python."
+  />
+  <link rel="icon" href="assets/img/logo.ico" />
+  <link rel="apple-touch-icon" href="assets/img/logo_128.png" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav-inner">
+      <a class="brand" href="./">
+        <img src="assets/img/logo_64.png" alt="pixelRef logo" />
+        <span>pixelRef</span>
+      </a>
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="#why">Why pixelRef</a>
+        <a href="#features">Features</a>
+        <a href="#scripting">Scripting &amp; Plugins</a>
+        <a href="#quickstart">Quick Start</a>
+        <a href="docs/">Docs</a>
+        <a class="nav-cta" href="https://github.com/AnhTuWally/pixelRef" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero -->
+    <section class="hero">
+      <div class="container">
+        <div class="hero-badge">MIT Licensed · Python 3.11+ · PySide6</div>
+        <h1>
+          An infinite-canvas reference board,
+          <span class="highlight">built like a DCC.</span>
+        </h1>
+        <p class="hero-sub">
+          Drop in images, animated GIFs, and videos. Mark them up, connect them with smart links,
+          stack non-destructive effects, and inspect everything across i3-style tiled views.
+          Every UI action is a Python command, and every feature is a plugin.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#quickstart">Get Started</a>
+          <a class="btn btn-secondary" href="docs/">Explore Documentation</a>
+          <a class="btn btn-secondary" href="https://github.com/AnhTuWally/pixelRef" target="_blank" rel="noopener">
+            View on GitHub
+          </a>
+        </div>
+
+        <div class="window-frame">
+          <div class="window-bar">
+            <div class="window-dots" aria-hidden="true">
+              <span></span><span></span><span></span>
+            </div>
+            <span>animals.pxref — pixelRef</span>
+            <span>Main Workspace</span>
+          </div>
+          <img
+            src="assets/img/overview.webp"
+            alt="The sample board in pixelRef showing images, annotations, links, blur/pixelate regions, Outliner, Attribute Editor, and Minimap"
+            data-zoomable
+          />
+          <div class="caption">
+            The sample board (<code>examples/scenes/animals.pxref</code>) showing images, animated GIFs,
+            step markers, dynamic links, live blur/pixelate regions, Outliner, Attribute Editor, and Minimap.
+            Click any screenshot to zoom.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Why pixelRef -->
+    <section id="why" class="section section-alt">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-eyebrow">What makes it different</div>
+          <h2>More than a pinboard — a programmable visual workspace</h2>
+          <p>
+            Inspired by PureRef and BeeRef, pixelRef brings the architecture of Digital Content Creation (DCC)
+            tools to reference gathering, visual review, and interactive boards.
+          </p>
+        </div>
+
+        <div class="grid-3">
+          <article class="card">
+            <div class="card-icon">◫</div>
+            <h3>DCC Scene Graph &amp; Views</h3>
+            <p>
+              Organize items in an Outliner hierarchy, tweak properties in the Attribute Editor,
+              stack cached non-destructive effects, and split your board into i3-style tiled workspaces
+              with independent cameras and value-check presets.
+            </p>
+          </article>
+
+          <article class="card">
+            <div class="card-icon">&gt;_</div>
+            <h3>Everything is a Python Command</h3>
+            <p>
+              Turn on <em>Echo all commands</em> in the Script Editor (<kbd>Ctrl+`</kbd>) to see the exact
+              <code>pxcmd</code> call behind every click. Record macros, bind custom keys, or run
+              headless <code>--batch</code> scripts.
+            </p>
+          </article>
+
+          <article class="card">
+            <div class="card-icon">◈</div>
+            <h3>Plugin-First Architecture</h3>
+            <p>
+              Every built-in tool, panel, and effect is a plugin in <code>pixelref/builtins/</code>.
+              Your own plugins use the exact same <code>activate(ctx)</code> and <code>activate_ui(ui)</code>
+              API to add node types, tools, views, and effects.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interactive Feature Explorer -->
+    <section id="features" class="section">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-eyebrow">Core Capabilities</div>
+          <h2>Everything you need to collect, annotate, inspect, and share</h2>
+          <p>Explore how pixelRef handles media, markup, links, effects, and multi-view workflows.</p>
+        </div>
+
+        <div class="feature-tabs" role="tablist" aria-label="pixelRef features">
+          <button class="tab-btn active" role="tab" aria-selected="true" data-tab="collect">Collect &amp; Quick Edit</button>
+          <button class="tab-btn" role="tab" aria-selected="false" data-tab="annotate">Annotate &amp; Redact</button>
+          <button class="tab-btn" role="tab" aria-selected="false" data-tab="links">Smart Links</button>
+          <button class="tab-btn" role="tab" aria-selected="false" data-tab="effects">Effect Stacks</button>
+          <button class="tab-btn" role="tab" aria-selected="false" data-tab="views">Views &amp; Workspaces</button>
+          <button class="tab-btn" role="tab" aria-selected="false" data-tab="search">Command Search &amp; Find</button>
+        </div>
+
+        <div class="feature-panel active" role="tabpanel" data-panel="collect">
+          <div class="feature-copy">
+            <h3>Collect images, GIFs, videos &amp; PureRef boards</h3>
+            <p>
+              Paste (<kbd>Ctrl+V</kbd>) or drag in files, whole folders, animated GIFs/WebPs, or images
+              straight from your browser. Images embed into a single portable <code>.pxref</code> file by default,
+              or can be linked on disk.
+            </p>
+            <ul class="feature-list">
+              <li><strong>PureRef import:</strong> Open <code>.pur</code> boards directly or drop them onto an existing canvas.</li>
+              <li><strong>Animated playback:</strong> Play/pause GIFs &amp; WebPs (<kbd>K</kbd>) and step frames (<kbd>,</kbd> / <kbd>.</kbd>).</li>
+              <li><strong>Linked video playback:</strong> Reference <code>.mp4</code>, <code>.mov</code>, <code>.mkv</code>, and <code>.webm</code> files on canvas.</li>
+              <li><strong>Color palettes &amp; Contact Sheet:</strong> Extract dominant swatches or browse thumbnails in a grid.</li>
+            </ul>
+          </div>
+          <div class="feature-media">
+            <img
+              src="assets/img/quick_edit.webp"
+              alt="A selected text note with the quick editor bar and the Attribute Editor"
+              data-zoomable
+            />
+          </div>
+        </div>
+
+        <div class="feature-panel" role="tabpanel" data-panel="annotate">
+          <div class="feature-copy">
+            <h3>Annotate clearly — and redact non-destructively</h3>
+            <p>
+              Mark up references with text notes (<kbd>T</kbd>), rectangles (<kbd>R</kbd>), ellipses (<kbd>O</kbd>),
+              arrows (<kbd>A</kbd>), freehand pen drawings (<kbd>P</kbd>), and auto-incrementing step markers (<kbd>N</kbd>).
+            </p>
+            <ul class="feature-list">
+              <li><strong>Live Blur &amp; Pixelate regions:</strong> <kbd>B</kbd> and <kbd>X</kbd> filter whatever sits underneath them in real time.</li>
+              <li><strong>Non-destructive:</strong> Move an image under a blur/pixelate region and the redaction updates live, exporting cleanly.</li>
+              <li><strong>Interactive click actions:</strong> Turn elements and buttons into before/after toggles, quizzes, or guided tours.</li>
+            </ul>
+          </div>
+          <div class="feature-media">
+            <img
+              src="assets/img/annotations.webp"
+              alt="Step markers, a pen drawing, and a link on the sample board"
+              data-zoomable
+            />
+          </div>
+        </div>
+
+        <div class="feature-panel" role="tabpanel" data-panel="links">
+          <div class="feature-copy">
+            <h3>Links that follow your layout and navigate your board</h3>
+            <p>
+              Use the Link tool (<kbd>W</kbd>) or <kbd>Ctrl+L</kbd> to connect elements. Links stay attached as items move
+              and support straight, curved, or elbow paths with custom waypoints, labels, caps, and dashes.
+            </p>
+            <ul class="feature-list">
+              <li><strong>Flexible anchors:</strong> Attach to an element's center, pin to an edge, or point at an interior detail.</li>
+              <li><strong>Jump across the board:</strong> Double-click a link or click off-screen edge chips to fly to the other end.</li>
+              <li><strong>Jump history:</strong> Step back and forward through link jumps with <kbd>Alt+Left</kbd> and <kbd>Alt+Right</kbd>.</li>
+            </ul>
+          </div>
+          <div class="feature-media">
+            <img
+              src="assets/img/links.webp"
+              alt="A selected link showing its waypoints and the element it points to"
+              data-zoomable
+            />
+          </div>
+        </div>
+
+        <div class="feature-panel" role="tabpanel" data-panel="effects">
+          <div class="feature-copy">
+            <h3>Non-destructive effect stacks with scene-embedded caching</h3>
+            <p>
+              Any element can carry a stack of effects—grayscale, invert, brightness/contrast, threshold,
+              posterize, blur, and edge detect—plus custom effects added by plugins.
+            </p>
+            <ul class="feature-list">
+              <li><strong>Interactive scrubbing:</strong> Drag numeric fields left or right in the Attribute Editor while watching the canvas.</li>
+              <li><strong>Background processing:</strong> Heavy effects compute asynchronously without blocking navigation.</li>
+              <li><strong>Portable cache:</strong> Results cache in memory, on disk, and inside the <code>.pxref</code> file.</li>
+            </ul>
+          </div>
+          <div class="feature-media">
+            <img
+              src="assets/img/effects.webp"
+              alt="The edge detect effect and its settings in the Attribute Editor"
+              data-zoomable
+            />
+          </div>
+        </div>
+
+        <div class="feature-panel" role="tabpanel" data-panel="views">
+          <div class="feature-copy">
+            <h3>i3-style tiled views, workspaces &amp; display presets</h3>
+            <p>
+              Split your canvas into any number of tiled views (<kbd>Ctrl+W</kbd> then <kbd>S</kbd> or <kbd>V</kbd>),
+              each with its own camera, display preset, and framing guides.
+            </p>
+            <ul class="feature-list">
+              <li><strong>Display presets:</strong> Switch any view between <em>All</em>, <em>Value check</em> (grayscale), <em>Images only</em>, <em>Annotations only</em>, or <em>Clean</em>.</li>
+              <li><strong>Linked cameras &amp; View markers:</strong> Sync pan/zoom across views or fly to saved markers (<kbd>Ctrl+1</kbd>, <kbd>Ctrl+2</kbd>).</li>
+              <li><strong>Ghost &amp; Overlay modes:</strong> Keep on top (<kbd>Ctrl+T</kbd>), frameless (<kbd>F11</kbd>), translucent ghost (<kbd>G</kbd>), or click-through (<kbd>Ctrl+Shift+T</kbd>).</li>
+            </ul>
+          </div>
+          <div class="feature-media">
+            <img
+              src="assets/img/review.webp"
+              alt="The Review workspace showing colour, value check, and a 16:9 framing guide side by side"
+              data-zoomable
+            />
+          </div>
+        </div>
+
+        <div class="feature-panel" role="tabpanel" data-panel="search">
+          <div class="feature-copy">
+            <h3>Find any command or item in milliseconds</h3>
+            <p>
+              Right-click the canvas and start typing—or press <kbd>Ctrl+K</kbd>—to search every action across
+              all plugins along with its keyboard shortcut.
+            </p>
+            <ul class="feature-list">
+              <li><strong>Structured Find (<kbd>Ctrl+F</kbd>):</strong> Filter by <code>#tag</code>, <code>type:</code>, <code>name:</code>, <code>note:</code>, <code>key:value</code>, or <code>-term</code>.</li>
+              <li><strong>Instant navigation:</strong> Press <kbd>Enter</kbd> to glide to a match or <kbd>Shift+Enter</kbd> to select all matches.</li>
+              <li><strong>In-app Help (<kbd>Shift+F1</kbd>):</strong> Search every tool, command, and attribute without leaving the app.</li>
+            </ul>
+          </div>
+          <div class="feature-media">
+            <img
+              src="assets/img/command_search.webp"
+              alt="Command search palette filtering on grid commands"
+              data-zoomable
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Scripting & Plugins -->
+    <section id="scripting" class="section section-alt">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-eyebrow">Automation &amp; Extensibility</div>
+          <h2>Scriptable from the ground up</h2>
+          <p>
+            Automate repetitive layouts, build custom review pipelines, or extend pixelRef with new node types,
+            tools, panels, and effects.
+          </p>
+        </div>
+
+        <div class="grid-2" style="align-items: start;">
+          <div>
+            <div class="code-wrap" style="margin-bottom: 1.25rem;">
+              <div class="code-header">
+                <span>Python — pxcmd &amp; pxnode</span>
+                <button class="copy-btn" type="button">Copy</button>
+              </div>
+              <pre><code>from pixelref import pxcmd, pxnode
+
+img = pxcmd.import_image("refs/castle.jpg", translate=[0, 0])
+note = pxcmd.create_node("annotation_text", parent=img, text="Fix this edge")
+pxcmd.effects.add("edge_detect", img, style="lines", strength=3)
+pxcmd.select(pxcmd.ls(type="image"))
+
+with pxcmd.undo_chunk("Grid layout"):     # one undo step
+    pxcmd.arrange(mode="grid")
+
+pxnode.node(img).opacity = 0.5           # object-style API
+pxcmd.help("arrange")                    # every command is documented</code></pre>
+            </div>
+
+            <div class="card">
+              <h3>Built for workflows &amp; pipelines</h3>
+              <p style="margin-bottom: 0.75rem;">
+                Run scripts interactively inside the <strong>Script Editor</strong> (<kbd>Ctrl+`</kbd>),
+                record UI actions as reusable macros (<kbd>Ctrl+Alt+R</kbd>), or execute headless batch jobs:
+              </p>
+              <div class="code-wrap">
+                <div class="code-header">
+                  <span>Terminal — Headless Batch Mode</span>
+                  <button class="copy-btn" type="button">Copy</button>
+                </div>
+                <pre><code>python -m pixelref --batch script.py [scene.pxref] [--save out.pxref]</code></pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="window-frame">
+            <div class="window-bar">
+              <div class="window-dots" aria-hidden="true">
+                <span></span><span></span><span></span>
+              </div>
+              <span>Script Editor — Echo all commands</span>
+              <span>Python</span>
+            </div>
+            <img
+              src="assets/img/script_editor.webp"
+              alt="The Script Editor showing echoed UI commands and Python queries"
+              data-zoomable
+            />
+            <div class="caption">
+              With <em>Echo all commands</em> enabled, every UI action prints its underlying <code>pxcmd</code> call.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick Start -->
+    <section id="quickstart" class="section">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-eyebrow">Quick Start</div>
+          <h2>Up and running in under a minute</h2>
+          <p>Requires Python 3.11 or newer. Clone the repository and launch the sample board.</p>
+        </div>
+
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-icon">1</div>
+            <h3 style="margin-bottom: 0.75rem;">Clone &amp; install</h3>
+            <div class="code-wrap">
+              <div class="code-header">
+                <span>bash</span>
+                <button class="copy-btn" type="button">Copy</button>
+              </div>
+              <pre><code>git clone https://github.com/AnhTuWally/pixelRef.git
+cd pixelRef
+pip install -r requirements.txt</code></pre>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-icon">2</div>
+            <h3 style="margin-bottom: 0.75rem;">Launch the tour board</h3>
+            <div class="code-wrap">
+              <div class="code-header">
+                <span>bash</span>
+                <button class="copy-btn" type="button">Copy</button>
+              </div>
+              <pre><code>python -m pixelref examples/scenes/animals.pxref</code></pre>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-icon">3</div>
+            <h3>Three essential keys</h3>
+            <p style="margin-top: 0.5rem;">
+              <kbd>Ctrl+K</kbd> searches every command.<br />
+              <kbd>F1</kbd> lists and customizes shortcuts.<br />
+              <kbd>Shift+F1</kbd> opens the in-app Help browser.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Documentation Roadmap -->
+    <section class="section section-alt">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-eyebrow">Documentation</div>
+          <h2>Growing into comprehensive documentation</h2>
+          <p>
+            This site is the home for pixelRef's upcoming web documentation—covering user guides,
+            keyboard shortcuts, scripting with <code>pxcmd</code>/<code>pxnode</code>, plugin authoring,
+            and architecture.
+          </p>
+        </div>
+        <a class="btn btn-primary" href="docs/">Open Documentation Hub →</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>
+        <strong>pixelRef</strong> · Released under the
+        <a href="https://github.com/AnhTuWally/pixelRef/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>.
+      </div>
+      <div class="footer-links">
+        <a href="docs/">Documentation</a>
+        <a href="https://github.com/AnhTuWally/pixelRef" target="_blank" rel="noopener">GitHub Repository</a>
+        <a href="https://github.com/AnhTuWally/pixelRef/blob/main/README.md" target="_blank" rel="noopener">README</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Lightbox for screenshots -->
+  <div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="Screenshot preview">
+    <button id="lightbox-close" class="lightbox-close" type="button" aria-label="Close preview">✕ Close</button>
+    <img id="lightbox-img" src="" alt="" />
+  </div>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>
