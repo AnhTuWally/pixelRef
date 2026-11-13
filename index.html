@@ -132,7 +132,8 @@
 
         <div class="feature-tabs" role="tablist" aria-label="pixelRef features">
           <button class="tab-btn active" role="tab" aria-selected="true" data-tab="collect">Collect &amp; Quick Edit</button>
-          <button class="tab-btn" role="tab" aria-selected="false" data-tab="annotate">Annotate &amp; Redact</button>
+          <button class="tab-btn" role="tab" aria-selected="false" data-tab="annotate">Annotate &amp; Frame Notes</button>
+          <button class="tab-btn" role="tab" aria-selected="false" data-tab="redact">Blur &amp; Pixelate</button>
           <button class="tab-btn" role="tab" aria-selected="false" data-tab="links">Smart Links</button>
           <button class="tab-btn" role="tab" aria-selected="false" data-tab="effects">Effect Stacks</button>
           <button class="tab-btn" role="tab" aria-selected="false" data-tab="views">Views &amp; Workspaces</button>
@@ -143,15 +144,15 @@
           <div class="feature-copy">
             <h3>Collect images, GIFs, videos &amp; PureRef boards</h3>
             <p>
-              Paste (<kbd>Ctrl+V</kbd>) or drag in files, whole folders, animated GIFs/WebPs, or images
-              straight from your browser. Images embed into a single portable <code>.pxref</code> file by default,
+              Paste (<kbd>Ctrl+V</kbd>), press <kbd>Ctrl+I</kbd>, or drag in files, whole folders, animated GIFs/WebPs,
+              or images straight from your browser. Images embed into a single portable <code>.pxref</code> file by default,
               or can be linked on disk.
             </p>
             <ul class="feature-list">
               <li><strong>PureRef import:</strong> Open <code>.pur</code> boards directly or drop them onto an existing canvas.</li>
-              <li><strong>Animated playback:</strong> Play/pause GIFs &amp; WebPs (<kbd>K</kbd>) and step frames (<kbd>,</kbd> / <kbd>.</kbd>).</li>
+              <li><strong>Animated playback &amp; filmstrip:</strong> Play/pause GIFs &amp; WebPs (<kbd>K</kbd>), step frames (<kbd>,</kbd> / <kbd>.</kbd>), or scrub the filmstrip below the media.</li>
               <li><strong>Linked video playback:</strong> Reference <code>.mp4</code>, <code>.mov</code>, <code>.mkv</code>, and <code>.webm</code> files on canvas.</li>
-              <li><strong>Color palettes &amp; Contact Sheet:</strong> Extract dominant swatches or browse thumbnails in a grid.</li>
+              <li><strong>Rich Color Picker &amp; Palettes:</strong> Pick colors with hue ring, RGB/HSV/HSL/hex, screen-wide eyedropper, and <em>In this scene</em> swatches.</li>
             </ul>
           </div>
           <div class="feature-media">
@@ -165,21 +166,44 @@
 
         <div class="feature-panel" role="tabpanel" data-panel="annotate">
           <div class="feature-copy">
-            <h3>Annotate clearly — and redact non-destructively</h3>
+            <h3>Annotate the canvas — or pin notes to a single frame</h3>
             <p>
               Mark up references with text notes (<kbd>T</kbd>), rectangles (<kbd>R</kbd>), ellipses (<kbd>O</kbd>),
               arrows (<kbd>A</kbd>), freehand pen drawings (<kbd>P</kbd>), and auto-incrementing step markers (<kbd>N</kbd>).
+              A note made while an image is selected attaches to it and moves with it.
             </p>
             <ul class="feature-list">
-              <li><strong>Live Blur &amp; Pixelate regions:</strong> <kbd>B</kbd> and <kbd>X</kbd> filter whatever sits underneath them in real time.</li>
-              <li><strong>Non-destructive:</strong> Move an image under a blur/pixelate region and the redaction updates live, exporting cleanly.</li>
-              <li><strong>Interactive click actions:</strong> Turn elements and buttons into before/after toggles, quizzes, or guided tours.</li>
+              <li><strong>Per-frame annotations:</strong> Pause a GIF or video and draw, or press <kbd>Alt+F</kbd> to pin any note to a single frame.</li>
+              <li><strong>Filmstrip ticks &amp; Ghosting:</strong> Amber ticks mark frame notes, blue ticks mark frame links, and <em>Ghost</em> shows adjacent frames faintly.</li>
+              <li><strong>Copy to Frames:</strong> Duplicate an annotation across a frame range (e.g. <code>2-5</code>) in one step.</li>
             </ul>
           </div>
           <div class="feature-media">
             <img
               src="assets/img/annotations.webp"
               alt="Step markers, a pen drawing, and a link on the sample board"
+              data-zoomable
+            />
+          </div>
+        </div>
+
+        <div class="feature-panel" role="tabpanel" data-panel="redact">
+          <div class="feature-copy">
+            <h3>Hide sensitive details with live Blur &amp; Pixelate regions</h3>
+            <p>
+              Draw a Blur (<kbd>B</kbd>) or Pixelate (<kbd>X</kbd>) region over names, faces, or UI details.
+              These regions have no pixels of their own—they filter whatever sits underneath them in real time.
+            </p>
+            <ul class="feature-list">
+              <li><strong>Always live:</strong> Move an image underneath a blur or pixelate region and the filter updates immediately.</li>
+              <li><strong>Tunable strength:</strong> Adjust blur strength or pixelate block size in the Attribute Editor (hold <kbd>Shift</kbd> for square regions).</li>
+              <li><strong>Clean exports:</strong> PNG/JPEG exports and clipboard copies preserve the exact redaction you see on screen.</li>
+            </ul>
+          </div>
+          <div class="feature-media">
+            <img
+              src="assets/img/redact.webp"
+              alt="A pixelate and a blur region filtering the leopard photo underneath"
               data-zoomable
             />
           </div>
@@ -275,8 +299,61 @@
       </div>
     </section>
 
+    <!-- Interactive & Power-User Highlights (from onboard.pxref) -->
+    <section id="highlights" class="section section-alt">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-eyebrow">Interactive &amp; Precision Workflows</div>
+          <h2>Built for live presentations, multi-editing, and safe extensibility</h2>
+          <p>
+            Beyond static boards, pixelRef includes interactive click actions, selective attribute transfer,
+            a scene-aware color picker, and an explicit plugin trust model.
+          </p>
+        </div>
+
+        <div class="grid-2">
+          <article class="card">
+            <h3>Interactive Click Actions &amp; <em>Demonstrate…</em></h3>
+            <p>
+              Turn buttons or any item into clickable controls that show, hide, move, or jump to a GIF frame.
+              Drag the handle beside a button onto a target, choose <strong>Make Tabs from Selection</strong>,
+              or use <strong>Demonstrate…</strong> to pose the board's "after" state without writing code—then
+              lock the button in the Outliner to make it live.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>Copy/Paste Attributes &amp; Shared Multi-Edit</h3>
+            <p>
+              Press <kbd>Ctrl+Alt+Shift+C</kbd> and <kbd>Ctrl+Alt+Shift+V</kbd> to transfer styling across items
+              with search, group checkboxes, <em>Only differences</em> filtering, and live canvas preview.
+              Or select multiple items to edit <strong>Shared attributes</strong> simultaneously—even across different shape types.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>Scene-Aware Color Picker</h3>
+            <p>
+              Every color swatch opens a popover with a saturation/brightness square, hue ring, alpha,
+              RGB/HSV/HSL sliders, hex/<code>rgb()</code> input, a screen-wide eyedropper (works across other apps),
+              and <strong>In this scene</strong> swatches to keep your board cohesive.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>Explicit Plugin Trust &amp; Safety</h3>
+            <p>
+              Plugins run with your permissions, so nothing third-party executes until you approve it in
+              <em>Window → Plugins…</em>. Clear trust badges—<strong>Green/Blue</strong> (signed or approved),
+              <strong>Amber</strong> (new or modified, awaiting review), and <strong>Red</strong> (blocked signature mismatch)—keep you in control.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <!-- Scripting & Plugins -->
-    <section id="scripting" class="section section-alt">
+    <section id="scripting" class="section">
       <div class="container">
         <div class="section-header">
           <div class="section-eyebrow">Automation &amp; Extensibility</div>
@@ -346,12 +423,12 @@ pxcmd.help("arrange")                    # every command is documented</code></p
     </section>
 
     <!-- Quick Start -->
-    <section id="quickstart" class="section">
+    <section id="quickstart" class="section section-alt">
       <div class="container">
         <div class="section-header">
           <div class="section-eyebrow">Quick Start</div>
           <h2>Up and running in under a minute</h2>
-          <p>Requires Python 3.11 or newer. Clone the repository and launch the sample board.</p>
+          <p>Requires Python 3.11 or newer. Clone the repository and open the interactive onboarding board or sample scene.</p>
         </div>
 
         <div class="grid-3">
@@ -371,13 +448,17 @@ pip install -r requirements.txt</code></pre>
 
           <div class="card">
             <div class="card-icon">2</div>
-            <h3 style="margin-bottom: 0.75rem;">Launch the tour board</h3>
+            <h3 style="margin-bottom: 0.75rem;">Launch an interactive board</h3>
             <div class="code-wrap">
               <div class="code-header">
                 <span>bash</span>
                 <button class="copy-btn" type="button">Copy</button>
               </div>
-              <pre><code>python -m pixelref examples/scenes/animals.pxref</code></pre>
+              <pre><code># Interactive onboarding guide
+python -m pixelref examples/scenes/onboard.pxref
+
+# Or the sample animals board
+python -m pixelref examples/scenes/animals.pxref</code></pre>
             </div>
           </div>
 
@@ -395,7 +476,7 @@ pip install -r requirements.txt</code></pre>
     </section>
 
     <!-- Documentation Roadmap -->
-    <section class="section section-alt">
+    <section class="section">
       <div class="container">
         <div class="section-header">
           <div class="section-eyebrow">Documentation</div>

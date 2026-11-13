@@ -158,14 +158,19 @@
           </thead>
           <tbody>
             <tr><td><kbd>Ctrl+K</kbd></td><td>Search every command across all plugins</td></tr>
-            <tr><td><kbd>F1</kbd> / <kbd>Shift+F1</kbd></td><td>Shortcut editor / In-app Help browser</td></tr>
-            <tr><td><kbd>F</kbd> / <kbd>Shift+F</kbd></td><td>Frame selection (or everything) / Frame all</td></tr>
+            <tr><td><kbd>F1</kbd> / <kbd>Shift+F1</kbd></td><td>Shortcut editor (with <em>Mouse &amp; Windows</em>) / In-app Help browser</td></tr>
+            <tr><td><kbd>Ctrl+I</kbd> / <kbd>Ctrl+O</kbd></td><td>Import images / Open scene or PureRef <code>.pur</code> board</td></tr>
+            <tr><td><kbd>F</kbd> / <kbd>Shift+F</kbd> / <kbd>Ctrl+0</kbd></td><td>Frame selection / Frame all / Reset zoom to 100%</td></tr>
+            <tr><td><kbd>Tab</kbd></td><td>Toggle side panels for a clean canvas</td></tr>
             <tr><td><kbd>V</kbd> / <kbd>T</kbd> / <kbd>R</kbd> / <kbd>O</kbd></td><td>Select / Text note / Rectangle / Ellipse</td></tr>
             <tr><td><kbd>A</kbd> / <kbd>P</kbd> / <kbd>E</kbd> / <kbd>N</kbd></td><td>Arrow / Pen / Eraser / Step marker</td></tr>
             <tr><td><kbd>B</kbd> / <kbd>X</kbd> / <kbd>W</kbd> / <kbd>I</kbd></td><td>Blur region / Pixelate region / Link / Color picker</td></tr>
-            <tr><td><kbd>Ctrl+P</kbd></td><td>Pack selection (or everything) tightly</td></tr>
+            <tr><td><kbd>K</kbd> / <kbd>,</kbd> / <kbd>.</kbd> / <kbd>Alt+F</kbd></td><td>Play/pause GIF or video / Step frame / Pin annotation to frame</td></tr>
+            <tr><td><kbd>Ctrl+Alt+Shift+C</kbd> / <kbd>V</kbd></td><td>Copy attributes / Paste selected attributes (with live preview)</td></tr>
+            <tr><td><kbd>G</kbd> / <kbd>Ctrl+Shift+G</kbd> / <kbd>F2</kbd></td><td>Group / Ungroup / Rename in Outliner</td></tr>
+            <tr><td><kbd>Ctrl+P</kbd> / <kbd>Ctrl+Alt+G</kbd></td><td>Pack tightly / Arrange selection in a grid</td></tr>
             <tr><td><kbd>Ctrl+F</kbd></td><td>Find items by name, <code>#tag</code>, <code>type:</code>, or metadata</td></tr>
-            <tr><td><kbd>Ctrl+W</kbd> then <kbd>S</kbd> / <kbd>V</kbd></td><td>Split view horizontally / vertically</td></tr>
+            <tr><td><kbd>Ctrl+W</kbd> then <kbd>S</kbd> / <kbd>V</kbd> / <kbd>-</kbd></td><td>Split view horizontally / vertically / open Script Editor</td></tr>
             <tr><td><kbd>Ctrl+`</kbd> / <kbd>Ctrl+Alt+R</kbd></td><td>Open Script Editor / Record macro</td></tr>
             <tr><td><kbd>Ctrl+S</kbd> / <kbd>Ctrl+E</kbd></td><td>Save <code>.pxref</code> scene / Export PNG or JPEG</td></tr>
             <tr><td><kbd>Ctrl+T</kbd> / <kbd>F11</kbd> / <kbd>G</kbd></td><td>Always on top / Frameless / Ghost mode</td></tr>
@@ -183,7 +188,8 @@
           <pre><code># Launch the desktop app
 python -m pixelref
 
-# Open a specific scene or PureRef (.pur) board
+# Open the interactive onboarding board or the sample animals board
+python -m pixelref examples/scenes/onboard.pxref
 python -m pixelref examples/scenes/animals.pxref
 
 # Run a Python script headlessly without opening a window
