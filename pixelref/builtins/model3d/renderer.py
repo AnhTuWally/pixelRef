@@ -474,10 +474,30 @@ class _GLRenderer:
         self._textures: OrderedDict[Any, QOpenGLTexture] = OrderedDict()
         self._white_tex: QOpenGLTexture | None = None
 
+    @staticmethod
+    def _current_gl() -> tuple[Any, Any]:
+        """The (context, surface) current on this thread (e.g. the canvas' QOpenGLWidget while it paints)."""
+        ctx = QOpenGLContext.currentContext()
+        return (ctx, ctx.surface()) if ctx is not None else (None, None)
+
+    @staticmethod
+    def _restore_gl(prev: tuple[Any, Any]) -> None:
+        """Make the previously current context current again (or leave none current if there was none)."""
+        ctx, surface = prev
+        if ctx is not None and surface is not None:
+            ctx.makeCurrent(surface)
+
     def _ensure_init(self) -> bool:
         if self._initialized:
             return not self._failed
         self._initialized = True
+        prev = self._current_gl()
+        try:
+            return self._init_gl()
+        finally:
+            self._restore_gl(prev)
+
+    def _init_gl(self) -> bool:
         try:
             fmt = QSurfaceFormat()
             fmt.setVersion(3, 3)
@@ -588,10 +608,18 @@ class _GLRenderer:
 
     def render(self, mesh: MeshData, params: RenderParams, tex_key: Any = None,
                tex_image: QImage | None = None) -> QImage | None:
-        if not mesh.gpu_positions or not self._ensure_init():
+        if not mesh.gpu_positions:
+            return None
+        # Rendering can be requested from inside a paint event of the canvas' OpenGL viewport
+        # (Windows/macOS with a real GPU). Remember that context and restore it afterwards,
+        # otherwise Qt keeps painting with no current context and the app crashes.
+        prev = self._current_gl()
+        if not self._ensure_init():
+            self._restore_gl(prev)
             return None
         assert self.ctx is not None and self.surface is not None and self.prog is not None and self.vao is not None
         if not self.ctx.makeCurrent(self.surface):
+            self._restore_gl(prev)
             return None
 
         fbo: QOpenGLFramebufferObject | None = None
@@ -757,6 +785,7 @@ class _GLRenderer:
             if fbo is not None:
                 del fbo
             self.ctx.doneCurrent()
+            self._restore_gl(prev)
 
     def _draw_geom(self, f: Any, bufs: _GPUMeshBuffers, cap_wire: bool = False) -> None:
         if bufs.indexed:
