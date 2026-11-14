@@ -361,10 +361,18 @@ def _far(h):
     return h.run("links.connect", "A", "B", routing="straight")
 
 
-def _settle():
+def _settle(h):
+    """Let the camera glide finish (280 ms once it starts). The first paint of a big image can hold
+    the event loop for a few hundred ms before the glide even begins, so a fixed wait isn't enough:
+    keep waiting until the view stops moving."""
+    import time
+
     from PySide6.QtTest import QTest
 
-    QTest.qWait(400)  # camera glides take 280 ms
+    QTest.qWait(400)
+    deadline = time.monotonic() + 5.0
+    while h.view.zooming() and time.monotonic() < deadline:
+        QTest.qWait(20)
     APP.processEvents()
 
 
@@ -382,26 +390,26 @@ def test_go_to_follow_back_and_forward():
         link = _far(h)
         h.select(["A"])
         assert h.run("links.go_to", "B") == "B"
-        _settle()
+        _settle(h)
         cx, cy = _center(h)
         assert abs(cx - 6100) < 1 and abs(cy - 3050) < 1, _center(h)
         assert abs(h.view.zoom_level() - 1.0) < 1e-6, "an element that fits keeps the zoom"
         assert h.sel() == ["B"]
         h.run("links.back")
-        _settle()
+        _settle(h)
         assert abs(_center(h)[0]) < 1 and h.sel() == ["A"], "back restores the camera and the selection"
         h.run("links.forward")
-        _settle()
+        _settle(h)
         assert abs(_center(h)[0] - 6100) < 1 and h.sel() == ["B"]
         # follow: by default the end farther from the view's centre (here: A).
         assert h.run("links.follow", link) == "A"
-        _settle()
+        _settle(h)
         assert abs(_center(h)[0] - 100) < 1
         # Something too big for the view is zoomed out to fit.
         h.add_image("Huge", 20000, 0, w=8000, h=4000)
         h.refresh()
         h.run("links.go_to", "Huge")
-        _settle()
+        _settle(h)
         assert h.view.zoom_level() < 0.2
     finally:
         h.close()
@@ -419,19 +427,19 @@ def test_double_clicking_a_link_goes_to_its_far_end():
         h.click(near)
         h.mouse("double", near)
         h.mouse("release", near)
-        _settle()
+        _settle(h)
         assert abs(_center(h)[0] - 6100) < 1 and h.sel() == ["B"], (_center(h), h.sel())
         assert not h.app.input._capture
         # Double-clicking a selected link's end handle goes to the other end.
         h.run("links.back")
-        _settle()
+        _settle(h)
         h.select([link])
         h.refresh()
         start, _end = _ends(h, link)
         handle = h.view.to_viewport(start).toPoint()
         h.mouse("double", handle)
         h.mouse("release", handle)
-        _settle()
+        _settle(h)
         assert abs(_center(h)[0] - 6100) < 1 and h.sel() == ["B"], (_center(h), h.sel())
     finally:
         h.close()
@@ -456,12 +464,12 @@ def test_edge_chips_badges_and_hover():
         badges = finder.badges[id(h.view)]
         assert [name for _r, name in badges] == ["A"], "the selected element shows its link count"
         h.click(chip.rect.center().toPoint())
-        _settle()
+        _settle(h)
         assert h.sel() == ["B"] and abs(_center(h)[0] - 6100) < 1
         assert not h.app.input._capture
         # On screen: no chip.
         h.run("links.back")
-        _settle()
+        _settle(h)
         h.select(["A"])
         h.run("set_attrs", "B", {"translate": [400.0, 0.0]})
         h.refresh()
@@ -503,7 +511,7 @@ def test_linked_to_menu_and_links_section():
         texts = [a.text() for a in menu.actions()]
         assert texts[0] == "→  B" and texts[1] == "←  C" and texts[2].startswith("→  free end"), texts
         menu.actions()[1].trigger()
-        _settle()
+        _settle(h)
         assert h.sel() == ["C"]
         h.select(["A"])
         APP.processEvents()
@@ -511,7 +519,7 @@ def test_linked_to_menu_and_links_section():
         assert section is not None and section.isVisible()
         assert [b.text() for b in section.buttons] == ["→  B", "←  C", "→  free end"]
         section.buttons[0].click()
-        _settle()
+        _settle(h)
         assert h.sel() == ["B"]
         # A link lists its own ends; the link's style editor is still there.
         h.select([link])

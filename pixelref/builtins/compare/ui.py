@@ -608,7 +608,7 @@ def activate_compare_ui(ui: Any) -> None:
         COMPARE_TYPE_NAME,
         factory=factory,
         label="Compare Viewer",
-        icon="split_h",
+        icon="split_right",
         badge=("#70b0ff", "C"),
     )
 
@@ -621,7 +621,7 @@ def activate_compare_ui(ui: Any) -> None:
         "compare.compare_selected",
         "compare.compare_selected",
         "Compare Selected Images (A/B Wipe)",
-        icon="split_h",
+        icon="split_right",
         keywords="compare wipe difference mix ab nuke natron",
         category="Tools",
     )
@@ -629,7 +629,7 @@ def activate_compare_ui(ui: Any) -> None:
         "compare.create",
         "compare.create",
         "Create Compare Viewer",
-        icon="split_h",
+        icon="split_right",
         keywords="compare viewer ab wipe",
         category="Create",
     )
@@ -637,7 +637,7 @@ def activate_compare_ui(ui: Any) -> None:
         "compare.toggle_active",
         "compare.toggle_active",
         "Toggle A/B Active Input",
-        icon="view",
+        icon="eye",
         keywords="toggle ab compare blink",
         category="Tools",
     )
@@ -659,4 +659,4 @@ def activate_compare_ui(ui: Any) -> None:
     ui.menu("canvas", "compare.create", group="create", order=25, when="selection.count == 0")
 
     # Tool palette button
-    ui.contribute("palette.buttons", PaletteButton("compare.compare_selected", "Compare", "split_h", order=35.0))
+    ui.contribute("palette.buttons", PaletteButton("compare.compare_selected", "Compare", "split_right", order=35.0))

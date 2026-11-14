@@ -571,9 +571,12 @@ def test_scratchpad_console_and_contact_sheet_views():
         assert "minimap" not in h.app.wm.view_types
         tile2 = h.app.run_command("wm.open_view", "contact_sheet")
         APP.processEvents()
-        sheet = h.service("contact_sheets")[0]
+        sheets = h.service("contact_sheets")
+        sheet = next(s for s in sheets if s.isVisible())  # the one just opened
         sheet.refresh()
         assert list(sheet.items) == ["Img"]
+        # A sheet in a hidden workspace doesn't decode thumbnails until it is shown.
+        assert all(not s.items for s in sheets if not s.isVisible())
         h.app.run_command("wm.close_view", tile2)
     finally:
         h.close()

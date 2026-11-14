@@ -44,6 +44,7 @@ def activate_ui(ui: Any) -> None:
             self.items: dict[str, QListWidgetItem] = {}
             self._syncing = False
             self._selection_stale = False
+            self._grid_stale = False
             self._signature: list[tuple[str, str, str]] = []
             self._timer = QTimer(self)
             self._timer.setSingleShot(True)
@@ -66,6 +67,12 @@ def activate_ui(ui: Any) -> None:
             return [n.name for n in session.scene.iter_nodes() if session.types.inherits(n.node_type, "image")]
 
         def refresh(self) -> None:
+            if not self.isVisible():
+                # Thumbnails decode every image on the board: a hidden sheet (another workspace,
+                # a background tab) would do that on every edit for nothing. Catch up when shown.
+                self._grid_stale = True
+                return
+            self._grid_stale = False
             cache = ui.service("image_cache")
             names = self.image_nodes()
             signature = [(name, str(session.scene.get_attr(name, "asset") or ""),
@@ -92,7 +99,9 @@ def activate_ui(ui: Any) -> None:
 
         def showEvent(self, event) -> None:  # noqa: ANN001, N802
             super().showEvent(event)
-            if self._selection_stale:
+            if self._grid_stale:
+                self.refresh()  # also syncs the selection
+            elif self._selection_stale:
                 self.sync_selection()
 
         def sync_selection(self) -> None:
